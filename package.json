@@ -8,18 +8,23 @@
     "dev": "nodemon server.js",
     "build": "node scripts/build-exe.js"
   },
-  "keywords": ["tcg", "streaming", "overlay", "obs"],
+  "keywords": [
+    "tcg",
+    "streaming",
+    "overlay",
+    "obs"
+  ],
   "author": "",
   "license": "GPL-3.0",
   "dependencies": {
-    "express": "^4.19.2",
-    "socket.io": "^4.7.5",
-    "better-sqlite3": "^11.0.0",
-    "axios": "^1.7.2",
-    "cheerio": "^1.0.0-rc.12"
+    "axios": "^1.11.0",
+    "better-sqlite3": "^11.10.0",
+    "cheerio": "^1.1.2",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
-    "pkg": "^5.8.1",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.10",
+    "pkg": "^5.8.1"
   }
 }

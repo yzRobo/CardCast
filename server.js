@@ -51,14 +51,17 @@ if (fs.existsSync(configPath)) {
     } catch (e) {
         console.log('Error loading config, using defaults');
     }
+} else {
+    // Save default config
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 }
 
-// Save config
+// Save config function
 function saveConfig() {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 }
 
-// Initialize database
+// Initialize components
 const db = new Database();
 const tcgApi = new TCGApi(db);
 const overlayServer = new OverlayServer(io);
@@ -84,12 +87,14 @@ app.post('/api/config', (req, res) => {
 });
 
 app.get('/api/games', (req, res) => {
-    const games = Object.keys(config.games).map(key => ({
-        id: key,
-        name: key.charAt(0).toUpperCase() + key.slice(1),
-        enabled: config.games[key].enabled,
-        hasData: db.hasGameData(key)
-    }));
+    const games = Object.keys(config.games)
+        .filter(key => config.games[key].enabled)
+        .map(key => ({
+            id: key,
+            name: key.charAt(0).toUpperCase() + key.slice(1),
+            enabled: config.games[key].enabled,
+            hasData: db.hasGameData(key)
+        }));
     res.json(games);
 });
 
@@ -104,10 +109,16 @@ app.post('/api/download/:game', async (req, res) => {
     
     // Start download in background
     tcgApi.downloadGameData(game, (progress) => {
-        io.emit('download-progress', { game, progress });
-    }).then(() => {
-        io.emit('download-complete', { game });
+        io.emit('download-progress', { 
+            game, 
+            progress: progress.percent || 0,
+            message: progress.message || 'Downloading...'
+        });
+    }).then((cardCount) => {
+        io.emit('download-complete', { game, cardCount });
+        console.log(`Downloaded ${cardCount} cards for ${game}`);
     }).catch(err => {
+        console.error(`Download error for ${game}:`, err);
         io.emit('download-error', { game, error: err.message });
     });
 });
@@ -120,19 +131,30 @@ app.get('/api/search/:game', (req, res) => {
         return res.json([]);
     }
     
-    const results = db.searchCards(game, q);
-    res.json(results);
+    try {
+        const results = db.searchCards(game, q);
+        res.json(results);
+    } catch (error) {
+        console.error('Search error:', error);
+        res.json([]);
+    }
 });
 
 app.get('/api/card/:game/:id', (req, res) => {
     const { game, id } = req.params;
-    const card = db.getCard(game, id);
     
-    if (!card) {
-        return res.status(404).json({ error: 'Card not found' });
+    try {
+        const card = db.getCard(game, id);
+        
+        if (!card) {
+            return res.status(404).json({ error: 'Card not found' });
+        }
+        
+        res.json(card);
+    } catch (error) {
+        console.error('Get card error:', error);
+        res.status(500).json({ error: 'Failed to get card' });
     }
-    
-    res.json(card);
 });
 
 // Overlay endpoints
@@ -152,17 +174,47 @@ app.get('/decklist', (req, res) => {
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
     
+    // Send current state to new client
+    socket.emit('state', overlayServer.getState());
+    
     socket.on('display-card', (data) => {
+        console.log('Display card:', data.card?.name);
+        overlayServer.updateCard(data.card);
+        
         // Broadcast to all overlay clients
-        io.emit('show-card', data);
+        io.emit('show-card', {
+            card: data.card,
+            position: data.position || 'left',
+            game: data.game
+        });
     });
     
     socket.on('clear-display', () => {
-        io.emit('clear-card');
+        console.log('Clear display');
+        overlayServer.clearCard();
+        io.emit('clear-card', { position: 'both' });
     });
     
     socket.on('update-prizes', (data) => {
+        console.log('Update prizes:', data);
         io.emit('prizes-update', data);
+    });
+    
+    socket.on('decklist-update', (data) => {
+        console.log('Update decklist');
+        overlayServer.updateDecklist(data.deck?.categories || {});
+        io.emit('decklist-update', data);
+    });
+    
+    socket.on('decklist-add-card', (data) => {
+        console.log('Add card to decklist:', data.card?.name);
+        io.emit('decklist-add-card', data);
+    });
+    
+    socket.on('decklist-clear', () => {
+        console.log('Clear decklist');
+        overlayServer.updateDecklist([]);
+        io.emit('decklist-clear');
     });
     
     socket.on('disconnect', () => {
@@ -188,7 +240,7 @@ OBS Overlays:
 Opening browser...
 `);
     
-    // Auto-open browser on Windows
+    // Auto-open browser
     const url = `http://localhost:${PORT}`;
     switch (process.platform) {
         case 'win32':
@@ -207,5 +259,14 @@ Opening browser...
 process.on('SIGINT', () => {
     console.log('\nShutting down CardCast...');
     db.close();
+    server.close();
     process.exit(0);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (error) => {
+    console.error('Unhandled Rejection:', error);
 });

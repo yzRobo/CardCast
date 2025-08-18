@@ -1,0 +1,44 @@
+{
+  "port": 3888,
+  "theme": "dark",
+  "autoUpdate": true,
+  "games": {
+    "pokemon": {
+      "enabled": true,
+      "dataPath": null
+    },
+    "magic": {
+      "enabled": true,
+      "dataPath": null
+    },
+    "yugioh": {
+      "enabled": true,
+      "dataPath": null
+    },
+    "lorcana": {
+      "enabled": true,
+      "dataPath": null
+    },
+    "onepiece": {
+      "enabled": true,
+      "dataPath": null
+    },
+    "digimon": {
+      "enabled": false,
+      "dataPath": null
+    },
+    "fab": {
+      "enabled": false,
+      "dataPath": null
+    },
+    "starwars": {
+      "enabled": false,
+      "dataPath": null
+    }
+  },
+  "obs": {
+    "mainOverlayPort": 3888,
+    "prizeOverlayPort": 3889,
+    "decklistPort": 3890
+  }
+}
