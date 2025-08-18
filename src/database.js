@@ -1,4 +1,4 @@
-// src/database.js - CardCast Database Handler
+// src/database.js - CardCast Database Handler (Fixed)
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
@@ -93,17 +93,7 @@ class CardDatabase {
             { id: 'onepiece', name: 'One Piece Card Game' },
             { id: 'digimon', name: 'Digimon Card Game' },
             { id: 'fab', name: 'Flesh and Blood' },
-            { id: 'starwars', name: 'Star Wars Unlimited' },
-            { id: 'dragonball', name: 'Dragon Ball Super' },
-            { id: 'vanguard', name: 'Cardfight Vanguard' },
-            { id: 'weiss', name: 'Weiss Schwarz' },
-            { id: 'shadowverse', name: 'Shadowverse Evolve' },
-            { id: 'metazoo', name: 'MetaZoo' },
-            { id: 'grandarchive', name: 'Grand Archive' },
-            { id: 'sorcery', name: 'Sorcery Contested Realm' },
-            { id: 'universus', name: 'UniVersus' },
-            { id: 'keyforge', name: 'KeyForge' },
-            { id: 'force', name: 'Force of Will' }
+            { id: 'starwars', name: 'Star Wars Unlimited' }
         ];
         
         const stmt = this.db.prepare(`
@@ -145,102 +135,214 @@ class CardDatabase {
         this.updateRecentStmt = this.db.prepare(`
             INSERT INTO recent_cards (card_id, game) VALUES (?, ?)
         `);
+        
+        // Clear game data statements
+        this.clearCardsStmt = this.db.prepare('DELETE FROM cards WHERE game = ?');
+        this.clearRecentStmt = this.db.prepare('DELETE FROM recent_cards WHERE game = ?');
+        this.resetGameStmt = this.db.prepare('UPDATE games SET card_count = 0, last_update = 0 WHERE id = ?');
+        
+        // Has game data statement
+        this.hasDataStmt = this.db.prepare('SELECT card_count FROM games WHERE id = ?');
+        
+        // Update game info statement
+        this.updateGameStmt = this.db.prepare('UPDATE games SET last_update = ?, card_count = ? WHERE id = ?');
     }
     
     hasGameData(game) {
-        const result = this.db.prepare(
-            'SELECT card_count FROM games WHERE id = ?'
-        ).get(game);
-        return result && result.card_count > 0;
+        try {
+            const result = this.hasDataStmt.get(game);
+            return result && result.card_count > 0;
+        } catch (error) {
+            console.error(`Error checking game data for ${game}:`, error);
+            return false;
+        }
     }
     
     searchCards(game, query) {
-        const searchTerm = `%${query.toLowerCase()}%`;
-        const startTerm = `${query.toLowerCase()}%`;
-        return this.searchStmt.all(game, searchTerm, startTerm);
+        try {
+            const searchTerm = `%${query.toLowerCase()}%`;
+            const startTerm = `${query.toLowerCase()}%`;
+            return this.searchStmt.all(game, searchTerm, startTerm);
+        } catch (error) {
+            console.error(`Error searching cards for ${game}:`, error);
+            return [];
+        }
     }
     
     getCard(game, cardId) {
-        const card = this.getCardStmt.get(game, cardId);
-        if (card) {
-            // Update recent cards
-            this.updateRecentStmt.run(cardId, game);
-            // Parse attributes from JSON
-            if (card.attributes) {
-                card.attributes = JSON.parse(card.attributes);
+        try {
+            const card = this.getCardStmt.get(game, cardId);
+            if (card) {
+                // Update recent cards
+                this.updateRecentStmt.run(cardId, game);
+                // Parse attributes from JSON
+                if (card.attributes) {
+                    try {
+                        card.attributes = JSON.parse(card.attributes);
+                    } catch (e) {
+                        card.attributes = {};
+                    }
+                }
             }
+            return card;
+        } catch (error) {
+            console.error(`Error getting card ${cardId} for ${game}:`, error);
+            return null;
         }
-        return card;
     }
     
     insertCard(cardData) {
-        const searchText = `${cardData.name} ${cardData.set_name} ${cardData.card_number} ${cardData.card_text}`.toLowerCase();
-        const attributes = JSON.stringify(cardData.attributes || {});
-        
-        this.insertCardStmt.run(
-            cardData.id,
-            cardData.game,
-            cardData.name,
-            cardData.set_name,
-            cardData.set_code,
-            cardData.card_number,
-            cardData.image_url,
-            cardData.rarity,
-            cardData.card_type,
-            cardData.card_text,
-            attributes,
-            searchText
-        );
+        try {
+            const searchText = `${cardData.name} ${cardData.set_name} ${cardData.card_number} ${cardData.card_text}`.toLowerCase();
+            const attributes = JSON.stringify(cardData.attributes || {});
+            
+            this.insertCardStmt.run(
+                cardData.id,
+                cardData.game,
+                cardData.name,
+                cardData.set_name,
+                cardData.set_code,
+                cardData.card_number,
+                cardData.image_url,
+                cardData.rarity,
+                cardData.card_type,
+                cardData.card_text,
+                attributes,
+                searchText
+            );
+        } catch (error) {
+            console.error(`Error inserting card ${cardData.id}:`, error);
+            throw error;
+        }
     }
     
     bulkInsertCards(cards) {
         const insert = this.db.transaction((cards) => {
             for (const card of cards) {
-                this.insertCard(card);
+                try {
+                    this.insertCard(card);
+                } catch (error) {
+                    console.error(`Error inserting card ${card.id}:`, error);
+                    // Continue with other cards
+                }
             }
         });
         
-        insert(cards);
+        try {
+            insert(cards);
+        } catch (error) {
+            console.error('Error in bulk insert:', error);
+            // Try inserting one by one as fallback
+            cards.forEach(card => {
+                try {
+                    this.insertCard(card);
+                } catch (err) {
+                    console.error(`Failed to insert card ${card.id}:`, err);
+                }
+            });
+        }
     }
     
     updateGameInfo(gameId, cardCount) {
-        this.db.prepare(`
-            UPDATE games 
-            SET last_update = ?, card_count = ?
-            WHERE id = ?
-        `).run(
-            Date.now(),
-            cardCount,
-            gameId
-        );
+        try {
+            this.updateGameStmt.run(Date.now(), cardCount, gameId);
+        } catch (error) {
+            console.error(`Error updating game info for ${gameId}:`, error);
+        }
     }
     
     getRecentCards(game, limit = 10) {
-        return this.db.prepare(`
-            SELECT c.* FROM cards c
-            JOIN recent_cards r ON c.id = r.card_id
-            WHERE r.game = ?
-            ORDER BY r.accessed_at DESC
-            LIMIT ?
-        `).all(game, limit);
+        try {
+            return this.db.prepare(`
+                SELECT c.* FROM cards c
+                JOIN recent_cards r ON c.id = r.card_id
+                WHERE r.game = ?
+                ORDER BY r.accessed_at DESC
+                LIMIT ?
+            `).all(game, limit);
+        } catch (error) {
+            console.error(`Error getting recent cards for ${game}:`, error);
+            return [];
+        }
     }
     
     clearGameData(game) {
-        this.db.prepare('DELETE FROM cards WHERE game = ?').run(game);
-        this.db.prepare('DELETE FROM recent_cards WHERE game = ?').run(game);
-        this.db.prepare('UPDATE games SET card_count = 0, last_update = 0 WHERE id = ?').run(game);
+        console.log(`Clearing game data for ${game}...`);
+        
+        const clearTransaction = this.db.transaction(() => {
+            try {
+                // IMPORTANT: Delete in correct order due to foreign key constraints
+                // 1. First delete recent cards (they reference cards table)
+                const recentResult = this.clearRecentStmt.run(game);
+                console.log(`Deleted ${recentResult.changes} recent cards for ${game}`);
+                
+                // 2. Then delete cards (no longer referenced by recent_cards)
+                const cardsResult = this.clearCardsStmt.run(game);
+                console.log(`Deleted ${cardsResult.changes} cards for ${game}`);
+                
+                // 3. Finally reset game info
+                const resetResult = this.resetGameStmt.run(game);
+                console.log(`Reset game info for ${game}`);
+                
+                return true;
+            } catch (error) {
+                console.error(`Error in clearGameData transaction for ${game}:`, error);
+                throw error;
+            }
+        });
+        
+        try {
+            clearTransaction();
+            console.log(`Successfully cleared all data for ${game}`);
+        } catch (error) {
+            console.error(`Failed to clear game data for ${game}:`, error);
+            
+            // If foreign key constraint fails, try alternative approach
+            if (error.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+                console.log('Attempting alternative clear method with foreign keys disabled...');
+                try {
+                    // Temporarily disable foreign keys
+                    this.db.pragma('foreign_keys = OFF');
+                    
+                    // Delete everything
+                    this.clearRecentStmt.run(game);
+                    this.clearCardsStmt.run(game);
+                    this.resetGameStmt.run(game);
+                    
+                    // Re-enable foreign keys
+                    this.db.pragma('foreign_keys = ON');
+                    
+                    console.log('Successfully cleared data with alternative method');
+                } catch (altError) {
+                    // Re-enable foreign keys even on error
+                    this.db.pragma('foreign_keys = ON');
+                    throw altError;
+                }
+            } else {
+                throw new Error(`Database error: Failed to clear data for ${game}`);
+            }
+        }
     }
     
     getGameStats() {
-        return this.db.prepare(`
-            SELECT id, name, card_count, last_update 
-            FROM games 
-            ORDER BY name
-        `).all();
+        try {
+            return this.db.prepare(`
+                SELECT id, name, card_count, last_update 
+                FROM games 
+                ORDER BY name
+            `).all();
+        } catch (error) {
+            console.error('Error getting game stats:', error);
+            return [];
+        }
     }
     
     close() {
-        this.db.close();
+        try {
+            this.db.close();
+        } catch (error) {
+            console.error('Error closing database:', error);
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-// src/tcg-api.js - CardCast TCGCSV.com Data Fetcher
+// src/tcg-api.js - CardCast TCG API with Local Image Caching
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
@@ -9,299 +9,444 @@ class TCGApi {
         this.db = database;
         this.baseUrl = 'https://tcgcsv.com';
         this.cacheDir = path.join(__dirname, '..', 'cache');
+        this.imagesDir = path.join(__dirname, '..', 'cache', 'images');
         
-        // Ensure cache directory exists
+        // Ensure directories exist
         if (!fs.existsSync(this.cacheDir)) {
             fs.mkdirSync(this.cacheDir, { recursive: true });
         }
+        if (!fs.existsSync(this.imagesDir)) {
+            fs.mkdirSync(this.imagesDir, { recursive: true });
+        }
         
-        // Game configurations for TCGCSV.com
-        // Note: These URLs need to be verified with actual TCGCSV.com API
+        // Create game-specific image directories
+        const games = ['pokemon', 'magic', 'yugioh', 'lorcana', 'onepiece', 'digimon', 'fab', 'starwars'];
+        games.forEach(game => {
+            const gameDir = path.join(this.imagesDir, game);
+            if (!fs.existsSync(gameDir)) {
+                fs.mkdirSync(gameDir, { recursive: true });
+            }
+        });
+        
         this.gameConfigs = {
             pokemon: {
                 name: 'Pokemon',
-                csvUrl: 'https://tcgcsv.com/api/pokemon/cards',
-                searchUrl: 'https://api.pokemontcg.io/v2/cards',
-                apiKey: null, // Add if needed
+                apiUrl: 'https://api.pokemontcg.io/v2/cards',
                 parseCard: this.parsePokemonCard.bind(this)
             },
             magic: {
                 name: 'Magic: The Gathering',
-                csvUrl: 'https://tcgcsv.com/api/magic/cards',
-                searchUrl: 'https://api.scryfall.com/cards/search',
+                apiUrl: 'https://api.scryfall.com/cards/search',
                 parseCard: this.parseMagicCard.bind(this)
             },
             yugioh: {
                 name: 'Yu-Gi-Oh!',
-                csvUrl: 'https://tcgcsv.com/api/yugioh/cards',
-                searchUrl: 'https://db.ygoprodeck.com/api/v7/cardinfo.php',
+                apiUrl: 'https://db.ygoprodeck.com/api/v7/cardinfo.php',
                 parseCard: this.parseYugiohCard.bind(this)
             },
             lorcana: {
                 name: 'Disney Lorcana',
-                csvUrl: 'https://tcgcsv.com/api/lorcana/cards',
-                searchUrl: null,
+                apiUrl: null,
                 parseCard: this.parseLorcanaCard.bind(this)
             },
             onepiece: {
                 name: 'One Piece Card Game',
-                csvUrl: 'https://tcgcsv.com/api/onepiece/cards',
-                searchUrl: null,
+                apiUrl: null,
                 parseCard: this.parseOnePieceCard.bind(this)
             }
         };
     }
     
-    async downloadGameData(game, progressCallback) {
+    async downloadGameData(game, progressCallback, incremental = false, setCount = 'all') {
         const config = this.gameConfigs[game];
         if (!config) {
             throw new Error(`Unsupported game: ${game}`);
         }
         
-        console.log(`Starting download for ${config.name}...`);
-        progressCallback({ status: 'starting', percent: 0, message: 'Preparing download...' });
+        console.log(`Starting ${incremental ? 'incremental update' : 'full download'} for ${config.name} (${setCount} sets)...`);
+        progressCallback({ status: 'starting', percent: 0, message: incremental ? 'Preparing update...' : 'Preparing download...' });
         
         try {
-            console.log(`Clearing existing data for ${game}...`);
-            // Clear existing data
-            this.db.clearGameData(game);
+            // Only clear existing data if NOT incremental
+            if (!incremental) {
+                console.log(`Clearing existing data for ${game}...`);
+                try {
+                    this.db.clearGameData(game);
+                    this.clearGameImages(game);
+                } catch (clearError) {
+                    console.error(`Error clearing data for ${game}:`, clearError);
+                    // Continue anyway - we'll overwrite the data
+                }
+            } else {
+                console.log(`Incremental update - keeping existing data for ${game}`);
+            }
             
             progressCallback({ status: 'fetching', percent: 10, message: 'Fetching card data...' });
             
-            // Fetch cards based on game
             let cards = [];
+            let existingCardCount = 0;
             
-            console.log(`Fetching cards for ${game}...`);
+            // Get existing card count for incremental updates
+            if (incremental) {
+                const stats = this.db.getGameStats().find(g => g.id === game);
+                existingCardCount = stats?.card_count || 0;
+                console.log(`Existing cards in database: ${existingCardCount}`);
+            }
+            
+            // Fetch cards based on game
             switch(game) {
                 case 'pokemon':
-                    cards = await this.fetchPokemonCards(progressCallback);
+                    cards = await this.fetchPokemonCards(progressCallback, incremental, setCount);
                     break;
                 case 'magic':
-                    cards = await this.fetchMagicCards(progressCallback);
+                    cards = await this.fetchMagicCards(progressCallback, incremental, setCount);
                     break;
                 case 'yugioh':
-                    cards = await this.fetchYugiohCards(progressCallback);
+                    cards = await this.fetchYugiohCards(progressCallback, incremental, setCount);
                     break;
                 default:
-                    // For games without public APIs, try TCGCSV or use sample data
-                    cards = await this.fetchFromTCGCSV(game, config, progressCallback);
+                    // For unsupported games, generate sample data for testing
+                    console.log(`Using sample data for ${game}`);
+                    cards = this.generateSampleCards(game);
             }
-            console.log(`Fetched ${cards.length} cards for ${game}`);
             
-            // Save to database
-            progressCallback({ status: 'saving', percent: 90, message: 'Saving to database...' });
+            console.log(`Fetched ${cards.length} ${incremental ? 'new' : ''} cards for ${game}`);
+            
+            if (cards.length === 0 && !incremental) {
+                throw new Error('No cards were fetched');
+            }
             
             if (cards.length > 0) {
-                console.log(`Saving ${cards.length} cards to database...`);
+                // Download images for cards
+                progressCallback({ status: 'downloading', percent: 70, message: `Downloading images for ${cards.length} cards...` });
+                await this.downloadCardImages(cards, game, progressCallback);
+                
+                // Save to database
+                progressCallback({ status: 'saving', percent: 90, message: 'Saving to database...' });
+                
                 const batchSize = 100;
                 for (let i = 0; i < cards.length; i += batchSize) {
                     const batch = cards.slice(i, i + batchSize);
                     try {
                         this.db.bulkInsertCards(batch);
-                        console.log(`Saved batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(cards.length/batchSize)}`);
-                    } catch (dbError) {
-                        console.error(`Error saving batch at index ${i}:`, dbError);
-                        throw new Error(`Database error: ${dbError.message}`);
+                    } catch (insertError) {
+                        console.error(`Error inserting batch at ${i}:`, insertError);
+                        // Continue with other batches
                     }
                     
                     const savePercent = 90 + (i / cards.length) * 10;
                     progressCallback({ 
                         status: 'saving', 
                         percent: Math.floor(savePercent), 
-                        message: `Saving cards... (${i}/${cards.length})`
+                        message: `Saving cards... (${Math.min(i + batchSize, cards.length)}/${cards.length})`
                     });
                 }
-            } else {
-                console.log('No cards to save!');
             }
             
-            this.db.updateGameInfo(game, cards.length);
+            // Update game info with new total
+            const finalCardCount = incremental ? existingCardCount + cards.length : cards.length;
+            this.db.updateGameInfo(game, finalCardCount);
             
-            progressCallback({ status: 'complete', percent: 100, message: 'Download complete!' });
-            console.log(`Downloaded ${cards.length} cards for ${config.name}`);
+            progressCallback({ status: 'complete', percent: 100, message: incremental ? 'Update complete!' : 'Download complete!' });
+            console.log(`${incremental ? 'Updated' : 'Downloaded'} ${cards.length} cards for ${config.name}. Total cards: ${finalCardCount}`);
             
             return cards.length;
         } catch (error) {
-            console.error(`Error downloading ${game} data:`, error);
+            console.error(`Error ${incremental ? 'updating' : 'downloading'} ${game} data:`, error);
+            // Don't reset count on error if incremental
+            if (!incremental) {
+                this.db.updateGameInfo(game, 0);
+            }
             throw error;
         }
     }
     
-    async fetchPokemonCards(progressCallback) {
-        console.log('Starting Pokemon card fetch...');
+    async fetchPokemonCards(progressCallback, incremental = false, setCount = 'all') {
+        console.log(`Starting Pokemon card fetch (${incremental ? 'incremental' : 'full'}, ${setCount} sets)...`);
         const cards = [];
-        const pageSize = 250;
-        let page = 1;
-        let totalPages = 1;
+        const cardMap = new Map();
         
         try {
-            // Use Pokemon TCG API with better configuration
-            while (page <= totalPages && page <= 2) { // Limit to 2 pages for testing
-                progressCallback({ 
-                    status: 'downloading', 
-                    percent: 10 + (page / Math.min(totalPages, 100)) * 70, 
-                    message: `Fetching Pokemon cards... (Page ${page}/${Math.min(totalPages, 100)})`
+            // First, fetch all available sets to get the most recent ones
+            progressCallback({ 
+                status: 'fetching', 
+                percent: 5, 
+                message: 'Fetching available Pokemon sets...'
+            });
+            
+            let allSets = [];
+            try {
+                const setsResponse = await axios.get('https://api.pokemontcg.io/v2/sets', {
+                    params: {
+                        orderBy: '-releaseDate', // Order by newest first
+                        pageSize: 250
+                    },
+                    timeout: 30000,
+                    headers: {
+                        'User-Agent': 'CardCast/1.0.0',
+                        'Accept': 'application/json'
+                    }
                 });
                 
-                let response;
-                let retries = 3;
-                let lastError;
+                if (setsResponse.data && setsResponse.data.data) {
+                    allSets = setsResponse.data.data;
+                    console.log(`Found ${allSets.length} Pokemon sets`);
+                }
+            } catch (setsError) {
+                console.error('Error fetching Pokemon sets:', setsError.message);
+                // Fall back to hardcoded recent sets if API fails
+                allSets = [
+                    { id: 'sv8', name: 'Surging Sparks' },
+                    { id: 'sv7', name: 'Stellar Crown' },
+                    { id: 'sv6', name: 'Twilight Masquerade' },
+                    { id: 'sv5', name: 'Temporal Forces' },
+                    { id: 'sv4', name: 'Paradox Rift' },
+                    { id: 'sv3', name: 'Obsidian Flames' },
+                    { id: 'sv2', name: 'Paldea Evolved' },
+                    { id: 'sv1', name: 'Scarlet & Violet' }
+                ];
+            }
+            
+            // Determine which sets to fetch based on setCount
+            let setsToFetch = [];
+            if (setCount === 'all') {
+                setsToFetch = allSets;
+            } else {
+                const count = parseInt(setCount) || 3;
+                setsToFetch = allSets.slice(0, count);
+            }
+            
+            console.log(`Will fetch ${setsToFetch.length} sets: ${setsToFetch.map(s => s.id).join(', ')}`);
+            
+            // Fetch cards from selected sets
+            for (let i = 0; i < setsToFetch.length; i++) {
+                const set = setsToFetch[i];
+                progressCallback({ 
+                    status: 'downloading', 
+                    percent: 10 + (i / setsToFetch.length) * 60, 
+                    message: `Fetching ${set.name} (${i + 1}/${setsToFetch.length})...`
+                });
                 
-                while (retries > 0) {
+                let retries = 3;
+                let success = false;
+                
+                while (retries > 0 && !success) {
                     try {
-                        response = await axios.get('https://api.pokemontcg.io/v2/cards', {
+                        const response = await axios.get('https://api.pokemontcg.io/v2/cards', {
                             params: {
-                                page: page,
-                                pageSize: pageSize
+                                q: `set.id:${set.id}`,
+                                pageSize: 250
                             },
-                            timeout: 60000, // Increased timeout
+                            timeout: 60000,
+                            headers: {
+                                'User-Agent': 'CardCast/1.0.0',
+                                'Accept': 'application/json'
+                            }
+                        });
+                        
+                        if (response.data && response.data.data) {
+                            console.log(`${set.name}: Got ${response.data.data.length} cards`);
+                            
+                            response.data.data.forEach(card => {
+                                if (!cardMap.has(card.id)) {
+                                    const cardData = {
+                                        id: `pokemon_${card.id}`,
+                                        game: 'pokemon',
+                                        name: card.name,
+                                        set_name: card.set?.name || set.name,
+                                        set_code: card.set?.id || set.id,
+                                        card_number: card.number || '',
+                                        image_url: card.images?.large || card.images?.small || '',
+                                        rarity: card.rarity || 'Common',
+                                        card_type: card.supertype || 'Pokemon',
+                                        card_text: this.buildPokemonText(card),
+                                        attributes: {
+                                            hp: card.hp || null,
+                                            types: card.types || [],
+                                            retreatCost: card.retreatCost?.length || 0,
+                                            attacks: card.attacks || [],
+                                            abilities: card.abilities || []
+                                        }
+                                    };
+                                    cardMap.set(card.id, cardData);
+                                }
+                            });
+                            success = true;
+                        }
+                    } catch (setError) {
+                        retries--;
+                        console.error(`Error fetching Pokemon set ${set.id}, retries left ${retries}:`, setError.message);
+                        if (retries > 0) {
+                            console.log(`Waiting 3 seconds before retry...`);
+                            await this.delay(3000);
+                        }
+                    }
+                }
+                
+                if (!success) {
+                    console.log(`Skipping set ${set.id} after all retries failed`);
+                }
+                
+                await this.delay(200); // Rate limiting between sets
+            }
+            
+            // Convert map to array
+            cards.push(...cardMap.values());
+            console.log(`Total unique Pokemon cards fetched: ${cards.length}`);
+            
+        } catch (error) {
+            console.error('Error fetching Pokemon cards:', error.message);
+            if (cards.length === 0 && !incremental) {
+                throw error;
+            }
+        }
+        
+        return cards;
+    }
+    
+    async fetchMagicCards(progressCallback, incremental = false, setCount = 'all') {
+        const cards = [];
+        const cardMap = new Map();
+        
+        try {
+            // First, fetch recent sets
+            progressCallback({ 
+                status: 'fetching', 
+                percent: 5, 
+                message: 'Fetching available Magic sets...'
+            });
+            
+            let allSets = [];
+            try {
+                const setsResponse = await axios.get('https://api.scryfall.com/sets', {
+                    timeout: 30000,
+                    headers: {
+                        'User-Agent': 'CardCast/1.0.0'
+                    }
+                });
+                
+                if (setsResponse.data && setsResponse.data.data) {
+                    // Filter for main sets only, sorted by release date
+                    allSets = setsResponse.data.data
+                        .filter(set => set.set_type === 'core' || set.set_type === 'expansion')
+                        .sort((a, b) => new Date(b.released_at) - new Date(a.released_at));
+                    console.log(`Found ${allSets.length} Magic sets`);
+                }
+            } catch (setsError) {
+                console.error('Error fetching Magic sets:', setsError.message);
+                // Fall back to recent set codes
+                allSets = [
+                    { code: 'dsk', name: 'Duskmourn' },
+                    { code: 'blb', name: 'Bloomburrow' },
+                    { code: 'otj', name: 'Outlaws of Thunder Junction' },
+                    { code: 'mkm', name: 'Murders at Karlov Manor' },
+                    { code: 'lci', name: 'The Lost Caverns of Ixalan' }
+                ];
+            }
+            
+            // Determine which sets to fetch
+            let setsToFetch = [];
+            if (setCount === 'all') {
+                // For Magic, limit to last 20 sets for "all" to be reasonable
+                setsToFetch = allSets.slice(0, 20);
+            } else {
+                const count = parseInt(setCount) || 3;
+                setsToFetch = allSets.slice(0, count);
+            }
+            
+            console.log(`Will fetch ${setsToFetch.length} Magic sets`);
+            
+            // Fetch cards from selected sets
+            for (let i = 0; i < setsToFetch.length; i++) {
+                const set = setsToFetch[i];
+                progressCallback({ 
+                    status: 'downloading', 
+                    percent: 10 + (i / setsToFetch.length) * 60, 
+                    message: `Fetching ${set.name} (${i + 1}/${setsToFetch.length})...`
+                });
+                
+                try {
+                    let hasMore = true;
+                    let page = 1;
+                    let searchUrl = 'https://api.scryfall.com/cards/search';
+                    
+                    while (hasMore && page <= 5) {
+                        const response = await axios.get(searchUrl, {
+                            params: {
+                                q: `set:${set.code}`,
+                                page: page,
+                                format: 'json',
+                                unique: 'cards'
+                            },
+                            timeout: 30000,
                             headers: {
                                 'User-Agent': 'CardCast/1.0.0'
                             }
                         });
-                        break; // Success, exit retry loop
-                    } catch (err) {
-                        lastError = err;
-                        retries--;
-                        if (retries > 0) {
-                            console.log(`Retry ${3 - retries}/3 for Pokemon API...`);
-                            await this.delay(2000); // Wait 2 seconds before retry
-                        }
-                    }
-                }
-                
-                if (!response && lastError) {
-                    throw lastError;
-                }
-                
-                if (response && response.data && response.data.data) {
-                    console.log(`Page ${page}: Got ${response.data.data.length} cards`);
-                    response.data.data.forEach(card => {
-                        cards.push({
-                            id: `pokemon_${card.id}`,
-                            game: 'pokemon',
-                            name: card.name,
-                            set_name: card.set?.name || '',
-                            set_code: card.set?.id || '',
-                            card_number: card.number || '',
-                            image_url: card.images?.large || card.images?.small || '',
-                            rarity: card.rarity || 'Common',
-                            card_type: card.supertype || 'Pokemon',
-                            card_text: this.buildPokemonText(card),
-                            attributes: {
-                                hp: card.hp || null,
-                                types: card.types || [],
-                                retreatCost: card.retreatCost?.length || 0,
-                                attacks: card.attacks || [],
-                                abilities: card.abilities || [],
-                                weaknesses: card.weaknesses || [],
-                                resistances: card.resistances || []
+                        
+                        if (response.data && response.data.data) {
+                            console.log(`${set.name} page ${page}: Got ${response.data.data.length} cards`);
+                            
+                            response.data.data.forEach(card => {
+                                if (!cardMap.has(card.id)) {
+                                    const cardData = {
+                                        id: `magic_${card.id}`,
+                                        game: 'magic',
+                                        name: card.name,
+                                        set_name: card.set_name || set.name,
+                                        set_code: card.set || set.code,
+                                        card_number: card.collector_number || '',
+                                        image_url: card.image_uris?.normal || card.image_uris?.small || card.card_faces?.[0]?.image_uris?.normal || '',
+                                        rarity: card.rarity || 'common',
+                                        card_type: card.type_line || '',
+                                        card_text: card.oracle_text || card.card_faces?.[0]?.oracle_text || '',
+                                        attributes: {
+                                            manaCost: card.mana_cost || card.card_faces?.[0]?.mana_cost || '',
+                                            cmc: card.cmc || 0,
+                                            power: card.power || null,
+                                            toughness: card.toughness || null,
+                                            colors: card.colors || card.color_identity || []
+                                        }
+                                    };
+                                    cardMap.set(card.id, cardData);
+                                }
+                            });
+                            
+                            hasMore = response.data.has_more || false;
+                            if (response.data.next_page) {
+                                searchUrl = response.data.next_page;
+                                page++;
+                            } else {
+                                hasMore = false;
                             }
-                        });
-                    });
-                    
-                    // Get total pages from first response
-                    if (page === 1 && response.data.totalCount) {
-                        totalPages = Math.ceil(response.data.totalCount / pageSize);
-                    }
-                }
-                
-                page++;
-                await this.delay(100); // Rate limiting
-            }
-        } catch (error) {
-            console.error('Error fetching Pokemon cards:', error.message);
-            console.error('Error details:', error.code || 'Unknown error');
-            
-            if (error.code === 'ENOTFOUND') {
-                throw new Error('Network error: Could not connect to Pokemon TCG API. Check your internet connection.');
-            } else if (error.code === 'ETIMEDOUT') {
-                throw new Error('Timeout error: Pokemon TCG API is taking too long to respond. Try again later.');
-            } else if (error.response?.status === 429) {
-                throw new Error('Rate limit error: Too many requests to Pokemon TCG API. Wait a few minutes and try again.');
-            } else {
-                throw new Error(`Pokemon TCG API error: ${error.message}`);
-            }
-        }
-        
-        return cards;
-    }
-    
-    async fetchMagicCards(progressCallback) {
-        const cards = [];
-        
-        try {
-            // Fetch popular/recent sets from Scryfall
-            const sets = ['neo', 'snc', 'dmu', 'bro', 'one']; // Recent set codes
-            
-            for (let i = 0; i < sets.length; i++) {
-                progressCallback({ 
-                    status: 'downloading', 
-                    percent: 10 + (i / sets.length) * 70, 
-                    message: `Fetching Magic cards... (Set ${i + 1}/${sets.length})`
-                });
-                
-                let response;
-                try {
-                    response = await axios.get('https://api.scryfall.com/cards/search', {
-                        params: {
-                            q: `set:${sets[i]}`,
-                            format: 'json'
-                        },
-                        timeout: 30000,
-                        headers: {
-                            'User-Agent': 'CardCast/1.0.0'
+                        } else {
+                            hasMore = false;
                         }
-                    });
-                } catch (err) {
-                    console.error(`Error fetching Magic set ${sets[i]}:`, err.message);
-                    continue; // Skip this set and continue with others
+                        
+                        await this.delay(100);
+                    }
+                } catch (setError) {
+                    console.error(`Error fetching Magic set ${set.code}:`, setError.message);
                 }
                 
-                if (response && response.data && response.data.data) {
-                    console.log(`Page ${page}: Got ${response.data.data.length} cards`);
-                    response.data.data.forEach(card => {
-                        cards.push({
-                            id: `magic_${card.id}`,
-                            game: 'magic',
-                            name: card.name,
-                            set_name: card.set_name || '',
-                            set_code: card.set || '',
-                            card_number: card.collector_number || '',
-                            image_url: card.image_uris?.normal || card.image_uris?.small || '',
-                            rarity: card.rarity || 'common',
-                            card_type: card.type_line || '',
-                            card_text: card.oracle_text || '',
-                            attributes: {
-                                manaCost: card.mana_cost || '',
-                                cmc: card.cmc || 0,
-                                power: card.power || null,
-                                toughness: card.toughness || null,
-                                colors: card.colors || [],
-                                colorIdentity: card.color_identity || []
-                            }
-                        });
-                    });
-                }
-                
-                await this.delay(100); // Rate limiting
+                await this.delay(200);
             }
+            
+            // Convert map to array
+            cards.push(...cardMap.values());
+            console.log(`Total unique Magic cards fetched: ${cards.length}`);
+            
         } catch (error) {
             console.error('Error fetching Magic cards:', error.message);
-            
-            if (error.code === 'ENOTFOUND') {
-                throw new Error('Network error: Could not connect to Scryfall API. Check your internet connection.');
-            } else if (error.code === 'ETIMEDOUT') {
-                throw new Error('Timeout error: Scryfall API is taking too long to respond. Try again later.');
-            } else {
-                throw new Error(`Scryfall API error: ${error.message}`);
+            if (cards.length === 0 && !incremental) {
+                throw error;
             }
         }
         
         return cards;
     }
     
-    async fetchYugiohCards(progressCallback) {
+    async fetchYugiohCards(progressCallback, incremental = false, setCount = 'all') {
         const cards = [];
         
         try {
@@ -311,27 +456,29 @@ class TCGApi {
                 message: 'Fetching Yu-Gi-Oh! cards...'
             });
             
-            // Fetch staple cards
-            let response;
-            try {
-                response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php', {
-                    params: {
-                        staple: 'yes',
-                        num: 100,
-                        offset: 0
-                    },
-                    timeout: 30000,
-                    headers: {
-                        'User-Agent': 'CardCast/1.0.0'
-                    }
-                });
-            } catch (err) {
-                console.error('Error fetching YuGiOh cards:', err.message);
-                // Try alternative endpoint or return empty
-                return [];
-            }
+            // For YuGiOh, we'll fetch based on the number requested
+            const cardLimit = setCount === 'all' ? 500 : parseInt(setCount) * 50 || 100;
+            
+            const params = incremental ? {
+                num: Math.min(cardLimit, 100),
+                offset: 0,
+                sort: 'new'
+            } : {
+                staple: 'yes',
+                num: Math.min(cardLimit, 500),
+                offset: 0
+            };
+            
+            const response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php', {
+                params: params,
+                timeout: 30000,
+                headers: {
+                    'User-Agent': 'CardCast/1.0.0'
+                }
+            });
             
             if (response.data && response.data.data) {
+                console.log(`YuGiOh: Got ${response.data.data.length} cards`);
                 response.data.data.forEach(card => {
                     cards.push({
                         id: `yugioh_${card.id}`,
@@ -356,36 +503,113 @@ class TCGApi {
             }
         } catch (error) {
             console.error('Error fetching Yu-Gi-Oh! cards:', error.message);
-            
-            if (error.code === 'ENOTFOUND') {
-                throw new Error('Network error: Could not connect to YGOPRODeck API. Check your internet connection.');
-            } else if (error.code === 'ETIMEDOUT') {
-                throw new Error('Timeout error: YGOPRODeck API is taking too long to respond. Try again later.');
-            } else {
-                throw new Error(`YGOPRODeck API error: ${error.message}`);
+            if (cards.length === 0 && !incremental) {
+                throw error;
             }
         }
         
         return cards;
     }
     
-    async fetchFromTCGCSV(game, config, progressCallback) {
-        // Try to fetch from TCGCSV.com
-        // This would need the actual API endpoints from TCGCSV
-        try {
-            progressCallback({ 
-                status: 'downloading', 
-                percent: 40, 
-                message: `Fetching ${config.name} cards from TCGCSV...`
+    async downloadCardImages(cards, game, progressCallback) {
+        const totalCards = cards.length;
+        const downloadBatch = 10; // Download 10 images at a time
+        let downloaded = 0;
+        
+        for (let i = 0; i < cards.length; i += downloadBatch) {
+            const batch = cards.slice(i, i + downloadBatch);
+            const promises = batch.map(async (card) => {
+                if (card.image_url) {
+                    try {
+                        const localPath = await this.downloadImage(card.image_url, card.id, game);
+                        card.local_image = localPath;
+                        // Update the image_url to use the local path
+                        if (localPath && localPath !== card.image_url) {
+                            card.image_url = `/cache/images/${game}/${path.basename(localPath)}`;
+                        }
+                    } catch (err) {
+                        console.error(`Failed to download image for ${card.name}:`, err.message);
+                    }
+                }
             });
             
-            // For now, throw an error since TCGCSV endpoints are not implemented
-            console.log(`TCGCSV integration pending for ${game}`);
-            throw new Error(`${game} data download not available yet. TCGCSV.com integration is still being developed for this game.`);
+            await Promise.all(promises);
+            downloaded += batch.length;
             
+            const percent = 70 + (downloaded / totalCards) * 20;
+            progressCallback({
+                status: 'downloading',
+                percent: Math.floor(percent),
+                message: `Downloading images... (${downloaded}/${totalCards})`
+            });
+        }
+    }
+    
+    async downloadImage(imageUrl, cardId, game) {
+        if (!imageUrl || imageUrl.includes('placeholder')) {
+            return imageUrl;
+        }
+        
+        try {
+            // Sanitize the card ID for filename
+            const safeId = cardId.replace(/[^a-z0-9_-]/gi, '_');
+            const extension = '.jpg'; // Always use jpg for consistency
+            const imagePath = path.join(this.imagesDir, game, `${safeId}${extension}`);
+            
+            // Check if already cached
+            if (fs.existsSync(imagePath)) {
+                return imagePath;
+            }
+            
+            // Download image with retry logic
+            let retries = 3;
+            let lastError;
+            
+            while (retries > 0) {
+                try {
+                    const response = await axios.get(imageUrl, {
+                        responseType: 'arraybuffer',
+                        timeout: 15000,
+                        headers: {
+                            'User-Agent': 'CardCast/1.0.0'
+                        }
+                    });
+                    
+                    fs.writeFileSync(imagePath, response.data);
+                    return imagePath;
+                } catch (error) {
+                    lastError = error;
+                    retries--;
+                    if (retries > 0) {
+                        await this.delay(1000); // Wait 1 second before retry
+                    }
+                }
+            }
+            
+            throw lastError;
         } catch (error) {
-            console.error(`Error fetching from TCGCSV for ${game}:`, error);
-            throw new Error(`TCGCSV API error for ${game}: ${error.message}`);
+            console.error(`Error downloading image for ${cardId}:`, error.message);
+            return imageUrl; // Return original URL if download fails
+        }
+    }
+    
+    clearGameImages(game) {
+        const gameDir = path.join(this.imagesDir, game);
+        if (fs.existsSync(gameDir)) {
+            try {
+                const files = fs.readdirSync(gameDir);
+                files.forEach(file => {
+                    try {
+                        fs.unlinkSync(path.join(gameDir, file));
+                    } catch (err) {
+                        console.error(`Error deleting file ${file}:`, err.message);
+                    }
+                });
+                console.log(`Cleared ${files.length} cached images for ${game}`);
+            } catch (err) {
+                console.error(`Error clearing images for ${game}:`, err.message);
+                // Don't throw error, just log it
+            }
         }
     }
     
@@ -411,88 +635,6 @@ class TCGApi {
         return text.trim();
     }
     
-    // Parse methods for each game
-    parsePokemonCard(data) {
-        return {
-            id: `pokemon_${data.id}`,
-            game: 'pokemon',
-            name: data.name,
-            set_name: data.set_name,
-            set_code: data.set_code,
-            card_number: data.card_number,
-            image_url: data.image_url,
-            rarity: data.rarity,
-            card_type: data.card_type,
-            card_text: data.card_text,
-            attributes: data.attributes
-        };
-    }
-    
-    parseMagicCard(data) {
-        return {
-            id: `magic_${data.id}`,
-            game: 'magic',
-            name: data.name,
-            set_name: data.set_name,
-            set_code: data.set_code,
-            card_number: data.card_number,
-            image_url: data.image_url,
-            rarity: data.rarity,
-            card_type: data.card_type,
-            card_text: data.card_text,
-            attributes: data.attributes
-        };
-    }
-    
-    parseYugiohCard(data) {
-        return {
-            id: `yugioh_${data.id}`,
-            game: 'yugioh',
-            name: data.name,
-            set_name: data.set_name,
-            set_code: data.set_code,
-            card_number: data.card_number,
-            image_url: data.image_url,
-            rarity: data.rarity,
-            card_type: data.card_type,
-            card_text: data.card_text,
-            attributes: data.attributes
-        };
-    }
-    
-    parseLorcanaCard(data) {
-        return {
-            id: `lorcana_${data.id}`,
-            game: 'lorcana',
-            name: data.name,
-            set_name: data.set_name,
-            set_code: data.set_code,
-            card_number: data.card_number,
-            image_url: data.image_url,
-            rarity: data.rarity,
-            card_type: data.card_type,
-            card_text: data.card_text,
-            attributes: data.attributes
-        };
-    }
-    
-    parseOnePieceCard(data) {
-        return {
-            id: `onepiece_${data.id}`,
-            game: 'onepiece',
-            name: data.name,
-            set_name: data.set_name,
-            set_code: data.set_code,
-            card_number: data.card_number,
-            image_url: data.image_url,
-            rarity: data.rarity,
-            card_type: data.card_type,
-            card_text: data.card_text,
-            attributes: data.attributes
-        };
-    }
-    
-    // Keep sample data generator as fallback
     generateSampleCards(game) {
         const cards = [];
         const sets = this.getSampleSets(game);
@@ -592,52 +734,35 @@ class TCGApi {
                 attack: Math.floor(Math.random() * 3000),
                 defense: Math.floor(Math.random() * 3000),
                 level: Math.floor(Math.random() * 12) + 1
-            },
-            lorcana: {
-                inkCost: Math.floor(Math.random() * 7) + 1,
-                strength: Math.floor(Math.random() * 10),
-                willpower: Math.floor(Math.random() * 10)
-            },
-            onepiece: {
-                cost: Math.floor(Math.random() * 10),
-                power: Math.floor(Math.random() * 10000),
-                counter: Math.floor(Math.random() * 2000)
             }
         };
         
         return attributes[game] || {};
     }
     
-    async downloadImage(imageUrl, cardId) {
-        if (!imageUrl || imageUrl.includes('placeholder')) {
-            return imageUrl;
-        }
-        
-        try {
-            const extension = path.extname(imageUrl) || '.jpg';
-            const imagePath = path.join(this.cacheDir, `${cardId}${extension}`);
-            
-            // Check if already cached
-            if (fs.existsSync(imagePath)) {
-                return imagePath;
-            }
-            
-            // Download image
-            const response = await axios.get(imageUrl, {
-                responseType: 'arraybuffer',
-                timeout: 30000
-            });
-            
-            fs.writeFileSync(imagePath, response.data);
-            return imagePath;
-        } catch (error) {
-            console.error(`Error downloading image for ${cardId}:`, error.message);
-            return imageUrl; // Return original URL if download fails
-        }
-    }
-    
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    
+    // Parse methods for different games
+    parsePokemonCard(data) {
+        return data;
+    }
+    
+    parseMagicCard(data) {
+        return data;
+    }
+    
+    parseYugiohCard(data) {
+        return data;
+    }
+    
+    parseLorcanaCard(data) {
+        return data;
+    }
+    
+    parseOnePieceCard(data) {
+        return data;
     }
 }
 

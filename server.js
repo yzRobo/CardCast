@@ -1,4 +1,4 @@
-// server.js - CardCast Main Server
+// server.js - CardCast Main Server (Updated)
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -8,7 +8,7 @@ const { exec } = require('child_process');
 
 // Import our modules
 const Database = require('./src/database');
-const TCGApi = require('./src/tcg-api');  // Fixed: Use tcg-api.js instead of tcgcsv-api.js
+const TCGApi = require('./src/tcg-api');
 const OverlayServer = require('./src/overlay-server');
 
 // Initialize Express app
@@ -21,7 +21,7 @@ const io = socketIo(server, {
     }
 });
 
-// Load config or create default
+// Load config
 const configPath = path.join(__dirname, 'config.json');
 let config = {
     port: 3888,
@@ -52,7 +52,6 @@ if (fs.existsSync(configPath)) {
         console.log('Error loading config, using defaults');
     }
 } else {
-    // Save default config
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 }
 
@@ -69,6 +68,9 @@ const overlayServer = new OverlayServer(io);
 // Middleware
 app.use(express.json());
 app.use(express.static('public'));
+
+// Serve cached images
+app.use('/cache', express.static(path.join(__dirname, 'cache')));
 
 // Routes
 app.get('/', (req, res) => {
@@ -89,45 +91,158 @@ app.post('/api/config', (req, res) => {
 app.get('/api/games', (req, res) => {
     const games = Object.keys(config.games)
         .filter(key => config.games[key].enabled)
-        .map(key => ({
-            id: key,
-            name: key.charAt(0).toUpperCase() + key.slice(1),
-            enabled: config.games[key].enabled,
-            hasData: db.hasGameData(key)
-        }));
+        .map(key => {
+            const hasData = db.hasGameData(key);
+            const stats = db.getGameStats().find(g => g.id === key);
+            return {
+                id: key,
+                name: key.charAt(0).toUpperCase() + key.slice(1),
+                enabled: config.games[key].enabled,
+                hasData: hasData,
+                cardCount: stats?.card_count || 0,
+                lastUpdate: stats?.last_update || null
+            };
+        });
     res.json(games);
+});
+
+// Delete game data endpoint
+app.delete('/api/games/:game/data', (req, res) => {
+    const game = req.params.game;
+    
+    console.log(`DELETE request for game: ${game}`);
+    
+    if (!config.games[game]) {
+        console.error(`Invalid game requested for deletion: ${game}`);
+        return res.status(400).json({ error: 'Invalid game' });
+    }
+    
+    let dbCleared = false;
+    let imagesCleared = false;
+    let errors = [];
+    
+    try {
+        // Clear database
+        console.log(`Attempting to clear database for ${game}...`);
+        try {
+            db.clearGameData(game);
+            dbCleared = true;
+            console.log(`Database cleared successfully for ${game}`);
+        } catch (dbError) {
+            console.error(`Database clear error for ${game}:`, dbError);
+            errors.push(`Database: ${dbError.message}`);
+        }
+        
+        // Clear cached images
+        const imagesDir = path.join(__dirname, 'cache', 'images', game);
+        console.log(`Checking for images directory: ${imagesDir}`);
+        
+        if (fs.existsSync(imagesDir)) {
+            try {
+                const files = fs.readdirSync(imagesDir);
+                console.log(`Found ${files.length} image files to delete`);
+                
+                let deletedCount = 0;
+                let failedFiles = [];
+                
+                files.forEach(file => {
+                    try {
+                        fs.unlinkSync(path.join(imagesDir, file));
+                        deletedCount++;
+                    } catch (fileErr) {
+                        console.error(`Could not delete ${file}:`, fileErr.message);
+                        failedFiles.push(file);
+                    }
+                });
+                
+                console.log(`Deleted ${deletedCount}/${files.length} cached images for ${game}`);
+                if (failedFiles.length > 0) {
+                    errors.push(`Failed to delete ${failedFiles.length} image files`);
+                }
+                imagesCleared = deletedCount > 0 || files.length === 0;
+            } catch (dirErr) {
+                console.error(`Error reading images directory for ${game}:`, dirErr);
+                errors.push(`Images directory: ${dirErr.message}`);
+            }
+        } else {
+            console.log(`No images directory found for ${game}`);
+            imagesCleared = true; // No directory means no images to clear
+        }
+        
+        // If at least database was cleared, consider it a success
+        if (dbCleared) {
+            const message = errors.length > 0 
+                ? `Deleted data for ${game} with some warnings: ${errors.join(', ')}`
+                : `Successfully deleted all data for ${game}`;
+                
+            console.log(message);
+            
+            res.json({ 
+                success: true, 
+                message: message,
+                warnings: errors
+            });
+            
+            // Notify connected clients
+            io.emit('data-deleted', { game });
+        } else {
+            throw new Error('Failed to clear database');
+        }
+        
+    } catch (error) {
+        console.error(`Critical error deleting data for ${game}:`, error);
+        console.error('Stack trace:', error.stack);
+        
+        res.status(500).json({ 
+            error: 'Failed to delete data', 
+            details: error.message,
+            errors: errors
+        });
+    }
 });
 
 app.post('/api/download/:game', async (req, res) => {
     const game = req.params.game;
+    const incremental = req.body.incremental || false;
+    const setCount = req.body.setCount || 'all'; // How many sets to download
     
     if (!config.games[game]) {
         return res.status(400).json({ error: 'Invalid game' });
     }
     
-    res.json({ message: 'Download started', game });
+    res.json({ 
+        message: incremental ? 'Update started' : 'Download started', 
+        game,
+        mode: incremental ? 'incremental' : 'full',
+        setCount
+    });
     
     // Start download in background
     tcgApi.downloadGameData(game, (progress) => {
         io.emit('download-progress', { 
             game, 
             progress: progress.percent || 0,
-            message: progress.message || 'Downloading...'
+            message: progress.message || 'Processing...'
         });
-    }).then((cardCount) => {
-        io.emit('download-complete', { game, cardCount });
-        console.log(`Downloaded ${cardCount} cards for ${game}`);
+    }, incremental, setCount).then((cardCount) => {
+        io.emit('download-complete', { 
+            game, 
+            cardCount,
+            incremental 
+        });
+        console.log(`${incremental ? 'Updated' : 'Downloaded'} ${cardCount} cards for ${game}`);
     }).catch(err => {
-        console.error(`Download error for ${game}:`, err);
+        console.error(`${incremental ? 'Update' : 'Download'} error for ${game}:`, err);
         
-        // Provide specific error messages to users
         let userMessage = err.message;
         if (err.message.includes('Network error') || err.message.includes('ENOTFOUND')) {
             userMessage = `Network error: Cannot connect to ${game} API. Please check your internet connection and try again.`;
-        } else if (err.message.includes('Timeout error') || err.message.includes('ETIMEDOUT')) {
+        } else if (err.message.includes('Timeout error') || err.message.includes('ETIMEDOUT') || err.message.includes('timeout')) {
             userMessage = `Timeout error: ${game} API is taking too long to respond. Please try again later or check your network speed.`;
         } else if (err.message.includes('Rate limit')) {
             userMessage = `Rate limit error: Too many requests to ${game} API. Please wait a few minutes before trying again.`;
+        } else if (err.message.includes('No cards were fetched')) {
+            userMessage = `Failed to fetch cards for ${game}. The API might be down or the format may have changed.`;
         }
         
         io.emit('download-error', { 
@@ -173,6 +288,40 @@ app.get('/api/card/:game/:id', (req, res) => {
     }
 });
 
+// Get game statistics
+app.get('/api/stats/:game', (req, res) => {
+    const { game } = req.params;
+    
+    try {
+        const stats = db.getGameStats().find(g => g.id === game);
+        const cacheDir = path.join(__dirname, 'cache', 'images', game);
+        let imageCount = 0;
+        let cacheSize = 0;
+        
+        if (fs.existsSync(cacheDir)) {
+            const files = fs.readdirSync(cacheDir);
+            imageCount = files.length;
+            
+            files.forEach(file => {
+                const filePath = path.join(cacheDir, file);
+                const stat = fs.statSync(filePath);
+                cacheSize += stat.size;
+            });
+        }
+        
+        res.json({
+            game: game,
+            cardCount: stats?.card_count || 0,
+            lastUpdate: stats?.last_update || null,
+            imageCount: imageCount,
+            cacheSize: (cacheSize / 1024 / 1024).toFixed(2) + ' MB'
+        });
+    } catch (error) {
+        console.error('Stats error:', error);
+        res.status(500).json({ error: 'Failed to get stats' });
+    }
+});
+
 // Overlay endpoints
 app.get('/overlay', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'main.html'));
@@ -194,21 +343,16 @@ let mainClients = new Set();
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
     
-    // Send current state to new client
     socket.emit('state', overlayServer.getState());
     
-    // Handle overlay client registration
     socket.on('register-overlay', (type) => {
         overlayClients.add(socket.id);
         console.log(`Overlay registered: ${type} (${socket.id})`);
-        // Notify main clients that OBS is connected
         io.to(Array.from(mainClients)).emit('obs-connected');
     });
     
-    // Handle main client registration
     socket.on('register-main', () => {
         mainClients.add(socket.id);
-        // Send current OBS status
         if (overlayClients.size > 0) {
             socket.emit('obs-connected');
         } else {
@@ -216,7 +360,6 @@ io.on('connection', (socket) => {
         }
     });
     
-    // Check OBS status request
     socket.on('check-obs-status', () => {
         mainClients.add(socket.id);
         if (overlayClients.size > 0) {
@@ -230,7 +373,6 @@ io.on('connection', (socket) => {
         console.log('Display card:', data.card?.name);
         overlayServer.updateCard(data.card);
         
-        // Broadcast to all overlay clients
         io.emit('show-card', {
             card: data.card,
             position: data.position || 'left',
@@ -268,13 +410,10 @@ io.on('connection', (socket) => {
     
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
-        // Remove from tracking
         const wasOverlay = overlayClients.delete(socket.id);
         mainClients.delete(socket.id);
         
-        // If it was an overlay client and no more overlays are connected
         if (wasOverlay && overlayClients.size === 0) {
-            // Notify main clients that OBS disconnected
             io.to(Array.from(mainClients)).emit('obs-disconnected');
         }
     });
@@ -294,6 +433,9 @@ OBS Overlays:
   - Main: http://localhost:${PORT}/overlay
   - Prizes: http://localhost:${PORT}/prizes  
   - Decklist: http://localhost:${PORT}/decklist
+
+Cache directory: ${path.join(__dirname, 'cache')}
+Database: ${path.join(__dirname, 'data', 'cardcast.db')}
 
 Opening browser...
 `);

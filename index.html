@@ -66,17 +66,28 @@
             align-items: center;
             gap: 0.5rem;
             padding: 0.5rem 1rem;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid var(--success);
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
             border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .status-indicator.connected {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: var(--success);
         }
 
         .status-dot {
             width: 8px;
             height: 8px;
-            background: var(--success);
+            background: var(--error);
             border-radius: 50%;
             animation: pulse 2s infinite;
+            transition: background 0.3s ease;
+        }
+
+        .status-indicator.connected .status-dot {
+            background: var(--success);
         }
 
         @keyframes pulse {
@@ -125,6 +136,7 @@
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.3s ease;
+            min-height: 50px;
         }
 
         .game-item:hover {
@@ -141,6 +153,8 @@
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            flex: 1;
+            min-width: 0;
         }
 
         .game-icon {
@@ -152,37 +166,109 @@
             align-items: center;
             justify-content: center;
             font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .game-name-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .game-name {
+            white-space: nowrap;
+        }
+
+        .card-count {
+            color: var(--success);
+            font-size: 0.75rem;
+            white-space: nowrap;
         }
 
         .game-status {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.25rem;
+            flex-shrink: 0;
         }
 
-        .download-btn {
-            padding: 0.25rem 0.75rem;
+        .download-btn, .update-btn {
+            padding: 0.25rem 0.5rem;
             background: var(--accent-primary);
             border: none;
             border-radius: 4px;
             color: white;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             cursor: pointer;
-            transition: background 0.3s ease;
+            transition: all 0.3s ease;
+            white-space: nowrap;
         }
 
         .download-btn:hover {
             background: var(--accent-cyan);
         }
 
-        .download-btn:disabled {
-            background: var(--text-secondary);
-            cursor: not-allowed;
+        .update-btn {
+            background: transparent;
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
         }
 
-        .has-data {
-            color: var(--success);
+        .update-btn:hover {
+            background: var(--accent-cyan);
+            color: var(--bg-primary);
+        }
+
+        .delete-btn {
+            padding: 0.25rem 0.35rem;
+            background: transparent;
+            border: 1px solid var(--error);
+            border-radius: 4px;
+            color: var(--error);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .delete-btn:hover {
+            background: var(--error);
+            color: white;
+        }
+
+        /* Download Options */
+        .download-options {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .option-title {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .sets-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .sets-option {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sets-option input[type="radio"] {
+            accent-color: var(--accent-primary);
+        }
+
+        .sets-option label {
             font-size: 0.85rem;
+            cursor: pointer;
         }
 
         /* Search Section */
@@ -332,6 +418,12 @@
             background: var(--accent-secondary);
         }
 
+        .control-btn:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
         /* OBS Links */
         .obs-links {
             margin-top: 2rem;
@@ -448,7 +540,7 @@
             <div class="logo">CardCast</div>
             <div class="status-indicator" id="obsStatus">
                 <div class="status-dot"></div>
-                <span id="obsStatusText">Checking OBS...</span>
+                <span id="obsStatusText">OBS Not Connected</span>
             </div>
         </div>
     </div>
@@ -460,6 +552,32 @@
             <h2 class="panel-title">Select Game</h2>
             <div class="game-list" id="gameList">
                 <!-- Games will be populated here -->
+            </div>
+            
+            <div class="download-options">
+                <div class="option-title">Download Options</div>
+                <div class="sets-selector">
+                    <div class="sets-option">
+                        <input type="radio" id="recent1" name="sets" value="1" checked>
+                        <label for="recent1">Most recent set only</label>
+                    </div>
+                    <div class="sets-option">
+                        <input type="radio" id="recent3" name="sets" value="3">
+                        <label for="recent3">Last 3 sets</label>
+                    </div>
+                    <div class="sets-option">
+                        <input type="radio" id="recent5" name="sets" value="5">
+                        <label for="recent5">Last 5 sets</label>
+                    </div>
+                    <div class="sets-option">
+                        <input type="radio" id="recent10" name="sets" value="10">
+                        <label for="recent10">Last 10 sets</label>
+                    </div>
+                    <div class="sets-option">
+                        <input type="radio" id="all" name="sets" value="all">
+                        <label for="all">All available sets</label>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -498,11 +616,11 @@
                     <button class="copy-btn" onclick="copyToClipboard('mainUrl')">Copy</button>
                 </div>
                 <div class="link-item">
-                    <span class="link-url" id="prizeUrl">http://localhost:3889/prizes</span>
+                    <span class="link-url" id="prizeUrl">http://localhost:3888/prizes</span>
                     <button class="copy-btn" onclick="copyToClipboard('prizeUrl')">Copy</button>
                 </div>
                 <div class="link-item">
-                    <span class="link-url" id="deckUrl">http://localhost:3890/decklist</span>
+                    <span class="link-url" id="deckUrl">http://localhost:3888/decklist</span>
                     <button class="copy-btn" onclick="copyToClipboard('deckUrl')">Copy</button>
                 </div>
             </div>
@@ -527,13 +645,14 @@
         let currentGame = null;
         let selectedCard = null;
         let searchTimeout = null;
+        let isOBSConnected = false;
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadGames();
             setupEventListeners();
             updateUrls();
-            checkOBSConnection();
+            initOBSConnection();
         });
 
         // Load games list
@@ -550,21 +669,38 @@
                     gameItem.className = 'game-item';
                     gameItem.dataset.game = game.id;
                     
+                    let statusContent = '';
+                    if (game.hasData && game.cardCount > 0) {
+                        statusContent = `
+                            <button class="update-btn" onclick="updateGameData('${game.id}', event)" title="Add new cards">Update</button>
+                            <button class="delete-btn" onclick="deleteGameData('${game.id}', event)" title="Delete all data">🗑</button>
+                        `;
+                    } else if (game.hasData && game.cardCount === 0) {
+                        statusContent = `
+                            <button class="download-btn" onclick="downloadGameData('${game.id}', event)">Download</button>
+                        `;
+                    } else {
+                        statusContent = `<button class="download-btn" onclick="downloadGameData('${game.id}', event)">Download</button>`;
+                    }
+                    
+                    const cardCountText = game.cardCount > 0 ? `/ ${game.cardCount} cards` : '';
+                    
                     gameItem.innerHTML = `
                         <div class="game-info">
                             <div class="game-icon">${game.name[0]}</div>
-                            <span>${game.name}</span>
+                            <div class="game-name-container">
+                                <span class="game-name">${game.name}</span>
+                                ${game.cardCount > 0 ? `<span class="card-count">${cardCountText}</span>` : ''}
+                            </div>
                         </div>
                         <div class="game-status">
-                            ${game.hasData 
-                                ? '<span class="has-data">✓ Ready</span>' 
-                                : `<button class="download-btn" onclick="downloadGameData('${game.id}', event)">Download</button>`}
+                            ${statusContent}
                         </div>
                     `;
                     
                     gameItem.onclick = (e) => {
-                        if (!e.target.classList.contains('download-btn')) {
-                            selectGame(game.id, game.hasData);
+                        if (!e.target.closest('button')) {
+                            selectGame(game.id, game.hasData && game.cardCount > 0);
                         }
                     };
                     
@@ -602,15 +738,31 @@
                 : '<div class="empty-state"><div class="empty-icon">📦</div><p>Download card data to search</p></div>';
         }
 
-        // Download game data
+        // Get selected set count
+        function getSelectedSetCount() {
+            const selected = document.querySelector('input[name="sets"]:checked');
+            return selected ? selected.value : '1';
+        }
+
+        // Download game data (full download - clears existing)
         async function downloadGameData(gameId, event) {
             event.stopPropagation();
             
+            const setCount = getSelectedSetCount();
             const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingText = loadingOverlay.querySelector('.loading-text');
+            loadingText.textContent = `Downloading ${setCount === 'all' ? 'all' : 'recent ' + setCount} sets...`;
             loadingOverlay.classList.add('active');
             
             try {
-                const response = await fetch(`/api/download/${gameId}`, { method: 'POST' });
+                const response = await fetch(`/api/download/${gameId}`, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        incremental: false,
+                        setCount: setCount
+                    })
+                });
                 const data = await response.json();
                 
                 if (!response.ok) {
@@ -620,6 +772,68 @@
                 console.error('Download error:', error);
                 alert('Failed to start download: ' + error.message);
                 loadingOverlay.classList.remove('active');
+            }
+        }
+        
+        // Update game data (incremental - keeps existing)
+        async function updateGameData(gameId, event) {
+            event.stopPropagation();
+            
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingText = loadingOverlay.querySelector('.loading-text');
+            loadingText.textContent = 'Checking for new cards...';
+            loadingOverlay.classList.add('active');
+            
+            try {
+                const response = await fetch(`/api/download/${gameId}`, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        incremental: true,
+                        setCount: '3' // Always check last 3 sets for updates
+                    })
+                });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Update failed');
+                }
+            } catch (error) {
+                console.error('Update error:', error);
+                alert('Failed to start update: ' + error.message);
+                loadingOverlay.classList.remove('active');
+            }
+        }
+
+        // Delete game data
+        async function deleteGameData(gameId, event) {
+            event.stopPropagation();
+            
+            if (!confirm(`Delete all data for ${gameId}?\n\nThis will remove:\n• All card data\n• All cached images\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/games/${gameId}/data`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Delete failed');
+                }
+                
+                alert(`Successfully deleted all data for ${gameId}`);
+                loadGames();
+                
+                // Clear search if this was the selected game
+                if (currentGame === gameId) {
+                    currentGame = null;
+                    document.getElementById('searchInput').value = '';
+                    document.getElementById('searchInput').disabled = true;
+                    document.getElementById('searchResults').innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><p>Select a game and download card data to begin</p></div>';
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                alert('Failed to delete data: ' + error.message);
             }
         }
 
@@ -642,18 +856,31 @@
             
             // Socket events
             socket.on('download-progress', (data) => {
-                document.getElementById('loadingProgress').textContent = `${data.progress}%`;
+                document.getElementById('loadingProgress').textContent = `${data.progress}% - ${data.message || ''}`;
             });
             
             socket.on('download-complete', (data) => {
                 document.getElementById('loadingOverlay').classList.remove('active');
-                alert(`${data.game} data downloaded successfully!`);
+                if (data.incremental) {
+                    if (data.cardCount > 0) {
+                        alert(`Update complete! Added ${data.cardCount} new cards for ${data.game}`);
+                    } else {
+                        alert(`No new cards found for ${data.game}. You have the latest data!`);
+                    }
+                } else {
+                    alert(`${data.game} data downloaded successfully! (${data.cardCount} cards)`);
+                }
                 loadGames();
             });
             
             socket.on('download-error', (data) => {
                 document.getElementById('loadingOverlay').classList.remove('active');
                 alert(`Download failed: ${data.error}`);
+            });
+            
+            socket.on('data-deleted', (data) => {
+                console.log(`Data deleted for ${data.game}`);
+                loadGames();
             });
         }
 
@@ -766,29 +993,37 @@
             document.getElementById('deckUrl').textContent = `http://localhost:${port}/decklist`;
         }
 
-        // Check OBS Connection Status
-        function checkOBSConnection() {
+        // Initialize OBS Connection Status
+        function initOBSConnection() {
             const statusIndicator = document.getElementById('obsStatus');
             const statusText = document.getElementById('obsStatusText');
-            const statusDot = statusIndicator.querySelector('.status-dot');
             
-            // Check if any overlay clients are connected via Socket.io
-            socket.on('obs-connected', () => {
-                statusIndicator.style.background = 'rgba(16, 185, 129, 0.1)';
-                statusIndicator.style.borderColor = 'var(--success)';
-                statusDot.style.background = 'var(--success)';
-                statusText.textContent = 'OBS Connected';
-            });
+            // Default to disconnected
+            isOBSConnected = false;
+            statusIndicator.classList.remove('connected');
+            statusText.textContent = 'OBS Not Connected';
             
-            socket.on('obs-disconnected', () => {
-                statusIndicator.style.background = 'rgba(239, 68, 68, 0.1)';
-                statusIndicator.style.borderColor = 'var(--error)';
-                statusDot.style.background = 'var(--error)';
-                statusText.textContent = 'OBS Not Connected';
+            // Listen for connection events
+            socket.on('obs-status', (data) => {
+                console.log('OBS status received:', data);
+                isOBSConnected = data.connected;
+                
+                if (isOBSConnected) {
+                    statusIndicator.classList.add('connected');
+                    statusText.textContent = 'OBS Connected';
+                } else {
+                    statusIndicator.classList.remove('connected');
+                    statusText.textContent = 'OBS Not Connected';
+                }
             });
             
             // Request initial status
             socket.emit('check-obs-status');
+            
+            // Check periodically
+            setInterval(() => {
+                socket.emit('check-obs-status');
+            }, 3000);
         }
     </script>
 </body>
