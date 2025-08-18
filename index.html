@@ -446,9 +446,9 @@
     <div class="header">
         <div class="header-content">
             <div class="logo">CardCast</div>
-            <div class="status-indicator">
+            <div class="status-indicator" id="obsStatus">
                 <div class="status-dot"></div>
-                <span>Connected to OBS</span>
+                <span id="obsStatusText">Checking OBS...</span>
             </div>
         </div>
     </div>
@@ -533,6 +533,7 @@
             loadGames();
             setupEventListeners();
             updateUrls();
+            checkOBSConnection();
         });
 
         // Load games list
@@ -763,6 +764,31 @@
             document.getElementById('mainUrl').textContent = `http://localhost:${port}/overlay`;
             document.getElementById('prizeUrl').textContent = `http://localhost:${port}/prizes`;
             document.getElementById('deckUrl').textContent = `http://localhost:${port}/decklist`;
+        }
+
+        // Check OBS Connection Status
+        function checkOBSConnection() {
+            const statusIndicator = document.getElementById('obsStatus');
+            const statusText = document.getElementById('obsStatusText');
+            const statusDot = statusIndicator.querySelector('.status-dot');
+            
+            // Check if any overlay clients are connected via Socket.io
+            socket.on('obs-connected', () => {
+                statusIndicator.style.background = 'rgba(16, 185, 129, 0.1)';
+                statusIndicator.style.borderColor = 'var(--success)';
+                statusDot.style.background = 'var(--success)';
+                statusText.textContent = 'OBS Connected';
+            });
+            
+            socket.on('obs-disconnected', () => {
+                statusIndicator.style.background = 'rgba(239, 68, 68, 0.1)';
+                statusIndicator.style.borderColor = 'var(--error)';
+                statusDot.style.background = 'var(--error)';
+                statusText.textContent = 'OBS Not Connected';
+            });
+            
+            // Request initial status
+            socket.emit('check-obs-status');
         }
     </script>
 </body>

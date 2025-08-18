@@ -89,6 +89,15 @@ class TCGCSVApi {
             return cards.length;
         } catch (error) {
             console.error(`Error downloading ${game} data:`, error);
+            
+            // Handle fallback to direct APIs for major games
+            if (error.message?.includes('TCGCSV_FALLBACK')) {
+                console.log(`Attempting fallback API for ${game}...`);
+                const DirectAPI = require('./tcg-api');
+                const directApi = new DirectAPI(this.db);
+                return await directApi.downloadGameData(game, progressCallback);
+            }
+            
             throw error;
         }
     }
@@ -123,11 +132,14 @@ class TCGCSVApi {
                     
                     const response = await axios.get(url, {
                         responseType: 'text',
-                        timeout: 60000, // 60 second timeout
+                        timeout: 120000, // 2 minute timeout for CSV downloads
                         headers: {
-                            'User-Agent': 'CardCast/1.0.0',
-                            'Accept': 'text/csv,application/csv,text/plain'
+                            'User-Agent': 'CardCast/1.0.0 (TCG Streaming Tool)',
+                            'Accept': 'text/csv,application/csv,text/plain,*/*',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'Connection': 'keep-alive'
                         },
+                        maxRedirects: 5,
                         onDownloadProgress: (progressEvent) => {
                             if (progressEvent.total) {
                                 const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -152,7 +164,18 @@ class TCGCSVApi {
             }
             
             if (!csvData) {
-                throw new Error(`Failed to download CSV data. Last error: ${lastError?.message}`);
+                // For popular games, fall back to their direct APIs
+                if (categoryId === 3) { // Pokemon
+                    console.log('TCGCSV failed for Pokemon, falling back to Pokemon TCG API...');
+                    throw new Error('TCGCSV_FALLBACK_POKEMON');
+                } else if (categoryId === 1) { // Magic
+                    console.log('TCGCSV failed for Magic, falling back to Scryfall API...');
+                    throw new Error('TCGCSV_FALLBACK_MAGIC');
+                } else if (categoryId === 2) { // YuGiOh
+                    console.log('TCGCSV failed for YuGiOh, falling back to YGOPRODeck API...');
+                    throw new Error('TCGCSV_FALLBACK_YUGIOH');
+                }
+                throw new Error(`Failed to download CSV data for category ${categoryId}. Last error: ${lastError?.message}`);
             }
             
             return csvData;

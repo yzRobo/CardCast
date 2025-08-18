@@ -469,6 +469,8 @@
         
         socket.on('connect', () => {
             console.log('Connected to CardCast server');
+            // Register as overlay client
+            socket.emit('register-overlay', 'decklist');
         });
     </script>
 </body>

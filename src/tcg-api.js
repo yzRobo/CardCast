@@ -62,6 +62,7 @@ class TCGApi {
         progressCallback({ status: 'starting', percent: 0, message: 'Preparing download...' });
         
         try {
+            console.log(`Clearing existing data for ${game}...`);
             // Clear existing data
             this.db.clearGameData(game);
             
@@ -70,6 +71,7 @@ class TCGApi {
             // Fetch cards based on game
             let cards = [];
             
+            console.log(`Fetching cards for ${game}...`);
             switch(game) {
                 case 'pokemon':
                     cards = await this.fetchPokemonCards(progressCallback);
@@ -84,15 +86,23 @@ class TCGApi {
                     // For games without public APIs, try TCGCSV or use sample data
                     cards = await this.fetchFromTCGCSV(game, config, progressCallback);
             }
+            console.log(`Fetched ${cards.length} cards for ${game}`);
             
             // Save to database
             progressCallback({ status: 'saving', percent: 90, message: 'Saving to database...' });
             
             if (cards.length > 0) {
+                console.log(`Saving ${cards.length} cards to database...`);
                 const batchSize = 100;
                 for (let i = 0; i < cards.length; i += batchSize) {
                     const batch = cards.slice(i, i + batchSize);
-                    this.db.bulkInsertCards(batch);
+                    try {
+                        this.db.bulkInsertCards(batch);
+                        console.log(`Saved batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(cards.length/batchSize)}`);
+                    } catch (dbError) {
+                        console.error(`Error saving batch at index ${i}:`, dbError);
+                        throw new Error(`Database error: ${dbError.message}`);
+                    }
                     
                     const savePercent = 90 + (i / cards.length) * 10;
                     progressCallback({ 
@@ -101,6 +111,8 @@ class TCGApi {
                         message: `Saving cards... (${i}/${cards.length})`
                     });
                 }
+            } else {
+                console.log('No cards to save!');
             }
             
             this.db.updateGameInfo(game, cards.length);
@@ -116,29 +128,54 @@ class TCGApi {
     }
     
     async fetchPokemonCards(progressCallback) {
+        console.log('Starting Pokemon card fetch...');
         const cards = [];
         const pageSize = 250;
         let page = 1;
         let totalPages = 1;
         
         try {
-            // Use Pokemon TCG API
-            while (page <= totalPages && page <= 20) { // Limit to 20 pages for initial download
+            // Use Pokemon TCG API with better configuration
+            while (page <= totalPages && page <= 2) { // Limit to 2 pages for testing
                 progressCallback({ 
                     status: 'downloading', 
-                    percent: 10 + (page / 20) * 70, 
-                    message: `Fetching Pokemon cards... (Page ${page})`
+                    percent: 10 + (page / Math.min(totalPages, 100)) * 70, 
+                    message: `Fetching Pokemon cards... (Page ${page}/${Math.min(totalPages, 100)})`
                 });
                 
-                const response = await axios.get('https://api.pokemontcg.io/v2/cards', {
-                    params: {
-                        page: page,
-                        pageSize: pageSize
-                    },
-                    timeout: 30000
-                });
+                let response;
+                let retries = 3;
+                let lastError;
                 
-                if (response.data && response.data.data) {
+                while (retries > 0) {
+                    try {
+                        response = await axios.get('https://api.pokemontcg.io/v2/cards', {
+                            params: {
+                                page: page,
+                                pageSize: pageSize
+                            },
+                            timeout: 60000, // Increased timeout
+                            headers: {
+                                'User-Agent': 'CardCast/1.0.0'
+                            }
+                        });
+                        break; // Success, exit retry loop
+                    } catch (err) {
+                        lastError = err;
+                        retries--;
+                        if (retries > 0) {
+                            console.log(`Retry ${3 - retries}/3 for Pokemon API...`);
+                            await this.delay(2000); // Wait 2 seconds before retry
+                        }
+                    }
+                }
+                
+                if (!response && lastError) {
+                    throw lastError;
+                }
+                
+                if (response && response.data && response.data.data) {
+                    console.log(`Page ${page}: Got ${response.data.data.length} cards`);
                     response.data.data.forEach(card => {
                         cards.push({
                             id: `pokemon_${card.id}`,
@@ -174,8 +211,17 @@ class TCGApi {
             }
         } catch (error) {
             console.error('Error fetching Pokemon cards:', error.message);
-            // Fall back to sample data if API fails
-            return this.generateSampleCards('pokemon');
+            console.error('Error details:', error.code || 'Unknown error');
+            
+            if (error.code === 'ENOTFOUND') {
+                throw new Error('Network error: Could not connect to Pokemon TCG API. Check your internet connection.');
+            } else if (error.code === 'ETIMEDOUT') {
+                throw new Error('Timeout error: Pokemon TCG API is taking too long to respond. Try again later.');
+            } else if (error.response?.status === 429) {
+                throw new Error('Rate limit error: Too many requests to Pokemon TCG API. Wait a few minutes and try again.');
+            } else {
+                throw new Error(`Pokemon TCG API error: ${error.message}`);
+            }
         }
         
         return cards;
@@ -195,15 +241,25 @@ class TCGApi {
                     message: `Fetching Magic cards... (Set ${i + 1}/${sets.length})`
                 });
                 
-                const response = await axios.get('https://api.scryfall.com/cards/search', {
-                    params: {
-                        q: `set:${sets[i]}`,
-                        format: 'json'
-                    },
-                    timeout: 30000
-                });
+                let response;
+                try {
+                    response = await axios.get('https://api.scryfall.com/cards/search', {
+                        params: {
+                            q: `set:${sets[i]}`,
+                            format: 'json'
+                        },
+                        timeout: 30000,
+                        headers: {
+                            'User-Agent': 'CardCast/1.0.0'
+                        }
+                    });
+                } catch (err) {
+                    console.error(`Error fetching Magic set ${sets[i]}:`, err.message);
+                    continue; // Skip this set and continue with others
+                }
                 
-                if (response.data && response.data.data) {
+                if (response && response.data && response.data.data) {
+                    console.log(`Page ${page}: Got ${response.data.data.length} cards`);
                     response.data.data.forEach(card => {
                         cards.push({
                             id: `magic_${card.id}`,
@@ -232,7 +288,14 @@ class TCGApi {
             }
         } catch (error) {
             console.error('Error fetching Magic cards:', error.message);
-            return this.generateSampleCards('magic');
+            
+            if (error.code === 'ENOTFOUND') {
+                throw new Error('Network error: Could not connect to Scryfall API. Check your internet connection.');
+            } else if (error.code === 'ETIMEDOUT') {
+                throw new Error('Timeout error: Scryfall API is taking too long to respond. Try again later.');
+            } else {
+                throw new Error(`Scryfall API error: ${error.message}`);
+            }
         }
         
         return cards;
@@ -249,14 +312,24 @@ class TCGApi {
             });
             
             // Fetch staple cards
-            const response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php', {
-                params: {
-                    staple: 'yes',
-                    num: 100,
-                    offset: 0
-                },
-                timeout: 30000
-            });
+            let response;
+            try {
+                response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php', {
+                    params: {
+                        staple: 'yes',
+                        num: 100,
+                        offset: 0
+                    },
+                    timeout: 30000,
+                    headers: {
+                        'User-Agent': 'CardCast/1.0.0'
+                    }
+                });
+            } catch (err) {
+                console.error('Error fetching YuGiOh cards:', err.message);
+                // Try alternative endpoint or return empty
+                return [];
+            }
             
             if (response.data && response.data.data) {
                 response.data.data.forEach(card => {
@@ -283,7 +356,14 @@ class TCGApi {
             }
         } catch (error) {
             console.error('Error fetching Yu-Gi-Oh! cards:', error.message);
-            return this.generateSampleCards('yugioh');
+            
+            if (error.code === 'ENOTFOUND') {
+                throw new Error('Network error: Could not connect to YGOPRODeck API. Check your internet connection.');
+            } else if (error.code === 'ETIMEDOUT') {
+                throw new Error('Timeout error: YGOPRODeck API is taking too long to respond. Try again later.');
+            } else {
+                throw new Error(`YGOPRODeck API error: ${error.message}`);
+            }
         }
         
         return cards;
@@ -299,14 +379,13 @@ class TCGApi {
                 message: `Fetching ${config.name} cards from TCGCSV...`
             });
             
-            // For now, return sample data
-            // Replace this with actual TCGCSV API call when endpoints are known
+            // For now, throw an error since TCGCSV endpoints are not implemented
             console.log(`TCGCSV integration pending for ${game}`);
-            return this.generateSampleCards(game);
+            throw new Error(`${game} data download not available yet. TCGCSV.com integration is still being developed for this game.`);
             
         } catch (error) {
             console.error(`Error fetching from TCGCSV for ${game}:`, error);
-            return this.generateSampleCards(game);
+            throw new Error(`TCGCSV API error for ${game}: ${error.message}`);
         }
     }
     

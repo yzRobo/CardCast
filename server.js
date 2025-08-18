@@ -8,7 +8,7 @@ const { exec } = require('child_process');
 
 // Import our modules
 const Database = require('./src/database');
-const TCGApi = require('./src/tcg-api');
+const TCGApi = require('./src/tcg-api');  // Fixed: Use tcg-api.js instead of tcgcsv-api.js
 const OverlayServer = require('./src/overlay-server');
 
 // Initialize Express app
@@ -119,7 +119,23 @@ app.post('/api/download/:game', async (req, res) => {
         console.log(`Downloaded ${cardCount} cards for ${game}`);
     }).catch(err => {
         console.error(`Download error for ${game}:`, err);
-        io.emit('download-error', { game, error: err.message });
+        
+        // Provide specific error messages to users
+        let userMessage = err.message;
+        if (err.message.includes('Network error') || err.message.includes('ENOTFOUND')) {
+            userMessage = `Network error: Cannot connect to ${game} API. Please check your internet connection and try again.`;
+        } else if (err.message.includes('Timeout error') || err.message.includes('ETIMEDOUT')) {
+            userMessage = `Timeout error: ${game} API is taking too long to respond. Please try again later or check your network speed.`;
+        } else if (err.message.includes('Rate limit')) {
+            userMessage = `Rate limit error: Too many requests to ${game} API. Please wait a few minutes before trying again.`;
+        }
+        
+        io.emit('download-error', { 
+            game, 
+            error: userMessage,
+            details: err.message,
+            canRetry: !err.message.includes('Rate limit')
+        });
     });
 });
 
@@ -170,12 +186,45 @@ app.get('/decklist', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'decklist.html'));
 });
 
+// Track overlay connections
+let overlayClients = new Set();
+let mainClients = new Set();
+
 // Socket.io events
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
     
     // Send current state to new client
     socket.emit('state', overlayServer.getState());
+    
+    // Handle overlay client registration
+    socket.on('register-overlay', (type) => {
+        overlayClients.add(socket.id);
+        console.log(`Overlay registered: ${type} (${socket.id})`);
+        // Notify main clients that OBS is connected
+        io.to(Array.from(mainClients)).emit('obs-connected');
+    });
+    
+    // Handle main client registration
+    socket.on('register-main', () => {
+        mainClients.add(socket.id);
+        // Send current OBS status
+        if (overlayClients.size > 0) {
+            socket.emit('obs-connected');
+        } else {
+            socket.emit('obs-disconnected');
+        }
+    });
+    
+    // Check OBS status request
+    socket.on('check-obs-status', () => {
+        mainClients.add(socket.id);
+        if (overlayClients.size > 0) {
+            socket.emit('obs-connected');
+        } else {
+            socket.emit('obs-disconnected');
+        }
+    });
     
     socket.on('display-card', (data) => {
         console.log('Display card:', data.card?.name);
@@ -219,6 +268,15 @@ io.on('connection', (socket) => {
     
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
+        // Remove from tracking
+        const wasOverlay = overlayClients.delete(socket.id);
+        mainClients.delete(socket.id);
+        
+        // If it was an overlay client and no more overlays are connected
+        if (wasOverlay && overlayClients.size === 0) {
+            // Notify main clients that OBS disconnected
+            io.to(Array.from(mainClients)).emit('obs-disconnected');
+        }
     });
 });
 
