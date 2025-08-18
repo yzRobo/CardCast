@@ -18,8 +18,17 @@ class CardDatabase {
         // Enable WAL mode for better performance
         this.db.pragma('journal_mode = WAL');
         
+        // Temporarily disable foreign keys during setup
+        this.db.pragma('foreign_keys = OFF');
+        
         // Create tables
         this.initializeTables();
+        
+        // Initialize games
+        this.initializeGames();
+        
+        // Re-enable foreign keys
+        this.db.pragma('foreign_keys = ON');
         
         // Prepare statements for performance
         this.prepareStatements();
@@ -72,6 +81,39 @@ class CardDatabase {
                 FOREIGN KEY (card_id) REFERENCES cards(id)
             )
         `);
+    }
+    
+    initializeGames() {
+        // Initialize all supported games
+        const games = [
+            { id: 'pokemon', name: 'Pokemon' },
+            { id: 'magic', name: 'Magic: The Gathering' },
+            { id: 'yugioh', name: 'Yu-Gi-Oh!' },
+            { id: 'lorcana', name: 'Disney Lorcana' },
+            { id: 'onepiece', name: 'One Piece Card Game' },
+            { id: 'digimon', name: 'Digimon Card Game' },
+            { id: 'fab', name: 'Flesh and Blood' },
+            { id: 'starwars', name: 'Star Wars Unlimited' },
+            { id: 'dragonball', name: 'Dragon Ball Super' },
+            { id: 'vanguard', name: 'Cardfight Vanguard' },
+            { id: 'weiss', name: 'Weiss Schwarz' },
+            { id: 'shadowverse', name: 'Shadowverse Evolve' },
+            { id: 'metazoo', name: 'MetaZoo' },
+            { id: 'grandarchive', name: 'Grand Archive' },
+            { id: 'sorcery', name: 'Sorcery Contested Realm' },
+            { id: 'universus', name: 'UniVersus' },
+            { id: 'keyforge', name: 'KeyForge' },
+            { id: 'force', name: 'Force of Will' }
+        ];
+        
+        const stmt = this.db.prepare(`
+            INSERT OR IGNORE INTO games (id, name, last_update, card_count)
+            VALUES (?, ?, 0, 0)
+        `);
+        
+        games.forEach(game => {
+            stmt.run(game.id, game.name);
+        });
     }
     
     prepareStatements() {
@@ -163,13 +205,13 @@ class CardDatabase {
     
     updateGameInfo(gameId, cardCount) {
         this.db.prepare(`
-            INSERT OR REPLACE INTO games (id, name, last_update, card_count)
-            VALUES (?, ?, ?, ?)
+            UPDATE games 
+            SET last_update = ?, card_count = ?
+            WHERE id = ?
         `).run(
-            gameId,
-            gameId.charAt(0).toUpperCase() + gameId.slice(1),
             Date.now(),
-            cardCount
+            cardCount,
+            gameId
         );
     }
     
@@ -186,7 +228,15 @@ class CardDatabase {
     clearGameData(game) {
         this.db.prepare('DELETE FROM cards WHERE game = ?').run(game);
         this.db.prepare('DELETE FROM recent_cards WHERE game = ?').run(game);
-        this.db.prepare('UPDATE games SET card_count = 0 WHERE id = ?').run(game);
+        this.db.prepare('UPDATE games SET card_count = 0, last_update = 0 WHERE id = ?').run(game);
+    }
+    
+    getGameStats() {
+        return this.db.prepare(`
+            SELECT id, name, card_count, last_update 
+            FROM games 
+            ORDER BY name
+        `).all();
     }
     
     close() {
