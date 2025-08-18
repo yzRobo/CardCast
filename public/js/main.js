@@ -2,16 +2,11 @@
 const socket = io();
 
 // State management
-let currentGame = 'pokemon';
+let currentGame = null;
 let searchResults = [];
 let selectedCard = null;
 let recentCards = [];
-let currentDeck = {
-    title: 'My Deck',
-    format: 'Standard',
-    game: 'pokemon',
-    categories: {}
-};
+let isOBSConnected = false;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -19,7 +14,44 @@ document.addEventListener('DOMContentLoaded', () => {
     loadGames();
     loadConfig();
     setupKeyboardShortcuts();
+    initOBSConnection();
 });
+
+// Initialize OBS Connection monitoring
+function initOBSConnection() {
+    // Register as main client
+    socket.emit('register-main');
+    
+    // Listen for OBS status updates
+    socket.on('obs-status', (data) => {
+        console.log('OBS status update:', data);
+        updateOBSStatus(data.connected);
+    });
+    
+    // Check status periodically
+    setInterval(() => {
+        socket.emit('check-obs-status');
+    }, 3000);
+    
+    // Initial check
+    socket.emit('check-obs-status');
+}
+
+// Update OBS connection status UI
+function updateOBSStatus(connected) {
+    isOBSConnected = connected;
+    const statusElement = document.getElementById('obsStatus');
+    const statusIndicator = statusElement.querySelector('.status-indicator');
+    const statusText = statusElement.querySelector('.status-text');
+    
+    if (connected) {
+        statusElement.classList.add('connected');
+        statusText.textContent = 'OBS Connected';
+    } else {
+        statusElement.classList.remove('connected');
+        statusText.textContent = 'OBS Not Connected';
+    }
+}
 
 // Initialize event listeners
 function initializeEventListeners() {
@@ -27,18 +59,9 @@ function initializeEventListeners() {
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', debounce(handleSearch, 300));
-        searchInput.addEventListener('focus', () => {
-            document.getElementById('searchResults').style.display = 'block';
-        });
     }
     
-    // Clear search button
-    const clearSearchBtn = document.getElementById('clearSearch');
-    if (clearSearchBtn) {
-        clearSearchBtn.addEventListener('click', clearSearch);
-    }
-    
-    // Display position buttons
+    // Display buttons
     const displayLeftBtn = document.getElementById('displayLeft');
     const displayRightBtn = document.getElementById('displayRight');
     if (displayLeftBtn) {
@@ -54,41 +77,12 @@ function initializeEventListeners() {
         clearDisplayBtn.addEventListener('click', clearDisplay);
     }
     
-    // Prize card controls
-    const showPrizesBtn = document.getElementById('showPrizes');
-    const hidePrizesBtn = document.getElementById('hidePrizes');
-    if (showPrizesBtn) {
-        showPrizesBtn.addEventListener('click', showPrizes);
-    }
-    if (hidePrizesBtn) {
-        hidePrizesBtn.addEventListener('click', hidePrizes);
-    }
-    
-    // Decklist controls
-    const addToDeckBtn = document.getElementById('addToDeck');
-    const showDecklistBtn = document.getElementById('showDecklist');
-    const hideDecklistBtn = document.getElementById('hideDecklist');
-    const clearDecklistBtn = document.getElementById('clearDecklist');
-    
-    if (addToDeckBtn) {
-        addToDeckBtn.addEventListener('click', addCardToDeck);
-    }
-    if (showDecklistBtn) {
-        showDecklistBtn.addEventListener('click', showDecklist);
-    }
-    if (hideDecklistBtn) {
-        hideDecklistBtn.addEventListener('click', hideDecklist);
-    }
-    if (clearDecklistBtn) {
-        clearDecklistBtn.addEventListener('click', clearDecklist);
-    }
-    
-    // Click outside to close search results
-    document.addEventListener('click', (e) => {
-        const searchContainer = document.querySelector('.search-section');
-        if (!searchContainer.contains(e.target)) {
-            document.getElementById('searchResults').style.display = 'none';
-        }
+    // Copy buttons
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const targetId = e.target.dataset.copy;
+            copyToClipboard(targetId);
+        });
     });
 }
 
@@ -102,39 +96,7 @@ async function loadGames() {
         gamesList.innerHTML = '';
         
         games.forEach(game => {
-            const gameItem = document.createElement('div');
-            gameItem.className = `game-item ${game.id === currentGame ? 'active' : ''}`;
-            gameItem.dataset.game = game.id;
-            
-            gameItem.innerHTML = `
-                <div class="game-header">
-                    <span class="game-name">${game.name}</span>
-                    ${game.hasData ? '<span class="game-status">✓</span>' : ''}
-                </div>
-                <div class="game-actions">
-                    ${!game.hasData ? 
-                        `<button class="btn-download" onclick="downloadGameData('${game.id}')">
-                            Download Data
-                        </button>` : 
-                        `<button class="btn-update" onclick="downloadGameData('${game.id}')">
-                            Update
-                        </button>`
-                    }
-                </div>
-                <div class="download-progress" id="progress-${game.id}" style="display: none;">
-                    <div class="progress-bar">
-                        <div class="progress-fill"></div>
-                    </div>
-                    <span class="progress-text">0%</span>
-                </div>
-            `;
-            
-            gameItem.addEventListener('click', (e) => {
-                if (!e.target.closest('button')) {
-                    selectGame(game.id);
-                }
-            });
-            
+            const gameItem = createGameElement(game);
             gamesList.appendChild(gameItem);
         });
     } catch (error) {
@@ -142,42 +104,168 @@ async function loadGames() {
     }
 }
 
+// Create game element
+function createGameElement(game) {
+    const gameItem = document.createElement('div');
+    gameItem.className = 'game-item';
+    gameItem.dataset.game = game.id;
+    
+    const gameInfo = document.createElement('div');
+    gameInfo.className = 'game-info';
+    
+    const gameIcon = document.createElement('div');
+    gameIcon.className = `game-icon ${game.id}`;
+    gameIcon.textContent = game.name[0];
+    
+    const gameName = document.createElement('span');
+    gameName.className = 'game-name';
+    gameName.textContent = game.name;
+    
+    gameInfo.appendChild(gameIcon);
+    gameInfo.appendChild(gameName);
+    
+    const gameStatus = document.createElement('div');
+    gameStatus.className = 'game-status';
+    
+    if (game.hasData && game.cardCount > 0) {
+        const cardCount = document.createElement('span');
+        cardCount.className = 'card-count';
+        // Format large numbers more compactly
+        if (game.cardCount >= 1000) {
+            cardCount.textContent = `${(game.cardCount / 1000).toFixed(1)}k`;
+        } else {
+            cardCount.textContent = `${game.cardCount}`;
+        }
+        cardCount.title = `${game.cardCount.toLocaleString()} cards`;
+        gameStatus.appendChild(cardCount);
+        
+        const updateBtn = document.createElement('button');
+        updateBtn.className = 'update-btn';
+        updateBtn.textContent = 'Update';
+        updateBtn.title = 'Check for new cards';
+        updateBtn.onclick = (e) => {
+            e.stopPropagation();
+            updateGameData(game.id);
+        };
+        gameStatus.appendChild(updateBtn);
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.innerHTML = '×';  // Use × instead of emoji for better sizing
+        deleteBtn.title = 'Delete all data';
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation();
+            deleteGameData(game.id);
+        };
+        gameStatus.appendChild(deleteBtn);
+    } else {
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'download-btn';
+        downloadBtn.textContent = 'Download';
+        downloadBtn.title = 'Download card data';
+        downloadBtn.onclick = (e) => {
+            e.stopPropagation();
+            downloadGameData(game.id);
+        };
+        gameStatus.appendChild(downloadBtn);
+    }
+    
+    gameItem.appendChild(gameInfo);
+    gameItem.appendChild(gameStatus);
+    
+    gameItem.onclick = () => selectGame(game.id, game.hasData && game.cardCount > 0);
+    
+    return gameItem;
+}
+
 // Select a game
-function selectGame(gameId) {
+function selectGame(gameId, hasData) {
     currentGame = gameId;
-    currentDeck.game = gameId;
     
     // Update UI
     document.querySelectorAll('.game-item').forEach(item => {
         item.classList.toggle('active', item.dataset.game === gameId);
     });
     
-    // Clear search
-    clearSearch();
-    
-    // Update placeholder
+    // Enable/disable search
     const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.placeholder = `Search ${gameId} cards...`;
+    searchInput.disabled = !hasData;
+    searchInput.placeholder = hasData 
+        ? `Search ${gameId} cards...` 
+        : 'Download card data first';
+    
+    if (hasData) {
+        searchInput.focus();
     }
+    
+    // Clear search results
+    clearSearchResults();
 }
 
 // Download game data
 async function downloadGameData(gameId) {
+    const setCount = document.querySelector('input[name="sets"]:checked')?.value || '1';
+    showDownloadProgress(true);
+    
     try {
-        const progressDiv = document.getElementById(`progress-${gameId}`);
-        progressDiv.style.display = 'block';
+        const response = await fetch(`/api/download/${gameId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ incremental: false, setCount })
+        });
         
-        const response = await fetch(`/api/download/${gameId}`, { method: 'POST' });
-        const result = await response.json();
-        
-        if (result.error) {
-            alert(`Error: ${result.error}`);
-            progressDiv.style.display = 'none';
+        if (!response.ok) {
+            throw new Error('Download failed');
         }
     } catch (error) {
-        console.error('Error downloading game data:', error);
+        console.error('Download error:', error);
+        showDownloadProgress(false);
         alert('Failed to start download');
+    }
+}
+
+// Update game data
+async function updateGameData(gameId) {
+    showDownloadProgress(true);
+    
+    try {
+        const response = await fetch(`/api/download/${gameId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ incremental: true, setCount: '3' })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Update failed');
+        }
+    } catch (error) {
+        console.error('Update error:', error);
+        showDownloadProgress(false);
+        alert('Failed to start update');
+    }
+}
+
+// Delete game data
+async function deleteGameData(gameId) {
+    if (!confirm(`Delete all data for ${gameId}?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/games/${gameId}/data`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            loadGames();
+            if (currentGame === gameId) {
+                currentGame = null;
+                clearSearchResults();
+            }
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('Failed to delete data');
     }
 }
 
@@ -185,18 +273,17 @@ async function downloadGameData(gameId) {
 async function handleSearch(event) {
     const query = event.target.value.trim();
     
-    if (query.length < 2) {
-        document.getElementById('searchResults').innerHTML = '';
+    if (!currentGame || query.length < 2) {
+        clearSearchResults();
         return;
     }
     
     try {
         const response = await fetch(`/api/search/${currentGame}?q=${encodeURIComponent(query)}`);
         searchResults = await response.json();
-        
         displaySearchResults(searchResults);
     } catch (error) {
-        console.error('Error searching:', error);
+        console.error('Search error:', error);
     }
 }
 
@@ -205,25 +292,17 @@ function displaySearchResults(results) {
     const resultsDiv = document.getElementById('searchResults');
     
     if (results.length === 0) {
-        resultsDiv.innerHTML = '<div class="no-results">No cards found</div>';
+        resultsDiv.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>No cards found</p></div>';
         return;
     }
     
     resultsDiv.innerHTML = results.map(card => `
-        <div class="search-result" onclick="selectCard('${card.id}')">
-            <img src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
-            <div class="result-info">
-                <div class="result-name">${card.name}</div>
-                <div class="result-details">
-                    ${card.set_name || ''} 
-                    ${card.card_number ? `#${card.card_number}` : ''}
-                    ${card.rarity ? `• ${card.rarity}` : ''}
-                </div>
-            </div>
+        <div class="card-result" onclick="selectCard('${card.id}')">
+            <img class="card-thumbnail" src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
+            <div class="card-name">${card.name}</div>
+            <div class="card-meta">${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</div>
         </div>
     `).join('');
-    
-    resultsDiv.style.display = 'block';
 }
 
 // Select a card
@@ -235,11 +314,12 @@ async function selectCard(cardId) {
         // Update preview
         updateCardPreview(selectedCard);
         
-        // Hide search results
-        document.getElementById('searchResults').style.display = 'none';
-        
         // Add to recent cards
         addToRecentCards(selectedCard);
+        
+        // Enable display buttons
+        document.getElementById('displayLeft').disabled = false;
+        document.getElementById('displayRight').disabled = false;
         
     } catch (error) {
         console.error('Error loading card:', error);
@@ -251,50 +331,39 @@ function updateCardPreview(card) {
     const previewDiv = document.getElementById('cardPreview');
     
     if (!card) {
-        previewDiv.innerHTML = '<div class="no-preview">No card selected</div>';
+        previewDiv.innerHTML = '<div class="empty-state"><div class="empty-icon">🎴</div><p>No card selected</p></div>';
         return;
     }
     
     previewDiv.innerHTML = `
         <img src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
-        <div class="preview-info">
+        <div class="card-info">
             <h3>${card.name}</h3>
-            <div class="preview-details">
-                ${card.set_name || ''} ${card.card_number ? `#${card.card_number}` : ''}
-            </div>
-            ${card.card_text ? `<div class="preview-text">${card.card_text}</div>` : ''}
+            <p>${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</p>
         </div>
     `;
 }
 
 // Add to recent cards
 function addToRecentCards(card) {
-    // Remove if already exists
     recentCards = recentCards.filter(c => c.id !== card.id);
-    
-    // Add to beginning
     recentCards.unshift(card);
-    
-    // Keep only last 5
     recentCards = recentCards.slice(0, 5);
-    
-    // Update UI
-    updateRecentCards();
+    updateRecentCardsDisplay();
 }
 
 // Update recent cards display
-function updateRecentCards() {
+function updateRecentCardsDisplay() {
     const recentDiv = document.getElementById('recentCards');
     
     if (recentCards.length === 0) {
-        recentDiv.innerHTML = '<div class="no-recent">No recent cards</div>';
+        recentDiv.innerHTML = '';
         return;
     }
     
     recentDiv.innerHTML = recentCards.map((card, index) => `
         <div class="recent-card" onclick="selectCard('${card.id}')" title="${card.name}">
             <img src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
-            <span class="recent-number">${index + 1}</span>
         </div>
     `).join('');
 }
@@ -313,10 +382,7 @@ function displayCard(position) {
     });
     
     // Visual feedback
-    const btn = position === 'left' ? 
-        document.getElementById('displayLeft') : 
-        document.getElementById('displayRight');
-    
+    const btn = document.getElementById(`display${position.charAt(0).toUpperCase() + position.slice(1)}`);
     btn.classList.add('success');
     setTimeout(() => btn.classList.remove('success'), 1000);
 }
@@ -324,92 +390,45 @@ function displayCard(position) {
 // Clear display
 function clearDisplay() {
     socket.emit('clear-display');
-}
-
-// Clear search
-function clearSearch() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('searchResults').innerHTML = '';
-    document.getElementById('searchResults').style.display = 'none';
-}
-
-// Prize card functions
-function showPrizes() {
-    socket.emit('update-prizes', {
-        game: currentGame,
-        player1: { total: 6, taken: [] },
-        player2: { total: 6, taken: [] },
-        show: true
-    });
-}
-
-function hidePrizes() {
-    socket.emit('update-prizes', { show: false });
-}
-
-// Decklist functions
-function addCardToDeck() {
-    if (!selectedCard) {
-        alert('Please select a card first');
-        return;
-    }
-    
-    const category = determineCardCategory(selectedCard);
-    socket.emit('decklist-add-card', {
-        category: category,
-        card: {
-            name: selectedCard.name,
-            cost: selectedCard.attributes?.cost || '',
-            quantity: 1
-        }
-    });
     
     // Visual feedback
-    const btn = document.getElementById('addToDeck');
+    const btn = document.getElementById('clearDisplay');
     btn.classList.add('success');
     setTimeout(() => btn.classList.remove('success'), 1000);
 }
 
-function determineCardCategory(card) {
-    const type = (card.card_type || '').toLowerCase();
-    
-    if (currentGame === 'pokemon') {
-        if (type.includes('pokemon')) return 'Pokemon';
-        if (type.includes('trainer')) return 'Trainer';
-        if (type.includes('energy')) return 'Energy';
-        return 'Other';
-    } else if (currentGame === 'magic') {
-        if (type.includes('creature')) return 'Creatures';
-        if (type.includes('instant') || type.includes('sorcery')) return 'Spells';
-        if (type.includes('land')) return 'Lands';
-        if (type.includes('enchantment')) return 'Enchantments';
-        if (type.includes('artifact')) return 'Artifacts';
-        if (type.includes('planeswalker')) return 'Planeswalkers';
-        return 'Other';
-    } else if (currentGame === 'yugioh') {
-        if (type.includes('monster')) return 'Monsters';
-        if (type.includes('spell')) return 'Spells';
-        if (type.includes('trap')) return 'Traps';
-        return 'Other';
-    }
-    
-    return 'Cards';
+// Clear search results
+function clearSearchResults() {
+    document.getElementById('searchResults').innerHTML = 
+        '<div class="empty-state"><div class="empty-icon">📦</div><p>Select a game and download card data to begin</p></div>';
+    searchResults = [];
 }
 
-function showDecklist() {
-    socket.emit('decklist-update', {
-        deck: currentDeck,
-        show: true
+// Copy to clipboard
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    const text = element.textContent;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.classList.add('success');
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.classList.remove('success');
+        }, 1500);
     });
 }
 
-function hideDecklist() {
-    socket.emit('decklist-update', { show: false });
-}
-
-function clearDecklist() {
-    currentDeck.categories = {};
-    socket.emit('decklist-clear');
+// Show/hide download progress
+function showDownloadProgress(show) {
+    const progress = document.getElementById('downloadProgress');
+    if (show) {
+        progress.classList.add('active');
+    } else {
+        progress.classList.remove('active');
+    }
 }
 
 // Load config
@@ -419,9 +438,10 @@ async function loadConfig() {
         const config = await response.json();
         
         // Update OBS URLs
-        document.getElementById('obsMainUrl').value = `http://localhost:${config.port}/overlay`;
-        document.getElementById('obsPrizesUrl').value = `http://localhost:${config.port}/prizes`;
-        document.getElementById('obsDecklistUrl').value = `http://localhost:${config.port}/decklist`;
+        const port = config.port || 3888;
+        document.getElementById('obsMainUrl').textContent = `http://localhost:${port}/overlay`;
+        document.getElementById('obsPrizesUrl').textContent = `http://localhost:${port}/prizes`;
+        document.getElementById('obsDecklistUrl').textContent = `http://localhost:${port}/decklist`;
     } catch (error) {
         console.error('Error loading config:', error);
     }
@@ -433,12 +453,16 @@ function setupKeyboardShortcuts() {
         // Ctrl+F - Focus search
         if (e.ctrlKey && e.key === 'f') {
             e.preventDefault();
-            document.getElementById('searchInput').focus();
+            const searchInput = document.getElementById('searchInput');
+            if (!searchInput.disabled) {
+                searchInput.focus();
+            }
         }
         
         // Escape - Clear search
         if (e.key === 'Escape') {
-            clearSearch();
+            clearSearchResults();
+            document.getElementById('searchInput').value = '';
         }
         
         // Ctrl+1-5 - Select recent cards
@@ -453,28 +477,34 @@ function setupKeyboardShortcuts() {
 
 // Socket event listeners
 socket.on('download-progress', (data) => {
-    const progressDiv = document.getElementById(`progress-${data.game}`);
-    const progressFill = progressDiv.querySelector('.progress-fill');
-    const progressText = progressDiv.querySelector('.progress-text');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
     
-    progressFill.style.width = `${data.progress}%`;
-    progressText.textContent = `${data.progress}%`;
+    if (progressFill && progressText) {
+        progressFill.style.width = `${data.progress}%`;
+        progressText.textContent = `${data.progress}% - ${data.message || ''}`;
+    }
 });
 
 socket.on('download-complete', (data) => {
-    const progressDiv = document.getElementById(`progress-${data.game}`);
-    progressDiv.style.display = 'none';
-    loadGames(); // Reload games to update status
-    alert(`${data.game} data download complete!`);
+    showDownloadProgress(false);
+    loadGames();
+    
+    if (data.incremental) {
+        alert(data.cardCount > 0 
+            ? `Added ${data.cardCount} new cards for ${data.game}` 
+            : `No new cards found for ${data.game}`);
+    } else {
+        alert(`Downloaded ${data.cardCount} cards for ${data.game}`);
+    }
 });
 
 socket.on('download-error', (data) => {
-    const progressDiv = document.getElementById(`progress-${data.game}`);
-    progressDiv.style.display = 'none';
-    alert(`Error downloading ${data.game}: ${data.error}`);
+    showDownloadProgress(false);
+    alert(`Download failed: ${data.error}`);
 });
 
-// Utility functions
+// Utility: Debounce function
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {

@@ -4,1027 +4,158 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CardCast - TCG Streaming Overlay Tool</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #1a1a2e;
-            --bg-tertiary: #16213e;
-            --accent-primary: #7f39fb;
-            --accent-secondary: #b91c1c;
-            --accent-cyan: #06b6d4;
-            --text-primary: #f0f0f0;
-            --text-secondary: #a0a0a0;
-            --border-color: #2a2a3e;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --error: #ef4444;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-            color: var(--text-primary);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        /* Header */
-        .header {
-            background: rgba(26, 26, 46, 0.8);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--border-color);
-            padding: 1rem 2rem;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: bold;
-            background: linear-gradient(45deg, var(--accent-cyan), var(--accent-primary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid var(--error);
-            border-radius: 20px;
-            transition: all 0.3s ease;
-        }
-
-        .status-indicator.connected {
-            background: rgba(16, 185, 129, 0.1);
-            border-color: var(--success);
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background: var(--error);
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-            transition: background 0.3s ease;
-        }
-
-        .status-indicator.connected .status-dot {
-            background: var(--success);
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        /* Main Container */
-        .container {
-            max-width: 1400px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-            display: grid;
-            grid-template-columns: 300px 1fr 350px;
-            gap: 2rem;
-        }
-
-        /* Games Panel */
-        .games-panel {
-            background: rgba(22, 33, 62, 0.5);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 1.5rem;
-        }
-
-        .panel-title {
-            font-size: 1.1rem;
-            margin-bottom: 1rem;
-            color: var(--text-secondary);
-        }
-
-        .game-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .game-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0.75rem;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid transparent;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            min-height: 50px;
-        }
-
-        .game-item:hover {
-            background: rgba(127, 57, 251, 0.1);
-            border-color: var(--accent-primary);
-        }
-
-        .game-item.active {
-            background: rgba(127, 57, 251, 0.2);
-            border-color: var(--accent-primary);
-        }
-
-        .game-info {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .game-icon {
-            width: 32px;
-            height: 32px;
-            background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            flex-shrink: 0;
-        }
-
-        .game-name-container {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .game-name {
-            white-space: nowrap;
-        }
-
-        .card-count {
-            color: var(--success);
-            font-size: 0.75rem;
-            white-space: nowrap;
-        }
-
-        .game-status {
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-            flex-shrink: 0;
-        }
-
-        .download-btn, .update-btn {
-            padding: 0.25rem 0.5rem;
-            background: var(--accent-primary);
-            border: none;
-            border-radius: 4px;
-            color: white;
-            font-size: 0.75rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-        }
-
-        .download-btn:hover {
-            background: var(--accent-cyan);
-        }
-
-        .update-btn {
-            background: transparent;
-            border: 1px solid var(--accent-cyan);
-            color: var(--accent-cyan);
-        }
-
-        .update-btn:hover {
-            background: var(--accent-cyan);
-            color: var(--bg-primary);
-        }
-
-        .delete-btn {
-            padding: 0.25rem 0.35rem;
-            background: transparent;
-            border: 1px solid var(--error);
-            border-radius: 4px;
-            color: var(--error);
-            font-size: 0.75rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .delete-btn:hover {
-            background: var(--error);
-            color: white;
-        }
-
-        /* Download Options */
-        .download-options {
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--border-color);
-        }
-
-        .option-title {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.5rem;
-        }
-
-        .sets-selector {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .sets-option {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .sets-option input[type="radio"] {
-            accent-color: var(--accent-primary);
-        }
-
-        .sets-option label {
-            font-size: 0.85rem;
-            cursor: pointer;
-        }
-
-        /* Search Section */
-        .search-section {
-            background: rgba(22, 33, 62, 0.5);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 2rem;
-        }
-
-        .search-container {
-            position: relative;
-            margin-bottom: 2rem;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 1rem 3rem 1rem 1rem;
-            background: rgba(10, 10, 15, 0.5);
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 1.1rem;
-            transition: border-color 0.3s ease;
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: var(--accent-primary);
-        }
-
-        .search-icon {
-            position: absolute;
-            right: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-secondary);
-        }
-
-        /* Search Results */
-        .search-results {
-            max-height: 600px;
-            overflow-y: auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-
-        .card-result {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .card-result:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 30px rgba(127, 57, 251, 0.3);
-            border-color: var(--accent-primary);
-        }
-
-        .card-image {
-            width: 100%;
-            height: 280px;
-            object-fit: cover;
-            background: var(--bg-tertiary);
-        }
-
-        .card-info {
-            padding: 0.75rem;
-        }
-
-        .card-name {
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .card-details {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
-
-        /* Display Panel */
-        .display-panel {
-            background: rgba(22, 33, 62, 0.5);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 1.5rem;
-        }
-
-        .current-display {
-            background: rgba(10, 10, 15, 0.5);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 1rem;
-            min-height: 400px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .display-card {
-            width: 100%;
-            max-width: 250px;
-        }
-
-        .display-card img {
-            width: 100%;
-            border-radius: 8px;
-        }
-
-        .display-controls {
-            margin-top: 1.5rem;
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .control-btn {
-            flex: 1;
-            padding: 0.75rem;
-            background: var(--accent-primary);
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s ease;
-        }
-
-        .control-btn:hover {
-            background: var(--accent-cyan);
-        }
-
-        .control-btn.danger {
-            background: var(--error);
-        }
-
-        .control-btn.danger:hover {
-            background: var(--accent-secondary);
-        }
-
-        .control-btn:disabled {
-            background: var(--text-secondary);
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
-
-        /* OBS Links */
-        .obs-links {
-            margin-top: 2rem;
-            padding: 1rem;
-            background: rgba(10, 10, 15, 0.5);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-        }
-
-        .obs-links h3 {
-            margin-bottom: 0.75rem;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        .link-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem;
-            margin-bottom: 0.5rem;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 4px;
-        }
-
-        .link-url {
-            font-family: monospace;
-            color: var(--accent-cyan);
-            font-size: 0.85rem;
-        }
-
-        .copy-btn {
-            padding: 0.25rem 0.5rem;
-            background: transparent;
-            border: 1px solid var(--accent-cyan);
-            border-radius: 4px;
-            color: var(--accent-cyan);
-            font-size: 0.75rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .copy-btn:hover {
-            background: var(--accent-cyan);
-            color: var(--bg-primary);
-        }
-
-        /* Loading Overlay */
-        .loading-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(10, 10, 15, 0.9);
-            backdrop-filter: blur(5px);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .loading-overlay.active {
-            display: flex;
-        }
-
-        .loading-content {
-            text-align: center;
-        }
-
-        .spinner {
-            width: 60px;
-            height: 60px;
-            border: 3px solid var(--border-color);
-            border-top-color: var(--accent-primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading-text {
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .loading-progress {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: var(--text-secondary);
-        }
-
-        .empty-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            opacity: 0.5;
-        }
-    </style>
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
     <!-- Header -->
-    <div class="header">
+    <header class="header">
         <div class="header-content">
-            <div class="logo">CardCast</div>
-            <div class="status-indicator" id="obsStatus">
-                <div class="status-dot"></div>
-                <span id="obsStatusText">OBS Not Connected</span>
+            <div class="logo">
+                <h1>CardCast</h1>
+                <span class="version">v1.0.0</span>
+            </div>
+            <div class="status-bar">
+                <div class="status-item" id="obsStatus">
+                    <span class="status-indicator"></span>
+                    <span class="status-text">OBS Not Connected</span>
+                </div>
             </div>
         </div>
-    </div>
+    </header>
 
     <!-- Main Container -->
-    <div class="container">
+    <div class="main-container">
         <!-- Games Panel -->
-        <div class="games-panel">
-            <h2 class="panel-title">Select Game</h2>
-            <div class="game-list" id="gameList">
-                <!-- Games will be populated here -->
+        <aside class="games-panel panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Select Game</h2>
             </div>
-            
-            <div class="download-options">
-                <div class="option-title">Download Options</div>
-                <div class="sets-selector">
-                    <div class="sets-option">
-                        <input type="radio" id="recent1" name="sets" value="1" checked>
-                        <label for="recent1">Most recent set only</label>
-                    </div>
-                    <div class="sets-option">
-                        <input type="radio" id="recent3" name="sets" value="3">
-                        <label for="recent3">Last 3 sets</label>
-                    </div>
-                    <div class="sets-option">
-                        <input type="radio" id="recent5" name="sets" value="5">
-                        <label for="recent5">Last 5 sets</label>
-                    </div>
-                    <div class="sets-option">
-                        <input type="radio" id="recent10" name="sets" value="10">
-                        <label for="recent10">Last 10 sets</label>
-                    </div>
-                    <div class="sets-option">
-                        <input type="radio" id="all" name="sets" value="all">
-                        <label for="all">All available sets</label>
+            <div class="panel-content">
+                <div class="games-list" id="gamesList">
+                    <!-- Games will be populated here -->
+                </div>
+                
+                <div class="download-options">
+                    <h3 class="option-title">Download Options</h3>
+                    <div class="sets-selector">
+                        <label class="sets-option">
+                            <input type="radio" name="sets" value="1" checked>
+                            <span>Most recent set only</span>
+                        </label>
+                        <label class="sets-option">
+                            <input type="radio" name="sets" value="3">
+                            <span>Last 3 sets</span>
+                        </label>
+                        <label class="sets-option">
+                            <input type="radio" name="sets" value="5">
+                            <span>Last 5 sets</span>
+                        </label>
+                        <label class="sets-option">
+                            <input type="radio" name="sets" value="10">
+                            <span>Last 10 sets</span>
+                        </label>
+                        <label class="sets-option">
+                            <input type="radio" name="sets" value="all">
+                            <span>All available sets</span>
+                        </label>
                     </div>
                 </div>
             </div>
-        </div>
+        </aside>
 
         <!-- Search Section -->
-        <div class="search-section">
-            <div class="search-container">
-                <input type="text" class="search-input" id="searchInput" placeholder="Search for cards..." disabled>
-                <span class="search-icon">🔍</span>
-            </div>
-            <div class="search-results" id="searchResults">
-                <div class="empty-state">
-                    <div class="empty-icon">📦</div>
-                    <p>Select a game and download card data to begin</p>
+        <main class="search-section">
+            <div class="search-panel panel">
+                <div class="search-input-group">
+                    <input type="text" 
+                           class="search-input" 
+                           id="searchInput" 
+                           placeholder="Select a game and download data to search..."
+                           disabled>
+                    <span class="search-icon">🔍</span>
+                </div>
+                
+                <div class="search-results" id="searchResults">
+                    <div class="empty-state">
+                        <div class="empty-icon">📦</div>
+                        <p>Select a game and download card data to begin</p>
+                    </div>
                 </div>
             </div>
-        </div>
+        </main>
 
         <!-- Display Panel -->
-        <div class="display-panel">
-            <h2 class="panel-title">Current Display</h2>
-            <div class="current-display" id="currentDisplay">
-                <div class="empty-state">
-                    <div class="empty-icon">🎴</div>
-                    <p>No card selected</p>
+        <aside class="display-panel panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Display Controls</h2>
+            </div>
+            <div class="panel-content">
+                <!-- Card Preview -->
+                <div class="card-preview" id="cardPreview">
+                    <div class="empty-state">
+                        <div class="empty-icon">🎴</div>
+                        <p>No card selected</p>
+                    </div>
+                </div>
+                
+                <!-- Control Buttons -->
+                <div class="controls-group">
+                    <label class="controls-label">Display Position</label>
+                    <div class="button-group">
+                        <button class="control-btn" id="displayLeft" disabled>Left</button>
+                        <button class="control-btn" id="displayRight" disabled>Right</button>
+                    </div>
+                </div>
+                
+                <div class="controls-group">
+                    <div class="button-group">
+                        <button class="control-btn danger" id="clearDisplay">Clear Display</button>
+                    </div>
+                </div>
+                
+                <!-- OBS Links -->
+                <div class="obs-links">
+                    <h3>OBS Browser Sources</h3>
+                    <div class="obs-link">
+                        <span class="obs-link-label">Main Overlay</span>
+                        <span class="obs-link-url" id="obsMainUrl">http://localhost:3888/overlay</span>
+                        <button class="copy-btn" data-copy="obsMainUrl">Copy</button>
+                    </div>
+                    <div class="obs-link">
+                        <span class="obs-link-label">Prize Cards</span>
+                        <span class="obs-link-url" id="obsPrizesUrl">http://localhost:3888/prizes</span>
+                        <button class="copy-btn" data-copy="obsPrizesUrl">Copy</button>
+                    </div>
+                    <div class="obs-link">
+                        <span class="obs-link-label">Deck List</span>
+                        <span class="obs-link-url" id="obsDecklistUrl">http://localhost:3888/decklist</span>
+                        <button class="copy-btn" data-copy="obsDecklistUrl">Copy</button>
+                    </div>
+                </div>
+                
+                <!-- Recent Cards -->
+                <div class="recent-cards">
+                    <h3 class="recent-cards-title">Recent Cards</h3>
+                    <div class="recent-cards-list" id="recentCards">
+                        <!-- Recent cards will appear here -->
+                    </div>
                 </div>
             </div>
-            <div class="display-controls">
-                <button class="control-btn" id="displayBtn" disabled>Display Card</button>
-                <button class="control-btn danger" id="clearBtn">Clear Display</button>
-            </div>
-
-            <div class="obs-links">
-                <h3>OBS Browser Sources</h3>
-                <div class="link-item">
-                    <span class="link-url" id="mainUrl">http://localhost:3888/overlay</span>
-                    <button class="copy-btn" onclick="copyToClipboard('mainUrl')">Copy</button>
-                </div>
-                <div class="link-item">
-                    <span class="link-url" id="prizeUrl">http://localhost:3888/prizes</span>
-                    <button class="copy-btn" onclick="copyToClipboard('prizeUrl')">Copy</button>
-                </div>
-                <div class="link-item">
-                    <span class="link-url" id="deckUrl">http://localhost:3888/decklist</span>
-                    <button class="copy-btn" onclick="copyToClipboard('deckUrl')">Copy</button>
-                </div>
-            </div>
-        </div>
+        </aside>
     </div>
 
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-content">
-            <div class="spinner"></div>
-            <div class="loading-text">Downloading card data...</div>
-            <div class="loading-progress" id="loadingProgress">0%</div>
+    <!-- Download Progress Modal -->
+    <div class="download-progress" id="downloadProgress">
+        <div class="download-title">Downloading...</div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
         </div>
+        <div class="progress-text" id="progressText">0%</div>
     </div>
 
     <!-- Socket.io -->
     <script src="/socket.io/socket.io.js"></script>
-    
     <!-- Main JavaScript -->
-    <script>
-        const socket = io();
-        let currentGame = null;
-        let selectedCard = null;
-        let searchTimeout = null;
-        let isOBSConnected = false;
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            loadGames();
-            setupEventListeners();
-            updateUrls();
-            initOBSConnection();
-        });
-
-        // Load games list
-        async function loadGames() {
-            try {
-                const response = await fetch('/api/games');
-                const games = await response.json();
-                
-                const gameList = document.getElementById('gameList');
-                gameList.innerHTML = '';
-                
-                games.forEach(game => {
-                    const gameItem = document.createElement('div');
-                    gameItem.className = 'game-item';
-                    gameItem.dataset.game = game.id;
-                    
-                    let statusContent = '';
-                    if (game.hasData && game.cardCount > 0) {
-                        statusContent = `
-                            <button class="update-btn" onclick="updateGameData('${game.id}', event)" title="Add new cards">Update</button>
-                            <button class="delete-btn" onclick="deleteGameData('${game.id}', event)" title="Delete all data">🗑</button>
-                        `;
-                    } else if (game.hasData && game.cardCount === 0) {
-                        statusContent = `
-                            <button class="download-btn" onclick="downloadGameData('${game.id}', event)">Download</button>
-                        `;
-                    } else {
-                        statusContent = `<button class="download-btn" onclick="downloadGameData('${game.id}', event)">Download</button>`;
-                    }
-                    
-                    const cardCountText = game.cardCount > 0 ? `/ ${game.cardCount} cards` : '';
-                    
-                    gameItem.innerHTML = `
-                        <div class="game-info">
-                            <div class="game-icon">${game.name[0]}</div>
-                            <div class="game-name-container">
-                                <span class="game-name">${game.name}</span>
-                                ${game.cardCount > 0 ? `<span class="card-count">${cardCountText}</span>` : ''}
-                            </div>
-                        </div>
-                        <div class="game-status">
-                            ${statusContent}
-                        </div>
-                    `;
-                    
-                    gameItem.onclick = (e) => {
-                        if (!e.target.closest('button')) {
-                            selectGame(game.id, game.hasData && game.cardCount > 0);
-                        }
-                    };
-                    
-                    gameList.appendChild(gameItem);
-                });
-            } catch (error) {
-                console.error('Failed to load games:', error);
-            }
-        }
-
-        // Select a game
-        function selectGame(gameId, hasData) {
-            currentGame = gameId;
-            
-            // Update UI
-            document.querySelectorAll('.game-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            document.querySelector(`[data-game="${gameId}"]`).classList.add('active');
-            
-            // Enable/disable search based on data availability
-            const searchInput = document.getElementById('searchInput');
-            searchInput.disabled = !hasData;
-            searchInput.placeholder = hasData 
-                ? `Search ${gameId} cards...` 
-                : 'Download card data first';
-            
-            if (hasData) {
-                searchInput.focus();
-            }
-            
-            // Clear previous results
-            document.getElementById('searchResults').innerHTML = hasData 
-                ? '' 
-                : '<div class="empty-state"><div class="empty-icon">📦</div><p>Download card data to search</p></div>';
-        }
-
-        // Get selected set count
-        function getSelectedSetCount() {
-            const selected = document.querySelector('input[name="sets"]:checked');
-            return selected ? selected.value : '1';
-        }
-
-        // Download game data (full download - clears existing)
-        async function downloadGameData(gameId, event) {
-            event.stopPropagation();
-            
-            const setCount = getSelectedSetCount();
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            const loadingText = loadingOverlay.querySelector('.loading-text');
-            loadingText.textContent = `Downloading ${setCount === 'all' ? 'all' : 'recent ' + setCount} sets...`;
-            loadingOverlay.classList.add('active');
-            
-            try {
-                const response = await fetch(`/api/download/${gameId}`, { 
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        incremental: false,
-                        setCount: setCount
-                    })
-                });
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Download failed');
-                }
-            } catch (error) {
-                console.error('Download error:', error);
-                alert('Failed to start download: ' + error.message);
-                loadingOverlay.classList.remove('active');
-            }
-        }
-        
-        // Update game data (incremental - keeps existing)
-        async function updateGameData(gameId, event) {
-            event.stopPropagation();
-            
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            const loadingText = loadingOverlay.querySelector('.loading-text');
-            loadingText.textContent = 'Checking for new cards...';
-            loadingOverlay.classList.add('active');
-            
-            try {
-                const response = await fetch(`/api/download/${gameId}`, { 
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        incremental: true,
-                        setCount: '3' // Always check last 3 sets for updates
-                    })
-                });
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Update failed');
-                }
-            } catch (error) {
-                console.error('Update error:', error);
-                alert('Failed to start update: ' + error.message);
-                loadingOverlay.classList.remove('active');
-            }
-        }
-
-        // Delete game data
-        async function deleteGameData(gameId, event) {
-            event.stopPropagation();
-            
-            if (!confirm(`Delete all data for ${gameId}?\n\nThis will remove:\n• All card data\n• All cached images\n\nThis action cannot be undone.`)) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/games/${gameId}/data`, { method: 'DELETE' });
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Delete failed');
-                }
-                
-                alert(`Successfully deleted all data for ${gameId}`);
-                loadGames();
-                
-                // Clear search if this was the selected game
-                if (currentGame === gameId) {
-                    currentGame = null;
-                    document.getElementById('searchInput').value = '';
-                    document.getElementById('searchInput').disabled = true;
-                    document.getElementById('searchResults').innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><p>Select a game and download card data to begin</p></div>';
-                }
-            } catch (error) {
-                console.error('Delete error:', error);
-                alert('Failed to delete data: ' + error.message);
-            }
-        }
-
-        // Setup event listeners
-        function setupEventListeners() {
-            // Search input
-            const searchInput = document.getElementById('searchInput');
-            searchInput.addEventListener('input', (e) => {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => {
-                    searchCards(e.target.value);
-                }, 300);
-            });
-            
-            // Display button
-            document.getElementById('displayBtn').addEventListener('click', displayCard);
-            
-            // Clear button
-            document.getElementById('clearBtn').addEventListener('click', clearDisplay);
-            
-            // Socket events
-            socket.on('download-progress', (data) => {
-                document.getElementById('loadingProgress').textContent = `${data.progress}% - ${data.message || ''}`;
-            });
-            
-            socket.on('download-complete', (data) => {
-                document.getElementById('loadingOverlay').classList.remove('active');
-                if (data.incremental) {
-                    if (data.cardCount > 0) {
-                        alert(`Update complete! Added ${data.cardCount} new cards for ${data.game}`);
-                    } else {
-                        alert(`No new cards found for ${data.game}. You have the latest data!`);
-                    }
-                } else {
-                    alert(`${data.game} data downloaded successfully! (${data.cardCount} cards)`);
-                }
-                loadGames();
-            });
-            
-            socket.on('download-error', (data) => {
-                document.getElementById('loadingOverlay').classList.remove('active');
-                alert(`Download failed: ${data.error}`);
-            });
-            
-            socket.on('data-deleted', (data) => {
-                console.log(`Data deleted for ${data.game}`);
-                loadGames();
-            });
-        }
-
-        // Search cards
-        async function searchCards(query) {
-            if (!currentGame || !query || query.length < 2) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/search/${currentGame}?q=${encodeURIComponent(query)}`);
-                const results = await response.json();
-                
-                const resultsContainer = document.getElementById('searchResults');
-                
-                if (results.length === 0) {
-                    resultsContainer.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>No cards found</p></div>';
-                    return;
-                }
-                
-                resultsContainer.innerHTML = results.map(card => `
-                    <div class="card-result" onclick="selectCard('${card.id}')">
-                        <img src="${card.image_url || '/placeholder.png'}" alt="${card.name}" class="card-image">
-                        <div class="card-info">
-                            <div class="card-name">${card.name}</div>
-                            <div class="card-details">${card.set_name || ''} ${card.card_number || ''}</div>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Search error:', error);
-            }
-        }
-
-        // Select a card
-        async function selectCard(cardId) {
-            try {
-                const response = await fetch(`/api/card/${currentGame}/${cardId}`);
-                const card = await response.json();
-                
-                selectedCard = card;
-                
-                // Update display preview
-                const displayContainer = document.getElementById('currentDisplay');
-                displayContainer.innerHTML = `
-                    <div class="display-card">
-                        <img src="${card.image_url || '/placeholder.png'}" alt="${card.name}">
-                    </div>
-                `;
-                
-                // Enable display button
-                document.getElementById('displayBtn').disabled = false;
-            } catch (error) {
-                console.error('Failed to load card:', error);
-            }
-        }
-
-        // Display card on overlay
-        function displayCard() {
-            if (!selectedCard) return;
-            
-            socket.emit('display-card', {
-                game: currentGame,
-                card: selectedCard
-            });
-            
-            // Visual feedback
-            const btn = document.getElementById('displayBtn');
-            btn.textContent = 'Displayed!';
-            btn.style.background = 'var(--success)';
-            
-            setTimeout(() => {
-                btn.textContent = 'Display Card';
-                btn.style.background = '';
-            }, 1000);
-        }
-
-        // Clear display
-        function clearDisplay() {
-            socket.emit('clear-display');
-            
-            document.getElementById('currentDisplay').innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">🎴</div>
-                    <p>No card selected</p>
-                </div>
-            `;
-            
-            selectedCard = null;
-            document.getElementById('displayBtn').disabled = true;
-        }
-
-        // Copy to clipboard
-        function copyToClipboard(elementId) {
-            const text = document.getElementById(elementId).textContent;
-            navigator.clipboard.writeText(text).then(() => {
-                const btn = event.target;
-                btn.textContent = 'Copied!';
-                setTimeout(() => {
-                    btn.textContent = 'Copy';
-                }, 1000);
-            });
-        }
-
-        // Update URLs based on current port
-        function updateUrls() {
-            const port = window.location.port || '3888';
-            document.getElementById('mainUrl').textContent = `http://localhost:${port}/overlay`;
-            document.getElementById('prizeUrl').textContent = `http://localhost:${port}/prizes`;
-            document.getElementById('deckUrl').textContent = `http://localhost:${port}/decklist`;
-        }
-
-        // Initialize OBS Connection Status
-        function initOBSConnection() {
-            const statusIndicator = document.getElementById('obsStatus');
-            const statusText = document.getElementById('obsStatusText');
-            
-            // Default to disconnected
-            isOBSConnected = false;
-            statusIndicator.classList.remove('connected');
-            statusText.textContent = 'OBS Not Connected';
-            
-            // Listen for connection events
-            socket.on('obs-status', (data) => {
-                console.log('OBS status received:', data);
-                isOBSConnected = data.connected;
-                
-                if (isOBSConnected) {
-                    statusIndicator.classList.add('connected');
-                    statusText.textContent = 'OBS Connected';
-                } else {
-                    statusIndicator.classList.remove('connected');
-                    statusText.textContent = 'OBS Not Connected';
-                }
-            });
-            
-            // Request initial status
-            socket.emit('check-obs-status');
-            
-            // Check periodically
-            setInterval(() => {
-                socket.emit('check-obs-status');
-            }, 3000);
-        }
-    </script>
+    <script src="/js/main.js"></script>
 </body>
 </html>

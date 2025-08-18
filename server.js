@@ -343,36 +343,38 @@ let mainClients = new Set();
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
     
+    // Send initial state
     socket.emit('state', overlayServer.getState());
     
+    // Handle overlay registration
     socket.on('register-overlay', (type) => {
         overlayClients.add(socket.id);
         console.log(`Overlay registered: ${type} (${socket.id})`);
-        io.to(Array.from(mainClients)).emit('obs-connected');
+        
+        // Notify all main clients that OBS is connected
+        io.emit('obs-status', { connected: true });
     });
     
+    // Handle main client registration
     socket.on('register-main', () => {
         mainClients.add(socket.id);
-        if (overlayClients.size > 0) {
-            socket.emit('obs-connected');
-        } else {
-            socket.emit('obs-disconnected');
-        }
+        
+        // Send current OBS status to this client
+        socket.emit('obs-status', { connected: overlayClients.size > 0 });
     });
     
+    // Handle OBS status check
     socket.on('check-obs-status', () => {
-        mainClients.add(socket.id);
-        if (overlayClients.size > 0) {
-            socket.emit('obs-connected');
-        } else {
-            socket.emit('obs-disconnected');
-        }
+        // Send current OBS connection status
+        socket.emit('obs-status', { connected: overlayClients.size > 0 });
     });
     
+    // Display card event
     socket.on('display-card', (data) => {
         console.log('Display card:', data.card?.name);
-        overlayServer.updateCard(data.card);
+        overlayServer.updateCard(data.card, data.position);
         
+        // Emit to all overlay clients
         io.emit('show-card', {
             card: data.card,
             position: data.position || 'left',
@@ -380,41 +382,46 @@ io.on('connection', (socket) => {
         });
     });
     
+    // Clear display event
     socket.on('clear-display', () => {
         console.log('Clear display');
         overlayServer.clearCard();
         io.emit('clear-card', { position: 'both' });
     });
     
+    // Prize card events
     socket.on('update-prizes', (data) => {
         console.log('Update prizes:', data);
-        io.emit('prizes-update', data);
+        overlayServer.updatePrizes(data);
     });
     
+    // Decklist events
     socket.on('decklist-update', (data) => {
         console.log('Update decklist');
-        overlayServer.updateDecklist(data.deck?.categories || {});
-        io.emit('decklist-update', data);
+        overlayServer.updateDecklist(data);
     });
     
     socket.on('decklist-add-card', (data) => {
         console.log('Add card to decklist:', data.card?.name);
-        io.emit('decklist-add-card', data);
+        overlayServer.addCardToDeck(data.category, data.card);
     });
     
     socket.on('decklist-clear', () => {
         console.log('Clear decklist');
-        overlayServer.updateDecklist([]);
-        io.emit('decklist-clear');
+        overlayServer.clearDecklist();
     });
     
+    // Handle disconnect
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
+        
+        // Check if it was an overlay client
         const wasOverlay = overlayClients.delete(socket.id);
         mainClients.delete(socket.id);
         
+        // If it was an overlay and no more overlays are connected, notify main clients
         if (wasOverlay && overlayClients.size === 0) {
-            io.to(Array.from(mainClients)).emit('obs-disconnected');
+            io.emit('obs-status', { connected: false });
         }
     });
 });
