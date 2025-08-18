@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>CardCast - Prize Cards Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 1920px;
+            height: 1080px;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+        
+        .prizes-container {
+            position: absolute;
+            top: 50px;
+            left: 50px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .player-prizes {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            opacity: 0;
+            transform: translateX(-50px);
+            transition: all 0.5s ease;
+        }
+        
+        .player-prizes.active {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        .player-label {
+            background: linear-gradient(135deg, rgba(17, 17, 17, 0.95) 0%, rgba(33, 33, 33, 0.95) 100%);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            min-width: 120px;
+            text-align: center;
+            border: 2px solid rgba(102, 126, 234, 0.5);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .prizes-row {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .prize-card {
+            width: 60px;
+            height: 84px;
+            border-radius: 5px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%);
+            border: 2px solid rgba(102, 126, 234, 0.5);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .prize-card.taken {
+            opacity: 0.3;
+            transform: scale(0.9);
+            filter: grayscale(1);
+        }
+        
+        .prize-card.taken::after {
+            content: '✖';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444;
+            font-size: 30px;
+            font-weight: bold;
+        }
+        
+        .prize-card:not(.taken) {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        .prize-card:nth-child(1) { animation-delay: 0s; }
+        .prize-card:nth-child(2) { animation-delay: 0.3s; }
+        .prize-card:nth-child(3) { animation-delay: 0.6s; }
+        .prize-card:nth-child(4) { animation-delay: 0.9s; }
+        .prize-card:nth-child(5) { animation-delay: 1.2s; }
+        .prize-card:nth-child(6) { animation-delay: 1.5s; }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        
+        .prize-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 3px;
+        }
+        
+        .prize-back {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        /* Game-specific card backs */
+        .game-pokemon .prize-back {
+            background: radial-gradient(circle at center, #3b4cca, #1a237e);
+        }
+        
+        .game-pokemon .prize-back::after {
+            content: '';
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 3px solid white;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #fff, #f44336);
+        }
+        
+        .game-magic .prize-back {
+            background: radial-gradient(ellipse at center, #8b4513, #2f1e0e);
+        }
+        
+        .game-yugioh .prize-back {
+            background: radial-gradient(circle at center, #8b5a00, #4a3000);
+        }
+        
+        .prizes-counter {
+            position: absolute;
+            top: 50px;
+            right: 50px;
+            background: linear-gradient(135deg, rgba(17, 17, 17, 0.95) 0%, rgba(33, 33, 33, 0.95) 100%);
+            border: 2px solid rgba(102, 126, 234, 0.5);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            transform: scale(0.9);
+            transition: all 0.5s ease;
+        }
+        
+        .prizes-counter.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        .counter-title {
+            color: #00d4ff;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+        
+        .counter-scores {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .counter-player {
+            text-align: center;
+        }
+        
+        .counter-name {
+            color: #999;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        
+        .counter-value {
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            text-shadow: 0 2px 10px rgba(102, 126, 234, 0.5);
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div class="prizes-container">
+        <div class="player-prizes" id="player1Prizes">
+            <div class="player-label">PLAYER 1</div>
+            <div class="prizes-row" id="player1Row"></div>
+        </div>
+        
+        <div class="player-prizes" id="player2Prizes">
+            <div class="player-label">PLAYER 2</div>
+            <div class="prizes-row" id="player2Row"></div>
+        </div>
+    </div>
+    
+    <div class="prizes-counter" id="prizesCounter">
+        <div class="counter-title">Prize Cards</div>
+        <div class="counter-scores">
+            <div class="counter-player">
+                <div class="counter-name">Player 1</div>
+                <div class="counter-value" id="p1Count">6</div>
+            </div>
+            <div class="counter-player">
+                <div class="counter-name">Player 2</div>
+                <div class="counter-value" id="p2Count">6</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const socket = io('http://localhost:3888');
+        let currentGame = 'pokemon';
+        let prizeData = {
+            player1: { total: 6, taken: [] },
+            player2: { total: 6, taken: [] }
+        };
+        
+        function initializePrizes() {
+            const player1Row = document.getElementById('player1Row');
+            const player2Row = document.getElementById('player2Row');
+            
+            player1Row.innerHTML = '';
+            player2Row.innerHTML = '';
+            
+            // Create prize cards for player 1
+            for (let i = 0; i < prizeData.player1.total; i++) {
+                const card = document.createElement('div');
+                card.className = `prize-card game-${currentGame}`;
+                if (prizeData.player1.taken.includes(i)) {
+                    card.classList.add('taken');
+                }
+                card.innerHTML = '<div class="prize-back"></div>';
+                player1Row.appendChild(card);
+            }
+            
+            // Create prize cards for player 2
+            for (let i = 0; i < prizeData.player2.total; i++) {
+                const card = document.createElement('div');
+                card.className = `prize-card game-${currentGame}`;
+                if (prizeData.player2.taken.includes(i)) {
+                    card.classList.add('taken');
+                }
+                card.innerHTML = '<div class="prize-back"></div>';
+                player2Row.appendChild(card);
+            }
+            
+            // Update counters
+            document.getElementById('p1Count').textContent = 
+                prizeData.player1.total - prizeData.player1.taken.length;
+            document.getElementById('p2Count').textContent = 
+                prizeData.player2.total - prizeData.player2.taken.length;
+        }
+        
+        socket.on('prizes-update', (data) => {
+            const { game, player1, player2, show } = data;
+            
+            if (game) currentGame = game;
+            if (player1) prizeData.player1 = player1;
+            if (player2) prizeData.player2 = player2;
+            
+            initializePrizes();
+            
+            if (show) {
+                setTimeout(() => {
+                    document.getElementById('player1Prizes').classList.add('active');
+                    document.getElementById('player2Prizes').classList.add('active');
+                    document.getElementById('prizesCounter').classList.add('active');
+                }, 100);
+            } else {
+                document.getElementById('player1Prizes').classList.remove('active');
+                document.getElementById('player2Prizes').classList.remove('active');
+                document.getElementById('prizesCounter').classList.remove('active');
+            }
+        });
+        
+        socket.on('prize-taken', (data) => {
+            const { player, index } = data;
+            
+            if (player === 1) {
+                if (!prizeData.player1.taken.includes(index)) {
+                    prizeData.player1.taken.push(index);
+                }
+            } else if (player === 2) {
+                if (!prizeData.player2.taken.includes(index)) {
+                    prizeData.player2.taken.push(index);
+                }
+            }
+            
+            initializePrizes();
+        });
+        
+        // Initialize with default state
+        initializePrizes();
+        
+        // Auto-reconnect on disconnect
+        socket.on('disconnect', () => {
+            console.log('Disconnected from CardCast server');
+        });
+        
+        socket.on('connect', () => {
+            console.log('Connected to CardCast server');
+        });
+    </script>
+</body>
+</html>

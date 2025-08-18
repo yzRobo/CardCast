@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>CardCast - Main Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 1920px;
+            height: 1080px;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .overlay-container {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 30px;
+            align-items: flex-end;
+        }
+        
+        .card-display {
+            opacity: 0;
+            transform: translateY(100px) scale(0.9);
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .card-display.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+        
+        .card-display.player-left {
+            order: 1;
+        }
+        
+        .card-display.player-right {
+            order: 3;
+        }
+        
+        .vs-indicator {
+            order: 2;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+            box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .vs-indicator.active {
+            opacity: 1;
+        }
+        
+        .card-frame {
+            background: linear-gradient(135deg, rgba(17, 17, 17, 0.95) 0%, rgba(33, 33, 33, 0.95) 100%);
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+        }
+        
+        .card-frame::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 15px;
+            padding: 2px;
+            background: linear-gradient(135deg, #667eea, #764ba2, #00d4ff);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: exclude;
+            mask-composite: exclude;
+            z-index: -1;
+        }
+        
+        .card-image {
+            width: 300px;
+            height: 420px;
+            border-radius: 10px;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .card-info {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .card-name {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .card-details {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .card-detail {
+            background: rgba(102, 126, 234, 0.2);
+            color: #00d4ff;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+        }
+        
+        .card-detail.rarity-common { background: rgba(128, 128, 128, 0.2); color: #b0b0b0; }
+        .card-detail.rarity-uncommon { background: rgba(0, 255, 0, 0.2); color: #00ff00; }
+        .card-detail.rarity-rare { background: rgba(0, 112, 221, 0.2); color: #0070dd; }
+        .card-detail.rarity-mythic,
+        .card-detail.rarity-secret { background: rgba(255, 128, 0, 0.2); color: #ff8000; }
+        
+        /* Pokemon-specific styling */
+        .game-pokemon .card-frame {
+            background: linear-gradient(135deg, rgba(59, 76, 202, 0.95) 0%, rgba(34, 49, 140, 0.95) 100%);
+        }
+        
+        .game-pokemon .card-frame::before {
+            background: linear-gradient(135deg, #ffcb05, #3b4cca, #ff0000);
+        }
+        
+        /* Magic-specific styling */
+        .game-magic .card-frame {
+            background: linear-gradient(135deg, rgba(139, 69, 19, 0.95) 0%, rgba(74, 37, 10, 0.95) 100%);
+        }
+        
+        .game-magic .card-frame::before {
+            background: linear-gradient(135deg, #f4e6d7, #8b4513, #2f1e0e);
+        }
+        
+        /* Yu-Gi-Oh-specific styling */
+        .game-yugioh .card-frame {
+            background: linear-gradient(135deg, rgba(139, 90, 0, 0.95) 0%, rgba(74, 48, 0, 0.95) 100%);
+        }
+        
+        .game-yugioh .card-frame::before {
+            background: linear-gradient(135deg, #ffd700, #8b5a00, #ffed4e);
+        }
+        
+        /* Lorcana-specific styling */
+        .game-lorcana .card-frame {
+            background: linear-gradient(135deg, rgba(147, 51, 234, 0.95) 0%, rgba(79, 27, 126, 0.95) 100%);
+        }
+        
+        .game-lorcana .card-frame::before {
+            background: linear-gradient(135deg, #9333ea, #ec4899, #8b5cf6);
+        }
+        
+        /* One Piece-specific styling */
+        .game-onepiece .card-frame {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(127, 29, 29, 0.95) 100%);
+        }
+        
+        .game-onepiece .card-frame::before {
+            background: linear-gradient(135deg, #ef4444, #fbbf24, #dc2626);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .card-display.highlight {
+            animation: pulse 0.5s ease-in-out;
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div class="overlay-container">
+        <div class="card-display player-left" id="leftCard">
+            <div class="card-frame">
+                <img class="card-image" src="" alt="">
+                <div class="card-info">
+                    <div class="card-name"></div>
+                    <div class="card-details"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="vs-indicator" id="vsIndicator">VS</div>
+        
+        <div class="card-display player-right" id="rightCard">
+            <div class="card-frame">
+                <img class="card-image" src="" alt="">
+                <div class="card-info">
+                    <div class="card-name"></div>
+                    <div class="card-details"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const socket = io('http://localhost:3888');
+        let currentCards = { left: null, right: null };
+        
+        socket.on('show-card', (data) => {
+            const { card, position = 'left', game } = data;
+            const cardElement = position === 'left' ? 
+                document.getElementById('leftCard') : 
+                document.getElementById('rightCard');
+            
+            // Update game-specific styling
+            cardElement.className = `card-display player-${position} game-${game}`;
+            
+            // Update card image
+            const img = cardElement.querySelector('.card-image');
+            img.src = card.image_url || '';
+            img.alt = card.name || '';
+            
+            // Update card name
+            cardElement.querySelector('.card-name').textContent = card.name || '';
+            
+            // Update card details
+            const detailsContainer = cardElement.querySelector('.card-details');
+            detailsContainer.innerHTML = '';
+            
+            // Add set and number
+            if (card.set_name) {
+                const setDetail = document.createElement('span');
+                setDetail.className = 'card-detail';
+                setDetail.textContent = card.set_name;
+                detailsContainer.appendChild(setDetail);
+            }
+            
+            if (card.card_number) {
+                const numDetail = document.createElement('span');
+                numDetail.className = 'card-detail';
+                numDetail.textContent = `#${card.card_number}`;
+                detailsContainer.appendChild(numDetail);
+            }
+            
+            // Add rarity
+            if (card.rarity) {
+                const rarityDetail = document.createElement('span');
+                rarityDetail.className = `card-detail rarity-${card.rarity.toLowerCase()}`;
+                rarityDetail.textContent = card.rarity;
+                detailsContainer.appendChild(rarityDetail);
+            }
+            
+            // Add type
+            if (card.card_type) {
+                const typeDetail = document.createElement('span');
+                typeDetail.className = 'card-detail';
+                typeDetail.textContent = card.card_type;
+                detailsContainer.appendChild(typeDetail);
+            }
+            
+            // Show the card with animation
+            setTimeout(() => {
+                cardElement.classList.add('active');
+                cardElement.classList.add('highlight');
+                setTimeout(() => {
+                    cardElement.classList.remove('highlight');
+                }, 500);
+            }, 100);
+            
+            // Update current cards tracking
+            currentCards[position] = card;
+            
+            // Show VS indicator if both cards are displayed
+            if (currentCards.left && currentCards.right) {
+                document.getElementById('vsIndicator').classList.add('active');
+            }
+        });
+        
+        socket.on('clear-card', (data) => {
+            const position = data?.position || 'both';
+            
+            if (position === 'both' || position === 'left') {
+                document.getElementById('leftCard').classList.remove('active');
+                currentCards.left = null;
+            }
+            
+            if (position === 'both' || position === 'right') {
+                document.getElementById('rightCard').classList.remove('active');
+                currentCards.right = null;
+            }
+            
+            // Hide VS indicator if not both cards
+            if (!currentCards.left || !currentCards.right) {
+                document.getElementById('vsIndicator').classList.remove('active');
+            }
+        });
+        
+        // Auto-reconnect on disconnect
+        socket.on('disconnect', () => {
+            console.log('Disconnected from CardCast server');
+        });
+        
+        socket.on('connect', () => {
+            console.log('Connected to CardCast server');
+        });
+    </script>
+</body>
+</html>
