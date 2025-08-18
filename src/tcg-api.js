@@ -2,7 +2,7 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
+const cheerio = require('cheerio');
 
 class TCGApi {
     constructor(database) {
@@ -16,35 +16,37 @@ class TCGApi {
         }
         
         // Game configurations for TCGCSV.com
+        // Note: These URLs need to be verified with actual TCGCSV.com API
         this.gameConfigs = {
             pokemon: {
                 name: 'Pokemon',
-                csvUrl: 'https://tcgcsv.com/api/export/pokemon/all',
-                imageBaseUrl: 'https://images.pokemontcg.io/',
+                csvUrl: 'https://tcgcsv.com/api/pokemon/cards',
+                searchUrl: 'https://api.pokemontcg.io/v2/cards',
+                apiKey: null, // Add if needed
                 parseCard: this.parsePokemonCard.bind(this)
             },
             magic: {
                 name: 'Magic: The Gathering',
-                csvUrl: 'https://tcgcsv.com/api/export/magic/all',
-                imageBaseUrl: 'https://gatherer.wizards.com/Handlers/Image.ashx',
+                csvUrl: 'https://tcgcsv.com/api/magic/cards',
+                searchUrl: 'https://api.scryfall.com/cards/search',
                 parseCard: this.parseMagicCard.bind(this)
             },
             yugioh: {
                 name: 'Yu-Gi-Oh!',
-                csvUrl: 'https://tcgcsv.com/api/export/yugioh/all',
-                imageBaseUrl: 'https://images.ygoprodeck.com/images/cards/',
+                csvUrl: 'https://tcgcsv.com/api/yugioh/cards',
+                searchUrl: 'https://db.ygoprodeck.com/api/v7/cardinfo.php',
                 parseCard: this.parseYugiohCard.bind(this)
             },
             lorcana: {
                 name: 'Disney Lorcana',
-                csvUrl: 'https://tcgcsv.com/api/export/lorcana/all',
-                imageBaseUrl: null,
+                csvUrl: 'https://tcgcsv.com/api/lorcana/cards',
+                searchUrl: null,
                 parseCard: this.parseLorcanaCard.bind(this)
             },
             onepiece: {
                 name: 'One Piece Card Game',
-                csvUrl: 'https://tcgcsv.com/api/export/onepiece/all',
-                imageBaseUrl: null,
+                csvUrl: 'https://tcgcsv.com/api/onepiece/cards',
+                searchUrl: null,
                 parseCard: this.parseOnePieceCard.bind(this)
             }
         };
@@ -63,17 +65,30 @@ class TCGApi {
             // Clear existing data
             this.db.clearGameData(game);
             
-            // For now, we'll use sample data to get the system working
-            // In production, this would fetch from TCGCSV.com
             progressCallback({ status: 'fetching', percent: 10, message: 'Fetching card data...' });
             
-            const cards = await this.fetchGameCards(game, config, progressCallback);
+            // Fetch cards based on game
+            let cards = [];
+            
+            switch(game) {
+                case 'pokemon':
+                    cards = await this.fetchPokemonCards(progressCallback);
+                    break;
+                case 'magic':
+                    cards = await this.fetchMagicCards(progressCallback);
+                    break;
+                case 'yugioh':
+                    cards = await this.fetchYugiohCards(progressCallback);
+                    break;
+                default:
+                    // For games without public APIs, try TCGCSV or use sample data
+                    cards = await this.fetchFromTCGCSV(game, config, progressCallback);
+            }
             
             // Save to database
             progressCallback({ status: 'saving', percent: 90, message: 'Saving to database...' });
             
             if (cards.length > 0) {
-                // Insert in batches for performance
                 const batchSize = 100;
                 for (let i = 0; i < cards.length; i += batchSize) {
                     const batch = cards.slice(i, i + batchSize);
@@ -100,29 +115,310 @@ class TCGApi {
         }
     }
     
-    async fetchGameCards(game, config, progressCallback) {
-        // Create sample data to test the system
-        // Replace this with actual TCGCSV.com API calls
-        const sampleCards = this.generateSampleCards(game);
+    async fetchPokemonCards(progressCallback) {
+        const cards = [];
+        const pageSize = 250;
+        let page = 1;
+        let totalPages = 1;
         
-        // Simulate download progress
-        for (let i = 20; i <= 80; i += 10) {
-            progressCallback({ 
-                status: 'downloading', 
-                percent: i, 
-                message: `Downloading cards... (${i}%)`
-            });
-            await this.delay(200);
+        try {
+            // Use Pokemon TCG API
+            while (page <= totalPages && page <= 20) { // Limit to 20 pages for initial download
+                progressCallback({ 
+                    status: 'downloading', 
+                    percent: 10 + (page / 20) * 70, 
+                    message: `Fetching Pokemon cards... (Page ${page})`
+                });
+                
+                const response = await axios.get('https://api.pokemontcg.io/v2/cards', {
+                    params: {
+                        page: page,
+                        pageSize: pageSize
+                    },
+                    timeout: 30000
+                });
+                
+                if (response.data && response.data.data) {
+                    response.data.data.forEach(card => {
+                        cards.push({
+                            id: `pokemon_${card.id}`,
+                            game: 'pokemon',
+                            name: card.name,
+                            set_name: card.set?.name || '',
+                            set_code: card.set?.id || '',
+                            card_number: card.number || '',
+                            image_url: card.images?.large || card.images?.small || '',
+                            rarity: card.rarity || 'Common',
+                            card_type: card.supertype || 'Pokemon',
+                            card_text: this.buildPokemonText(card),
+                            attributes: {
+                                hp: card.hp || null,
+                                types: card.types || [],
+                                retreatCost: card.retreatCost?.length || 0,
+                                attacks: card.attacks || [],
+                                abilities: card.abilities || [],
+                                weaknesses: card.weaknesses || [],
+                                resistances: card.resistances || []
+                            }
+                        });
+                    });
+                    
+                    // Get total pages from first response
+                    if (page === 1 && response.data.totalCount) {
+                        totalPages = Math.ceil(response.data.totalCount / pageSize);
+                    }
+                }
+                
+                page++;
+                await this.delay(100); // Rate limiting
+            }
+        } catch (error) {
+            console.error('Error fetching Pokemon cards:', error.message);
+            // Fall back to sample data if API fails
+            return this.generateSampleCards('pokemon');
         }
         
-        return sampleCards;
+        return cards;
     }
     
+    async fetchMagicCards(progressCallback) {
+        const cards = [];
+        
+        try {
+            // Fetch popular/recent sets from Scryfall
+            const sets = ['neo', 'snc', 'dmu', 'bro', 'one']; // Recent set codes
+            
+            for (let i = 0; i < sets.length; i++) {
+                progressCallback({ 
+                    status: 'downloading', 
+                    percent: 10 + (i / sets.length) * 70, 
+                    message: `Fetching Magic cards... (Set ${i + 1}/${sets.length})`
+                });
+                
+                const response = await axios.get('https://api.scryfall.com/cards/search', {
+                    params: {
+                        q: `set:${sets[i]}`,
+                        format: 'json'
+                    },
+                    timeout: 30000
+                });
+                
+                if (response.data && response.data.data) {
+                    response.data.data.forEach(card => {
+                        cards.push({
+                            id: `magic_${card.id}`,
+                            game: 'magic',
+                            name: card.name,
+                            set_name: card.set_name || '',
+                            set_code: card.set || '',
+                            card_number: card.collector_number || '',
+                            image_url: card.image_uris?.normal || card.image_uris?.small || '',
+                            rarity: card.rarity || 'common',
+                            card_type: card.type_line || '',
+                            card_text: card.oracle_text || '',
+                            attributes: {
+                                manaCost: card.mana_cost || '',
+                                cmc: card.cmc || 0,
+                                power: card.power || null,
+                                toughness: card.toughness || null,
+                                colors: card.colors || [],
+                                colorIdentity: card.color_identity || []
+                            }
+                        });
+                    });
+                }
+                
+                await this.delay(100); // Rate limiting
+            }
+        } catch (error) {
+            console.error('Error fetching Magic cards:', error.message);
+            return this.generateSampleCards('magic');
+        }
+        
+        return cards;
+    }
+    
+    async fetchYugiohCards(progressCallback) {
+        const cards = [];
+        
+        try {
+            progressCallback({ 
+                status: 'downloading', 
+                percent: 40, 
+                message: 'Fetching Yu-Gi-Oh! cards...'
+            });
+            
+            // Fetch staple cards
+            const response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php', {
+                params: {
+                    staple: 'yes',
+                    num: 100,
+                    offset: 0
+                },
+                timeout: 30000
+            });
+            
+            if (response.data && response.data.data) {
+                response.data.data.forEach(card => {
+                    cards.push({
+                        id: `yugioh_${card.id}`,
+                        game: 'yugioh',
+                        name: card.name,
+                        set_name: card.card_sets?.[0]?.set_name || '',
+                        set_code: card.card_sets?.[0]?.set_code || '',
+                        card_number: card.card_sets?.[0]?.set_code || '',
+                        image_url: card.card_images?.[0]?.image_url || '',
+                        rarity: card.card_sets?.[0]?.set_rarity || 'Common',
+                        card_type: card.type || '',
+                        card_text: card.desc || '',
+                        attributes: {
+                            attack: card.atk || null,
+                            defense: card.def || null,
+                            level: card.level || null,
+                            attribute: card.attribute || '',
+                            race: card.race || ''
+                        }
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching Yu-Gi-Oh! cards:', error.message);
+            return this.generateSampleCards('yugioh');
+        }
+        
+        return cards;
+    }
+    
+    async fetchFromTCGCSV(game, config, progressCallback) {
+        // Try to fetch from TCGCSV.com
+        // This would need the actual API endpoints from TCGCSV
+        try {
+            progressCallback({ 
+                status: 'downloading', 
+                percent: 40, 
+                message: `Fetching ${config.name} cards from TCGCSV...`
+            });
+            
+            // For now, return sample data
+            // Replace this with actual TCGCSV API call when endpoints are known
+            console.log(`TCGCSV integration pending for ${game}`);
+            return this.generateSampleCards(game);
+            
+        } catch (error) {
+            console.error(`Error fetching from TCGCSV for ${game}:`, error);
+            return this.generateSampleCards(game);
+        }
+    }
+    
+    buildPokemonText(card) {
+        let text = '';
+        
+        if (card.abilities) {
+            card.abilities.forEach(ability => {
+                text += `${ability.type}: ${ability.name}\n${ability.text}\n\n`;
+            });
+        }
+        
+        if (card.attacks) {
+            card.attacks.forEach(attack => {
+                text += `${attack.name} - ${attack.damage || ''}\n${attack.text || ''}\n\n`;
+            });
+        }
+        
+        if (card.rules) {
+            text += card.rules.join('\n');
+        }
+        
+        return text.trim();
+    }
+    
+    // Parse methods for each game
+    parsePokemonCard(data) {
+        return {
+            id: `pokemon_${data.id}`,
+            game: 'pokemon',
+            name: data.name,
+            set_name: data.set_name,
+            set_code: data.set_code,
+            card_number: data.card_number,
+            image_url: data.image_url,
+            rarity: data.rarity,
+            card_type: data.card_type,
+            card_text: data.card_text,
+            attributes: data.attributes
+        };
+    }
+    
+    parseMagicCard(data) {
+        return {
+            id: `magic_${data.id}`,
+            game: 'magic',
+            name: data.name,
+            set_name: data.set_name,
+            set_code: data.set_code,
+            card_number: data.card_number,
+            image_url: data.image_url,
+            rarity: data.rarity,
+            card_type: data.card_type,
+            card_text: data.card_text,
+            attributes: data.attributes
+        };
+    }
+    
+    parseYugiohCard(data) {
+        return {
+            id: `yugioh_${data.id}`,
+            game: 'yugioh',
+            name: data.name,
+            set_name: data.set_name,
+            set_code: data.set_code,
+            card_number: data.card_number,
+            image_url: data.image_url,
+            rarity: data.rarity,
+            card_type: data.card_type,
+            card_text: data.card_text,
+            attributes: data.attributes
+        };
+    }
+    
+    parseLorcanaCard(data) {
+        return {
+            id: `lorcana_${data.id}`,
+            game: 'lorcana',
+            name: data.name,
+            set_name: data.set_name,
+            set_code: data.set_code,
+            card_number: data.card_number,
+            image_url: data.image_url,
+            rarity: data.rarity,
+            card_type: data.card_type,
+            card_text: data.card_text,
+            attributes: data.attributes
+        };
+    }
+    
+    parseOnePieceCard(data) {
+        return {
+            id: `onepiece_${data.id}`,
+            game: 'onepiece',
+            name: data.name,
+            set_name: data.set_name,
+            set_code: data.set_code,
+            card_number: data.card_number,
+            image_url: data.image_url,
+            rarity: data.rarity,
+            card_type: data.card_type,
+            card_text: data.card_text,
+            attributes: data.attributes
+        };
+    }
+    
+    // Keep sample data generator as fallback
     generateSampleCards(game) {
         const cards = [];
         const sets = this.getSampleSets(game);
         
-        sets.forEach((set, setIndex) => {
+        sets.forEach((set) => {
             for (let i = 1; i <= 20; i++) {
                 const card = {
                     id: `${game}_${set.code}_${i}`,
@@ -148,28 +444,23 @@ class TCGApi {
         const sets = {
             pokemon: [
                 { name: 'Scarlet & Violet', code: 'sv', totalCards: 258 },
-                { name: 'Paldea Evolved', code: 'pal', totalCards: 279 },
-                { name: 'Obsidian Flames', code: 'obf', totalCards: 230 }
+                { name: 'Paldea Evolved', code: 'pal', totalCards: 279 }
             ],
             magic: [
                 { name: 'The Lost Caverns of Ixalan', code: 'lci', totalCards: 400 },
-                { name: 'Wilds of Eldraine', code: 'woe', totalCards: 375 },
-                { name: 'March of the Machine', code: 'mom', totalCards: 450 }
+                { name: 'Wilds of Eldraine', code: 'woe', totalCards: 375 }
             ],
             yugioh: [
                 { name: 'Phantom Nightmare', code: 'phnm', totalCards: 100 },
-                { name: 'Age of Overlord', code: 'agov', totalCards: 100 },
-                { name: 'Duelist Nexus', code: 'dune', totalCards: 100 }
+                { name: 'Age of Overlord', code: 'agov', totalCards: 100 }
             ],
             lorcana: [
                 { name: 'The First Chapter', code: 'tfc', totalCards: 204 },
-                { name: 'Rise of the Floodborn', code: 'rof', totalCards: 204 },
-                { name: 'Into the Inklands', code: 'ink', totalCards: 204 }
+                { name: 'Rise of the Floodborn', code: 'rof', totalCards: 204 }
             ],
             onepiece: [
                 { name: 'Romance Dawn', code: 'op01', totalCards: 121 },
-                { name: 'Paramount War', code: 'op02', totalCards: 121 },
-                { name: 'Pillars of Strength', code: 'op03', totalCards: 117 }
+                { name: 'Paramount War', code: 'op02', totalCards: 121 }
             ]
         };
         
@@ -177,8 +468,6 @@ class TCGApi {
     }
     
     getSampleImageUrl(game, setCode, cardNumber) {
-        // Return placeholder image URLs
-        // In production, these would be actual card image URLs
         const placeholders = {
             pokemon: `https://via.placeholder.com/245x342/4B5563/FFFFFF?text=Pokemon+${cardNumber}`,
             magic: `https://via.placeholder.com/223x310/2D3748/FFFFFF?text=MTG+${cardNumber}`,
@@ -198,7 +487,7 @@ class TCGApi {
     getCardType(game) {
         const types = {
             pokemon: ['Pokemon', 'Trainer', 'Energy'],
-            magic: ['Creature', 'Instant', 'Sorcery', 'Enchantment', 'Artifact', 'Land', 'Planeswalker'],
+            magic: ['Creature', 'Instant', 'Sorcery', 'Enchantment', 'Artifact', 'Land'],
             yugioh: ['Monster', 'Spell', 'Trap'],
             lorcana: ['Character', 'Action', 'Item', 'Location'],
             onepiece: ['Character', 'Event', 'Stage', 'Leader']
@@ -212,7 +501,7 @@ class TCGApi {
         const attributes = {
             pokemon: {
                 hp: Math.floor(Math.random() * 200) + 50,
-                type: ['Fire', 'Water', 'Grass', 'Electric', 'Psychic', 'Fighting'][Math.floor(Math.random() * 6)],
+                type: ['Fire', 'Water', 'Grass', 'Electric', 'Psychic'][Math.floor(Math.random() * 5)],
                 retreatCost: Math.floor(Math.random() * 4)
             },
             magic: {
@@ -240,62 +529,13 @@ class TCGApi {
         return attributes[game] || {};
     }
     
-    // Parse methods for each game (to be used with real data)
-    parsePokemonCard(row) {
-        return {
-            name: row.name || '',
-            hp: row.hp || null,
-            type: row.type || '',
-            rarity: row.rarity || '',
-            retreatCost: row.retreat_cost || 0
-        };
-    }
-    
-    parseMagicCard(row) {
-        return {
-            name: row.name || '',
-            manaCost: row.mana_cost || '',
-            cmc: row.cmc || 0,
-            power: row.power || null,
-            toughness: row.toughness || null
-        };
-    }
-    
-    parseYugiohCard(row) {
-        return {
-            name: row.name || '',
-            attack: row.atk || null,
-            defense: row.def || null,
-            level: row.level || null,
-            attribute: row.attribute || ''
-        };
-    }
-    
-    parseLorcanaCard(row) {
-        return {
-            name: row.name || '',
-            inkCost: row.ink_cost || null,
-            strength: row.strength || null,
-            willpower: row.willpower || null
-        };
-    }
-    
-    parseOnePieceCard(row) {
-        return {
-            name: row.name || '',
-            cost: row.cost || null,
-            power: row.power || null,
-            counter: row.counter || null
-        };
-    }
-    
     async downloadImage(imageUrl, cardId) {
         if (!imageUrl || imageUrl.includes('placeholder')) {
-            return imageUrl; // Return placeholder URLs as-is for testing
+            return imageUrl;
         }
         
         try {
-            const extension = '.jpg';
+            const extension = path.extname(imageUrl) || '.jpg';
             const imagePath = path.join(this.cacheDir, `${cardId}${extension}`);
             
             // Check if already cached
@@ -313,7 +553,7 @@ class TCGApi {
             return imagePath;
         } catch (error) {
             console.error(`Error downloading image for ${cardId}:`, error.message);
-            return null;
+            return imageUrl; // Return original URL if download fails
         }
     }
     
