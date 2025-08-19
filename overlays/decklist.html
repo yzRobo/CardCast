@@ -468,9 +468,29 @@
         });
         
         socket.on('connect', () => {
-            console.log('Connected to CardCast server');
-            // Register as overlay client
+            console.log('Connected to decklist overlay');
             socket.emit('register-overlay', 'decklist');
+            
+            // Request current state
+            socket.emit('request-state', 'decklist');
+        });
+
+        // Also make it automatically show when updated
+        socket.on('decklist-update', (data) => {
+            if (data.deck) {
+                currentDeck = data.deck;
+                updateDecklist();
+            }
+            
+            if (data.show !== undefined) {
+                if (data.show) {
+                    setTimeout(() => {
+                        document.getElementById('decklistContainer').classList.add('active');
+                    }, 100);
+                } else {
+                    document.getElementById('decklistContainer').classList.remove('active');
+                }
+            }
         });
     </script>
 </body>

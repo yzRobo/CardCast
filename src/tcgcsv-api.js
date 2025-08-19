@@ -776,47 +776,50 @@ class TCGCSVApi {
         }
         
         try {
-            // Sanitize the card ID for filename
             const safeId = cardId.replace(/[^a-z0-9_-]/gi, '_');
             const extension = '.jpg';
             const imagePath = path.join(this.imagesDir, game, `${safeId}${extension}`);
             
             // Check if already cached
             if (fs.existsSync(imagePath)) {
+                console.log(`Image already cached: ${safeId}`);
                 return imagePath;
             }
             
-            // Download image with retry logic
-            let retries = 3;
+            // More aggressive retry logic
+            let retries = 5; // Increased from 3
             let lastError;
             
             while (retries > 0) {
                 try {
+                    console.log(`Downloading image for ${cardId}, attempt ${6 - retries}`);
                     const response = await axios.get(imageUrl, {
                         responseType: 'arraybuffer',
-                        timeout: 15000,
+                        timeout: 30000, // Increased from 15000
                         headers: {
-                            'User-Agent': 'CardCast/1.0.0',
-                            'Accept': 'image/*'
-                        }
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Accept': 'image/*,*/*',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'Connection': 'keep-alive'
+                        },
+                        maxContentLength: 50 * 1024 * 1024, // 50MB max
+                        maxBodyLength: 50 * 1024 * 1024
                     });
                     
                     fs.writeFileSync(imagePath, response.data);
-                    
-                    // Save cache info to database
-                    const stats = fs.statSync(imagePath);
-                    this.db.saveImageCache(cardId, imagePath, stats.size);
-                    
+                    console.log(`Successfully downloaded: ${safeId}`);
                     return imagePath;
                 } catch (error) {
                     lastError = error;
                     retries--;
+                    console.error(`Failed to download ${cardId}: ${error.message}, ${retries} retries left`);
                     if (retries > 0) {
-                        await this.delay(1000); // Wait 1 second before retry
+                        await this.delay(2000 * (6 - retries)); // Progressive delay
                     }
                 }
             }
             
+            console.error(`FAILED PERMANENTLY: ${cardId} - ${lastError.message}`);
             throw lastError;
         } catch (error) {
             console.error(`Error downloading image for ${cardId}:`, error.message);

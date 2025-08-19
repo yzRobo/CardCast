@@ -8,6 +8,41 @@ let selectedCard = null;
 let recentCards = [];
 let isOBSConnected = false;
 
+// Pokemon Match State
+let pokemonMatchState = {
+    player1: {
+        name: 'Player 1',
+        prizes: 6,
+        prizesTaken: [],
+        active: null,
+        bench: [],
+        hand: 7,
+        deck: 47
+    },
+    player2: {
+        name: 'Player 2',
+        prizes: 6,
+        prizesTaken: [],
+        active: null,
+        bench: [],
+        hand: 7,
+        deck: 47
+    },
+    currentTurn: 1,
+    timerRunning: false,
+    showPokemonMatch: false,
+    showPrizes: false
+};
+
+// Current deck list
+let currentDeckList = {
+    name: 'My Deck',
+    format: 'Standard',
+    pokemon: [],
+    trainers: [],
+    energy: []
+};
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
@@ -151,7 +186,7 @@ function createGameElement(game) {
         
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-btn';
-        deleteBtn.innerHTML = '×';  // Use × instead of emoji for better sizing
+        deleteBtn.innerHTML = '×';
         deleteBtn.title = 'Delete all data';
         deleteBtn.onclick = (e) => {
             e.stopPropagation();
@@ -186,6 +221,12 @@ function selectGame(gameId, hasData) {
     document.querySelectorAll('.game-item').forEach(item => {
         item.classList.toggle('active', item.dataset.game === gameId);
     });
+    
+    // Show/hide Pokemon-specific controls
+    const pokemonControls = document.getElementById('pokemonMatchControls');
+    if (pokemonControls) {
+        pokemonControls.style.display = gameId === 'pokemon' ? 'block' : 'none';
+    }
     
     // Enable/disable search
     const searchInput = document.getElementById('searchInput');
@@ -340,24 +381,9 @@ function updateCardPreview(card) {
         <div class="card-info">
             <h3>${card.name}</h3>
             <p>${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</p>
+            ${card.hp ? `<p>HP: ${card.hp}</p>` : ''}
         </div>
     `;
-}
-
-// Update recent cards display
-function updateRecentCardsDisplay() {
-    const recentDiv = document.getElementById('recentCards');
-    
-    if (recentCards.length === 0) {
-        recentDiv.innerHTML = '';
-        return;
-    }
-    
-    recentDiv.innerHTML = recentCards.map((card, index) => `
-        <div class="recent-card" onclick="selectCard('${card.id}')" title="${card.name}">
-            <img src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" alt="${card.name}">
-        </div>
-    `).join('');
 }
 
 // Add to recent cards
@@ -379,7 +405,7 @@ function updateRecentCardsDisplay() {
     
     recentDiv.innerHTML = recentCards.map((card, index) => `
         <div class="recent-card" onclick="selectCard('${card.id}')" title="${card.name}">
-            <img src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
+            <img src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" alt="${card.name}">
         </div>
     `).join('');
 }
@@ -391,7 +417,6 @@ function displayCard(position) {
         return;
     }
     
-    // Make sure to use the display_image for overlays too
     const cardToSend = {
         ...selectedCard,
         image_url: selectedCard.display_image || selectedCard.local_image || selectedCard.image_url
@@ -417,6 +442,400 @@ function clearDisplay() {
     const btn = document.getElementById('clearDisplay');
     btn.classList.add('success');
     setTimeout(() => btn.classList.remove('success'), 1000);
+}
+
+// Pokemon Match Functions
+function updatePlayerNames() {
+    const p1Name = document.getElementById('p1NameInput').value || 'Player 1';
+    const p2Name = document.getElementById('p2NameInput').value || 'Player 2';
+    
+    pokemonMatchState.player1.name = p1Name;
+    pokemonMatchState.player2.name = p2Name;
+    
+    socket.emit('pokemon-match-update', {
+        player1: pokemonMatchState.player1,
+        player2: pokemonMatchState.player2
+    });
+}
+
+function setActivePokemon(playerNum) {
+    if (!selectedCard) {
+        alert('Please select a Pokemon card first');
+        return;
+    }
+    
+    if (currentGame !== 'pokemon') {
+        alert('Please select a Pokemon card');
+        return;
+    }
+    
+    const pokemon = {
+        id: selectedCard.id,
+        name: selectedCard.name,
+        image: selectedCard.display_image || selectedCard.local_image || selectedCard.image_url,
+        maxHp: selectedCard.hp || 100,
+        currentHp: selectedCard.hp || 100
+    };
+    
+    socket.emit('active-pokemon', {
+        player: playerNum,
+        pokemon: pokemon
+    });
+    
+    pokemonMatchState[`player${playerNum}`].active = pokemon;
+    alert(`Set ${selectedCard.name} as Player ${playerNum}'s active Pokemon`);
+}
+
+function addToBench(playerNum) {
+    if (!selectedCard) {
+        alert('Please select a Pokemon card first');
+        return;
+    }
+    
+    if (currentGame !== 'pokemon') {
+        alert('Please select a Pokemon card');
+        return;
+    }
+    
+    const player = pokemonMatchState[`player${playerNum}`];
+    if (player.bench.length >= 5) {
+        alert(`Player ${playerNum}'s bench is full!`);
+        return;
+    }
+    
+    const pokemon = {
+        id: selectedCard.id,
+        name: selectedCard.name,
+        image: selectedCard.display_image || selectedCard.local_image || selectedCard.image_url,
+        maxHp: selectedCard.hp || 100,
+        currentHp: selectedCard.hp || 100
+    };
+    
+    player.bench.push(pokemon);
+    
+    socket.emit('bench-update', {
+        player: playerNum,
+        bench: player.bench
+    });
+    
+    alert(`Added ${selectedCard.name} to Player ${playerNum}'s bench`);
+}
+
+function clearBench(playerNum) {
+    if (!confirm(`Clear Player ${playerNum}'s bench?`)) {
+        return;
+    }
+    
+    pokemonMatchState[`player${playerNum}`].bench = [];
+    
+    socket.emit('bench-update', {
+        player: playerNum,
+        bench: []
+    });
+}
+
+function takePrize(playerNum) {
+    const player = pokemonMatchState[`player${playerNum}`];
+    
+    if (player.prizesTaken.length >= 6) {
+        alert(`Player ${playerNum} has already taken all prizes!`);
+        return;
+    }
+    
+    const nextPrize = player.prizesTaken.length;
+    player.prizesTaken.push(nextPrize);
+    player.prizes = 6 - player.prizesTaken.length;
+    
+    socket.emit('prize-taken', {
+        player: playerNum,
+        index: nextPrize
+    });
+    
+    updatePrizeDisplay();
+}
+
+function resetPrizes() {
+    if (!confirm('Reset all prize cards?')) {
+        return;
+    }
+    
+    pokemonMatchState.player1.prizes = 6;
+    pokemonMatchState.player1.prizesTaken = [];
+    pokemonMatchState.player2.prizes = 6;
+    pokemonMatchState.player2.prizesTaken = [];
+    
+    socket.emit('prizes-reset');
+    updatePrizeDisplay();
+}
+
+function updatePrizeDisplay() {
+    const p1Count = document.getElementById('p1PrizeCount');
+    const p2Count = document.getElementById('p2PrizeCount');
+    
+    if (p1Count) {
+        p1Count.textContent = `${pokemonMatchState.player1.prizes}/6`;
+    }
+    if (p2Count) {
+        p2Count.textContent = `${pokemonMatchState.player2.prizes}/6`;
+    }
+}
+
+function switchTurn() {
+    pokemonMatchState.currentTurn = pokemonMatchState.currentTurn === 1 ? 2 : 1;
+    
+    socket.emit('turn-switch', {
+        currentTurn: pokemonMatchState.currentTurn
+    });
+    
+    alert(`Now Player ${pokemonMatchState.currentTurn}'s turn`);
+}
+
+function toggleTimer() {
+    pokemonMatchState.timerRunning = !pokemonMatchState.timerRunning;
+    
+    socket.emit(pokemonMatchState.timerRunning ? 'timer-start' : 'timer-pause');
+}
+
+function resetMatch() {
+    if (!confirm('Reset the entire match? This will clear all Pokemon, prizes, and timer.')) {
+        return;
+    }
+    
+    pokemonMatchState = {
+        player1: {
+            name: document.getElementById('p1NameInput').value || 'Player 1',
+            prizes: 6,
+            prizesTaken: [],
+            active: null,
+            bench: [],
+            hand: 7,
+            deck: 47
+        },
+        player2: {
+            name: document.getElementById('p2NameInput').value || 'Player 2',
+            prizes: 6,
+            prizesTaken: [],
+            active: null,
+            bench: [],
+            hand: 7,
+            deck: 47
+        },
+        currentTurn: 1,
+        timerRunning: false
+    };
+    
+    socket.emit('match-reset');
+    updatePrizeDisplay();
+    alert('Match reset');
+}
+
+function togglePokemonMatch() {
+    pokemonMatchState.showPokemonMatch = !pokemonMatchState.showPokemonMatch;
+    socket.emit('toggle-pokemon-match', { show: pokemonMatchState.showPokemonMatch });
+}
+
+function togglePrizeOverlay() {
+    pokemonMatchState.showPrizes = !pokemonMatchState.showPrizes;
+    socket.emit('toggle-prizes', { show: pokemonMatchState.showPrizes });
+}
+
+// Deck List Functions
+function parseDeckList(deckText) {
+    const lines = deckText.trim().split('\n');
+    const deck = {
+        pokemon: [],
+        trainers: [],
+        energy: []
+    };
+    
+    let currentSection = null;
+    
+    lines.forEach(line => {
+        line = line.trim();
+        if (!line) return;
+        
+        // Check for section headers
+        if (line.toLowerCase().includes('pokémon:') || line.toLowerCase().includes('pokemon:')) {
+            currentSection = 'pokemon';
+            return;
+        } else if (line.toLowerCase().includes('trainer:')) {
+            currentSection = 'trainers';
+            return;
+        } else if (line.toLowerCase().includes('energy:')) {
+            currentSection = 'energy';
+            return;
+        }
+        
+        // Skip lines that are just numbers (like "Total Cards: 60")
+        if (line.match(/^(Total Cards:|Pokémon:|Trainer:|Energy:)/i)) {
+            return;
+        }
+        
+        // Parse card lines - handle both formats
+        // Format 1: "3 Ralts SVI 84"
+        // Format 2: "3 Basic {P} Energy SVE 13"
+        const match = line.match(/^(\d+)\s+(.+?)\s+([A-Z]{2,}[A-Z0-9]*)\s+(\d+)$/);
+        if (match) {
+            const [_, quantity, name, setCode, number] = match;
+            const cleanName = name.replace(/\{.\}/g, '').replace(/Basic\s+Energy/g, 'Energy').trim();
+            
+            const card = {
+                quantity: parseInt(quantity),
+                name: cleanName,
+                setCode: setCode,
+                number: number,
+                fullName: `${cleanName} ${setCode} ${number}`
+            };
+            
+            if (currentSection === 'pokemon') {
+                deck.pokemon.push(card);
+            } else if (currentSection === 'trainers') {
+                deck.trainers.push(card);
+            } else if (currentSection === 'energy') {
+                deck.energy.push(card);
+            }
+        }
+    });
+    
+    return deck;
+}
+
+async function importDeck() {
+    const deckText = document.getElementById('deckImportText').value;
+    if (!deckText) {
+        alert('Please paste a deck list first');
+        return;
+    }
+    
+    const deckName = document.getElementById('deckNameInput').value || 'Imported Deck';
+    const deck = parseDeckList(deckText);
+    
+    const totalCards = 
+        deck.pokemon.reduce((sum, c) => sum + c.quantity, 0) +
+        deck.trainers.reduce((sum, c) => sum + c.quantity, 0) +
+        deck.energy.reduce((sum, c) => sum + c.quantity, 0);
+    
+    if (totalCards !== 60) {
+        if (!confirm(`Deck has ${totalCards} cards (should be 60). Import anyway?`)) {
+            return;
+        }
+    }
+    
+    // Update current deck list
+    currentDeckList = {
+        name: deckName,
+        format: 'Standard',
+        pokemon: deck.pokemon,
+        trainers: deck.trainers,
+        energy: deck.energy
+    };
+    
+    // Send to overlay
+    socket.emit('decklist-update', {
+        deck: {
+            title: deckName,
+            format: 'Standard',
+            game: 'pokemon',
+            categories: {
+                'Pokemon': deck.pokemon,
+                'Trainers': deck.trainers,
+                'Energy': deck.energy
+            }
+        },
+        show: false
+    });
+    
+    // Clear import area
+    document.getElementById('deckImportText').value = '';
+    document.getElementById('deckNameInput').value = '';
+    
+    alert(`Imported "${deckName}" with ${deck.pokemon.length} Pokémon, ${deck.trainers.length} Trainers, ${deck.energy.length} Energy`);
+}
+
+function clearDeckImport() {
+    document.getElementById('deckImportText').value = '';
+    document.getElementById('deckNameInput').value = '';
+}
+
+function showDeckList() {
+    socket.emit('decklist-update', {
+        deck: {
+            title: currentDeckList.name,
+            format: 'Standard',
+            game: 'pokemon',
+            categories: {
+                'Pokemon': currentDeckList.pokemon,
+                'Trainers': currentDeckList.trainers,
+                'Energy': currentDeckList.energy
+            }
+        },
+        show: true
+    });
+}
+
+function hideDeckList() {
+    socket.emit('decklist-update', {
+        deck: currentDeckList,
+        show: false
+    });
+}
+
+function addSelectedToDeck() {
+    if (!selectedCard) {
+        alert('Please select a card first');
+        return;
+    }
+    
+    // Determine category
+    let category = 'pokemon';
+    if (selectedCard.card_type?.includes('Trainer')) {
+        category = 'trainers';
+    } else if (selectedCard.card_type?.includes('Energy')) {
+        category = 'energy';
+    }
+    
+    // Find if card already exists
+    const existingCard = currentDeckList[category].find(c => 
+        c.name === selectedCard.name && 
+        c.setCode === selectedCard.set_code
+    );
+    
+    if (existingCard) {
+        existingCard.quantity++;
+    } else {
+        currentDeckList[category].push({
+            quantity: 1,
+            name: selectedCard.name,
+            setCode: selectedCard.set_code || '',
+            number: selectedCard.card_number || '',
+            fullName: `${selectedCard.name} ${selectedCard.set_code || ''} ${selectedCard.card_number || ''}`
+        });
+    }
+    
+    // Send update
+    socket.emit('decklist-add-card', {
+        category: category === 'pokemon' ? 'Pokemon' : 
+                  category === 'trainers' ? 'Trainers' : 'Energy',
+        card: selectedCard
+    });
+    
+    alert(`Added ${selectedCard.name} to deck`);
+}
+
+function clearDeckList() {
+    if (!confirm('Clear the entire deck list?')) {
+        return;
+    }
+    
+    currentDeckList = {
+        name: 'My Deck',
+        format: 'Standard',
+        pokemon: [],
+        trainers: [],
+        energy: []
+    };
+    
+    socket.emit('decklist-clear');
 }
 
 // Clear search results
@@ -462,6 +881,7 @@ async function loadConfig() {
         // Update OBS URLs
         const port = config.port || 3888;
         document.getElementById('obsMainUrl').textContent = `http://localhost:${port}/overlay`;
+        document.getElementById('obsPokemonUrl').textContent = `http://localhost:${port}/pokemon-match`;
         document.getElementById('obsPrizesUrl').textContent = `http://localhost:${port}/prizes`;
         document.getElementById('obsDecklistUrl').textContent = `http://localhost:${port}/decklist`;
     } catch (error) {
@@ -493,6 +913,16 @@ function setupKeyboardShortcuts() {
             if (recentCards[index]) {
                 selectCard(recentCards[index].id);
             }
+        }
+        
+        // P - Take prize for active player
+        if (e.key === 'p' && currentGame === 'pokemon') {
+            takePrize(pokemonMatchState.currentTurn);
+        }
+        
+        // T - Switch turn
+        if (e.key === 't' && currentGame === 'pokemon') {
+            switchTurn();
         }
     });
 }
@@ -538,3 +968,23 @@ function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
+
+// Make functions globally available for onclick handlers
+window.selectCard = selectCard;
+window.updatePlayerNames = updatePlayerNames;
+window.setActivePokemon = setActivePokemon;
+window.addToBench = addToBench;
+window.clearBench = clearBench;
+window.takePrize = takePrize;
+window.resetPrizes = resetPrizes;
+window.switchTurn = switchTurn;
+window.toggleTimer = toggleTimer;
+window.resetMatch = resetMatch;
+window.togglePokemonMatch = togglePokemonMatch;
+window.togglePrizeOverlay = togglePrizeOverlay;
+window.importDeck = importDeck;
+window.clearDeckImport = clearDeckImport;
+window.showDeckList = showDeckList;
+window.hideDeckList = hideDeckList;
+window.addSelectedToDeck = addSelectedToDeck;
+window.clearDeckList = clearDeckList;

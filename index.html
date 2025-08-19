@@ -113,6 +113,46 @@
                     </div>
                 </div>
                 
+                <!-- Pokemon Match Controls (shown when Pokemon is selected) -->
+                <div class="controls-group" id="pokemonMatchControls" style="display: none;">
+                    <label class="controls-label">Pokemon Match</label>
+                    <a href="/pokemon-match-control" target="_blank" class="control-btn" style="display: block; text-align: center; text-decoration: none; margin-bottom: 10px;">
+                        Open Match Control Panel →
+                    </a>
+                    <div class="button-group">
+                        <button class="control-btn" onclick="togglePokemonMatch()">Show/Hide Overlay</button>
+                        <button class="control-btn" onclick="togglePrizeOverlay()">Show/Hide Prizes</button>
+                    </div>
+                </div>
+                
+                <!-- Deck Import Section -->
+                <div class="controls-group">
+                    <label class="controls-label">Import Deck List</label>
+                    <textarea id="deckImportText" 
+                              placeholder="Paste Limitless TCG or PTCGL deck list here..." 
+                              rows="6"
+                              style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.5rem; color: var(--text-primary); font-size: 0.75rem; resize: vertical;"></textarea>
+                    <input type="text" 
+                           id="deckNameInput" 
+                           placeholder="Deck Name (e.g., Gardevoir ex)"
+                           style="width: 100%; margin-top: 0.5rem; padding: 0.5rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-primary); font-size: 0.875rem;">
+                    <div class="button-group" style="margin-top: 0.5rem;">
+                        <button class="control-btn" onclick="importDeck()">Import Deck</button>
+                        <button class="control-btn" onclick="clearDeckImport()">Clear</button>
+                    </div>
+                </div>
+                
+                <!-- Deck List Display Controls -->
+                <div class="controls-group">
+                    <label class="controls-label">Deck List Display</label>
+                    <div class="button-group">
+                        <button class="control-btn" onclick="showDeckList()">Show Deck List</button>
+                        <button class="control-btn" onclick="hideDeckList()">Hide Deck List</button>
+                    </div>
+                    <button class="control-btn" onclick="addSelectedToDeck()" style="margin-top: 5px;">Add Selected Card to Deck</button>
+                    <button class="control-btn danger" onclick="clearDeckList()" style="margin-top: 5px;">Clear Deck List</button>
+                </div>
+                
                 <!-- OBS Links -->
                 <div class="obs-links">
                     <h3>OBS Browser Sources</h3>
@@ -120,6 +160,11 @@
                         <span class="obs-link-label">Main Overlay</span>
                         <span class="obs-link-url" id="obsMainUrl">http://localhost:3888/overlay</span>
                         <button class="copy-btn" data-copy="obsMainUrl">Copy</button>
+                    </div>
+                    <div class="obs-link">
+                        <span class="obs-link-label">Pokemon Match</span>
+                        <span class="obs-link-url" id="obsPokemonUrl">http://localhost:3888/pokemon-match</span>
+                        <button class="copy-btn" data-copy="obsPokemonUrl">Copy</button>
                     </div>
                     <div class="obs-link">
                         <span class="obs-link-label">Prize Cards</span>

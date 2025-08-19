@@ -380,9 +380,24 @@ app.get('/decklist', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'decklist.html'));
 });
 
+app.get('/pokemon-match', (req, res) => {
+    res.sendFile(path.join(__dirname, 'overlays', 'pokemon-match.html'));
+});
+
+app.get('/pokemon-match-control', (req, res) => {
+    res.sendFile(path.join(__dirname, 'pokemon-match-control.html'));
+});
+
 // Track overlay connections
 let overlayClients = new Set();
 let mainClients = new Set();
+let controlClients = new Set();
+let overlayStates = {
+    'pokemon-match': false,
+    'prizes': false,
+    'decklist': false,
+    'main': false
+};
 
 // Socket.io events
 io.on('connection', (socket) => {
@@ -394,10 +409,36 @@ io.on('connection', (socket) => {
     // Handle overlay registration
     socket.on('register-overlay', (type) => {
         overlayClients.add(socket.id);
+        overlayStates[type] = true;
         console.log(`Overlay registered: ${type} (${socket.id})`);
+        
+        // Notify all control panels that overlay is connected
+        io.emit('overlay-connected', type);
         
         // Notify all main clients that OBS is connected
         io.emit('obs-status', { connected: true });
+        
+        // Send current state to the overlay
+        if (type === 'pokemon-match') {
+            socket.emit('pokemon-match-state', overlayServer.getState());
+        } else if (type === 'prizes') {
+            socket.emit('prizes-state', overlayServer.getState());
+        } else if (type === 'decklist') {
+            socket.emit('decklist-state', overlayServer.getState());
+        }
+    });
+    
+    // Handle control panel registration
+    socket.on('register-control', (type) => {
+        controlClients.add(socket.id);
+        console.log(`Control panel registered: ${type} (${socket.id})`);
+        
+        // Send current overlay connection states
+        Object.keys(overlayStates).forEach(overlayType => {
+            if (overlayStates[overlayType]) {
+                socket.emit('overlay-connected', overlayType);
+            }
+        });
     });
     
     // Handle main client registration
@@ -408,9 +449,30 @@ io.on('connection', (socket) => {
         socket.emit('obs-status', { connected: overlayClients.size > 0 });
     });
     
+    // Request state (from overlays)
+    socket.on('request-state', (type) => {
+        console.log(`State requested for ${type}`);
+        const state = overlayServer.getState();
+        
+        if (type === 'prizes') {
+            socket.emit('prizes-update', {
+                player1: state.prizeCards.player1,
+                player2: state.prizeCards.player2,
+                game: 'pokemon',
+                show: true
+            });
+        } else if (type === 'decklist') {
+            socket.emit('decklist-update', {
+                deck: state.decklist,
+                show: true
+            });
+        } else if (type === 'pokemon-match') {
+            socket.emit('pokemon-match-state', state);
+        }
+    });
+    
     // Handle OBS status check
     socket.on('check-obs-status', () => {
-        // Send current OBS connection status
         socket.emit('obs-status', { connected: overlayClients.size > 0 });
     });
     
@@ -434,16 +496,87 @@ io.on('connection', (socket) => {
         io.emit('clear-card', { position: 'both' });
     });
     
-    // Prize card events
+    // Pokemon Match events
+    socket.on('pokemon-match-update', (data) => {
+        console.log('Pokemon match update:', data);
+        // Broadcast to all clients including overlays
+        io.emit('pokemon-match-update', data);
+    });
+    
+    socket.on('active-pokemon', (data) => {
+        console.log('Active pokemon update for player', data.player);
+        io.emit('active-pokemon', data);
+    });
+    
+    socket.on('bench-update', (data) => {
+        console.log('Bench update for player', data.player);
+        io.emit('bench-update', data);
+    });
+    
+    socket.on('prize-taken', (data) => {
+        console.log('Prize taken:', data);
+        overlayServer.takePrize(data.player, data.index);
+        io.emit('prize-taken', data);
+    });
+    
+    socket.on('prizes-reset', () => {
+        console.log('Prizes reset');
+        overlayServer.resetPrizes();
+        io.emit('prizes-reset');
+    });
+    
+    socket.on('turn-switch', (data) => {
+        console.log('Turn switch:', data);
+        io.emit('turn-switch', data);
+    });
+    
+    socket.on('timer-start', () => {
+        console.log('Timer start');
+        io.emit('timer-start');
+    });
+    
+    socket.on('timer-pause', () => {
+        console.log('Timer pause');
+        io.emit('timer-pause');
+    });
+    
+    socket.on('timer-reset', () => {
+        console.log('Timer reset');
+        io.emit('timer-reset');
+    });
+    
+    socket.on('match-reset', () => {
+        console.log('Match reset');
+        io.emit('match-reset');
+    });
+    
+    socket.on('match-settings', (data) => {
+        console.log('Match settings:', data);
+        io.emit('match-settings', data);
+    });
+    
+    socket.on('toggle-pokemon-match', (data) => {
+        console.log('Toggle pokemon match overlay:', data.show);
+        io.emit('toggle-pokemon-match', data);
+    });
+    
+    socket.on('toggle-prizes', (data) => {
+        console.log('Toggle prizes overlay:', data.show);
+        io.emit('toggle-prizes', data);
+    });
+    
+    // Prize card events (alternative handling)
     socket.on('update-prizes', (data) => {
         console.log('Update prizes:', data);
         overlayServer.updatePrizes(data);
+        io.emit('prizes-update', data);
     });
     
     // Decklist events
     socket.on('decklist-update', (data) => {
         console.log('Update decklist');
         overlayServer.updateDecklist(data);
+        io.emit('decklist-update', data);
     });
     
     socket.on('decklist-add-card', (data) => {
@@ -454,6 +587,7 @@ io.on('connection', (socket) => {
     socket.on('decklist-clear', () => {
         console.log('Clear decklist');
         overlayServer.clearDecklist();
+        io.emit('decklist-clear');
     });
     
     // Handle disconnect
@@ -462,11 +596,24 @@ io.on('connection', (socket) => {
         
         // Check if it was an overlay client
         const wasOverlay = overlayClients.delete(socket.id);
+        const wasControl = controlClients.delete(socket.id);
         mainClients.delete(socket.id);
         
-        // If it was an overlay and no more overlays are connected, notify main clients
-        if (wasOverlay && overlayClients.size === 0) {
-            io.emit('obs-status', { connected: false });
+        if (wasOverlay) {
+            // Check which overlay disconnected
+            Object.keys(overlayStates).forEach(type => {
+                // For simplicity, mark all as disconnected when any overlay disconnects
+                // In production, you'd track which specific overlay each socket represents
+                overlayStates[type] = false;
+            });
+            
+            // Notify control panels
+            io.emit('overlay-disconnected', 'pokemon-match');
+            
+            // If no more overlays are connected, notify main clients
+            if (overlayClients.size === 0) {
+                io.emit('obs-status', { connected: false });
+            }
         }
     });
 });

@@ -320,6 +320,37 @@
             // Register as overlay client
             socket.emit('register-overlay', 'prizes');
         });
+
+        socket.on('prizes-update', (data) => {
+            const { game, player1, player2, show } = data;
+            
+            if (game) currentGame = game;
+            if (player1) prizeData.player1 = player1;
+            if (player2) prizeData.player2 = player2;
+            
+            initializePrizes();
+            
+            if (show) {
+                setTimeout(() => {
+                    document.getElementById('player1Prizes').classList.add('active');
+                    document.getElementById('player2Prizes').classList.add('active');
+                    document.getElementById('prizesCounter').classList.add('active');
+                }, 100);
+            } else {
+                document.getElementById('player1Prizes').classList.remove('active');
+                document.getElementById('player2Prizes').classList.remove('active');
+                document.getElementById('prizesCounter').classList.remove('active');
+            }
+        });
+
+        // Also add automatic showing on connect
+        socket.on('connect', () => {
+            console.log('Connected to prizes overlay');
+            socket.emit('register-overlay', 'prizes');
+            
+            // Request current state
+            socket.emit('request-state', 'prizes');
+        });
     </script>
 </body>
 </html>

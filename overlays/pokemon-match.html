@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>CardCast - Pokemon Match Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 1920px;
+            height: 1080px;
+            background: transparent;
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Player boards - vertical panels on sides - NOW TALLER */
+        .player-board {
+            position: absolute;
+            width: 340px;  /* Increased from 280px */
+            height: 900px;  /* Fixed height for better use of space */
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            transition: all 0.5s ease;
+        }
+        
+        .player-board.active {
+            opacity: 1;
+        }
+        
+        .player-board.left {
+            left: 20px;
+            top: 40px;  /* Moved up from 50px */
+            transform: translateX(-360px);
+        }
+        
+        .player-board.left.active {
+            transform: translateX(0);
+        }
+        
+        .player-board.right {
+            right: 20px;
+            top: 40px;
+            transform: translateX(360px);
+        }
+        
+        .player-board.right.active {
+            transform: translateX(0);
+        }
+        
+        /* Player Header - LARGER */
+        .player-header {
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
+            border-radius: 12px;
+            padding: 15px;  /* Increased from 12px */
+            margin-bottom: 12px;
+            border: 2px solid #3b82f6;
+            backdrop-filter: blur(10px);
+        }
+        
+        .player-board.right .player-header {
+            border-color: #ef4444;
+        }
+        
+        .player-name {
+            font-size: 22px;  /* Increased from 18px */
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        
+        .player-stats {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        
+        .stat-item {
+            flex: 1;
+            text-align: center;
+            background: rgba(0,0,0,0.5);
+            padding: 6px;  /* Increased from 4px */
+            border-radius: 6px;
+        }
+        
+        .stat-label {
+            font-size: 11px;  /* Increased from 10px */
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+        }
+        
+        .stat-value {
+            font-size: 24px;  /* Increased from 20px */
+            font-weight: bold;
+            color: #3b82f6;
+            display: block;
+        }
+        
+        .player-board.right .stat-value {
+            color: #ef4444;
+        }
+        
+        /* Active Pokemon Section - MUCH LARGER vertical card */
+        .active-pokemon {
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
+            border: 2px solid #6366f1;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+            backdrop-filter: blur(10px);
+            flex: 1;  /* Take up available space */
+            max-height: 480px;  /* Increased from 350px */
+        }
+        
+        .section-title {
+            font-size: 13px;  /* Increased from 11px */
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 10px;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .active-card {
+            position: relative;
+            height: calc(100% - 30px);  /* Account for title */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .active-card img {
+            width: 100%;
+            height: 100%;
+            max-height: 430px;  /* Increased from 350px */
+            object-fit: contain;
+            border-radius: 10px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+        
+        .hp-overlay {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            right: 12px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.98) 0%, rgba(20,20,30,0.98) 100%);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            padding: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .hp-text {
+            color: white;
+            font-size: 14px;  /* Increased from 12px */
+            font-weight: bold;
+            margin-bottom: 6px;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        
+        .hp-bar {
+            height: 14px;  /* Increased from 10px */
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 7px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .hp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+        
+        .hp-fill.low {
+            background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+            box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+        }
+        
+        .hp-fill.critical {
+            background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+        
+        .no-active {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 16px;  /* Increased from 14px */
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+        }
+        
+        /* Bench Section - LARGER Horizontal layout */
+        .bench-section {
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
+            border: 2px solid rgba(99, 102, 241, 0.5);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .bench-cards {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+        }
+        
+        .bench-slot {
+            width: 56px;  /* Increased from 45px */
+            height: 78px;  /* Increased from 63px */
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+        
+        .bench-slot:hover {
+            transform: scale(1.05);
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+        
+        .bench-slot.empty {
+            background: rgba(255, 255, 255, 0.02);
+            border-style: dashed;
+        }
+        
+        .bench-slot img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .bench-hp {
+            position: absolute;
+            bottom: 2px;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.95);
+            color: #10b981;
+            font-size: 10px;  /* Increased from 8px */
+            text-align: center;
+            padding: 2px;
+            font-weight: bold;
+        }
+        
+        /* Prize Cards Section - LARGER */
+        .prizes-section {
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
+            border: 2px solid rgba(99, 102, 241, 0.5);
+            border-radius: 12px;
+            padding: 12px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .prize-cards-container {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+        
+        .prize-card {
+            width: 48px;  /* Increased from 40px */
+            height: 67px;  /* Increased from 56px */
+            background: linear-gradient(135deg, #3b4cca 0%, #1a237e 100%);
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+        
+        .prize-card:hover:not(.taken) {
+            transform: scale(1.1);
+            box-shadow: 0 6px 12px rgba(102, 126, 234, 0.5);
+        }
+        
+        .prize-card::before {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        
+        .prize-card.taken {
+            opacity: 0.2;
+            background: #1a1a1a;
+            border-color: #333;
+            box-shadow: none;
+        }
+        
+        .prize-card.taken::after {
+            content: '✕';
+            position: absolute;
+            font-size: 28px;  /* Increased from 24px */
+            color: #ef4444;
+            font-weight: bold;
+        }
+        
+        /* Match info bar at bottom - LARGER */
+        .match-info {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(0,0,0,0.98) 0%, rgba(20,20,30,0.98) 100%);
+            border: 2px solid #6366f1;
+            border-radius: 12px;
+            padding: 14px 30px;  /* Increased padding */
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            transition: all 0.5s ease;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+        
+        .match-info.active {
+            opacity: 1;
+        }
+        
+        .match-format {
+            font-size: 14px;  /* Increased from 12px */
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            font-weight: 600;
+        }
+        
+        .timer {
+            font-size: 36px;  /* Increased from 28px */
+            font-weight: bold;
+            color: #00d4ff;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 15px rgba(0,212,255,0.5);
+        }
+        
+        .turn-indicator {
+            padding: 8px 16px;  /* Increased padding */
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-radius: 24px;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;  /* Increased from 12px */
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <!-- Player 1 Board (Left) -->
+    <div class="player-board left" id="player1Board">
+        <div class="player-header">
+            <div class="player-name" id="player1Name">Player 1</div>
+            <div class="player-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Prizes</span>
+                    <span class="stat-value" id="player1Prizes">6</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Hand</span>
+                    <span class="stat-value" id="player1Hand">7</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Deck</span>
+                    <span class="stat-value" id="player1Deck">47</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="active-pokemon">
+            <div class="section-title">Active Pokémon</div>
+            <div id="player1Active">
+                <div class="no-active">No Active Pokémon</div>
+            </div>
+        </div>
+        
+        <div class="bench-section">
+            <div class="section-title">Bench</div>
+            <div class="bench-cards" id="player1Bench">
+                <div class="bench-slot empty"></div>
+                <div class="bench-slot empty"></div>
+                <div class="bench-slot empty"></div>
+                <div class="bench-slot empty"></div>
+                <div class="bench-slot empty"></div>
+            </div>
+        </div>
+        
+        <div class="prizes-section">
+            <div class="section-title">Prize Cards</div>
+            <div class="prize-cards-container" id="player1PrizeCards">
+                <div class="prize-card"></div>
+                <div class="prize-card"></div>
+                <div class="prize-card"></div>
+                <div class="prize-card"></div>
+                <div class="prize-card"></div>
+                <div class="prize-card"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Player 2 Board (Right) -->
+    <div class="player-board right" id="player2Board">
+        <div class="player-header">
+            <div class="player-name" id="player2Name">Player 2</div>
+            <div class="player-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Prizes</span>
+                    <span class="stat-value" id="player2Prizes">6</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Hand</span>
+                    <span class="stat-value" id="player2Hand">7</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Deck</span>
+                    <span class="stat-value" id="player2Deck">47</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="active-pokemon">
+            <div class="section-title">Active Pokémon</div>
+            <div id="player2Active">
+                <div class="no-active">No Active Pokémon</div>
+            </div>
+        </div>
+        
+        <div class="bench-section">
+            <div class="section-title">Bench</div>
+            <div class="bench-cards" id="player2Bench">
+                <div class="bench-slot empty"></div>
+                <div class="bench-slot empty"></div>
+                <div class="bench-slot empty"></div>
+                <div class="bench-slot empty"></div>
+                <div class="bench-slot empty"></div>
+            </div>
+        </div>
+        
+        <div class="prizes-section">
+            <div class="section-title">Prize Cards</div>
+            <div class="prize-cards-container" id="player2PrizeCards">
+                <div class="prize-card"></div>
+                <div class="prize-card"></div>
+                <div class="prize-card"></div>
+                <div class="prize-card"></div>
+                <div class="prize-card"></div>
+                <div class="prize-card"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Match Info Bar -->
+    <div class="match-info" id="matchInfo">
+        <div class="match-format" id="matchFormat">BEST OF 3 • GAME 1</div>
+        <div class="timer" id="matchTimer">50:00</div>
+        <div class="turn-indicator" id="turnIndicator">Player 1's Turn</div>
+    </div>
+    
+    <script>
+        const socket = io('http://localhost:3888');
+        
+        let matchState = {
+            player1: {
+                name: 'Player 1',
+                prizes: 6,
+                prizesTaken: [],
+                hand: 7,
+                deck: 47,
+                active: null,
+                bench: []
+            },
+            player2: {
+                name: 'Player 2',
+                prizes: 6,
+                prizesTaken: [],
+                hand: 7,
+                deck: 47,
+                active: null,
+                bench: []
+            },
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            timerInterval: null,
+            gameNumber: 1,
+            matchFormat: 'Best of 3',
+            visible: false
+        };
+        
+        // Socket event handlers
+        socket.on('pokemon-match-update', (data) => {
+            if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
+            if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
+            updateDisplay();
+        });
+        
+        socket.on('active-pokemon', (data) => {
+            const player = `player${data.player}`;
+            matchState[player].active = data.pokemon;
+            updateActiveDisplay(data.player);
+        });
+        
+        socket.on('bench-update', (data) => {
+            const player = `player${data.player}`;
+            matchState[player].bench = data.bench;
+            updateBenchDisplay(data.player);
+        });
+        
+        socket.on('prize-taken', (data) => {
+            const player = `player${data.player}`;
+            if (!matchState[player].prizesTaken.includes(data.index)) {
+                matchState[player].prizesTaken.push(data.index);
+                matchState[player].prizes = 6 - matchState[player].prizesTaken.length;
+            }
+            updatePrizeDisplay(data.player);
+            updatePlayerInfo(data.player);
+        });
+        
+        socket.on('prizes-reset', () => {
+            matchState.player1.prizesTaken = [];
+            matchState.player1.prizes = 6;
+            matchState.player2.prizesTaken = [];
+            matchState.player2.prizes = 6;
+            updatePrizeDisplay(1);
+            updatePrizeDisplay(2);
+            updatePlayerInfo(1);
+            updatePlayerInfo(2);
+        });
+        
+        socket.on('turn-switch', (data) => {
+            matchState.currentTurn = data.currentTurn;
+            updateMatchInfo();
+        });
+        
+        socket.on('timer-start', () => {
+            startTimer();
+        });
+        
+        socket.on('timer-pause', () => {
+            pauseTimer();
+        });
+        
+        socket.on('match-reset', () => {
+            matchState = {
+                player1: {
+                    name: 'Player 1',
+                    prizes: 6,
+                    prizesTaken: [],
+                    hand: 7,
+                    deck: 47,
+                    active: null,
+                    bench: []
+                },
+                player2: {
+                    name: 'Player 2',
+                    prizes: 6,
+                    prizesTaken: [],
+                    hand: 7,
+                    deck: 47,
+                    active: null,
+                    bench: []
+                },
+                currentTurn: 1,
+                timer: { minutes: 50, seconds: 0 },
+                gameNumber: 1,
+                matchFormat: 'Best of 3',
+                visible: matchState.visible
+            };
+            pauseTimer();
+            updateDisplay();
+        });
+        
+        socket.on('match-settings', (data) => {
+            if (data.gameNumber) matchState.gameNumber = data.gameNumber;
+            if (data.matchFormat) matchState.matchFormat = data.matchFormat;
+            updateMatchInfo();
+        });
+        
+        socket.on('toggle-pokemon-match', (data) => {
+            matchState.visible = data.show;
+            if (data.show) {
+                showOverlay();
+            } else {
+                hideOverlay();
+            }
+        });
+        
+        function showOverlay() {
+            document.getElementById('player1Board').classList.add('active');
+            document.getElementById('player2Board').classList.add('active');
+            document.getElementById('matchInfo').classList.add('active');
+        }
+        
+        function hideOverlay() {
+            document.getElementById('player1Board').classList.remove('active');
+            document.getElementById('player2Board').classList.remove('active');
+            document.getElementById('matchInfo').classList.remove('active');
+        }
+        
+        function updateDisplay() {
+            updatePlayerInfo(1);
+            updatePlayerInfo(2);
+            updateActiveDisplay(1);
+            updateActiveDisplay(2);
+            updateBenchDisplay(1);
+            updateBenchDisplay(2);
+            updatePrizeDisplay(1);
+            updatePrizeDisplay(2);
+            updateMatchInfo();
+        }
+        
+        function updatePlayerInfo(playerNum) {
+            const player = matchState[`player${playerNum}`];
+            document.getElementById(`player${playerNum}Name`).textContent = player.name;
+            document.getElementById(`player${playerNum}Prizes`).textContent = player.prizes;
+            document.getElementById(`player${playerNum}Hand`).textContent = player.hand;
+            document.getElementById(`player${playerNum}Deck`).textContent = player.deck;
+        }
+        
+        function updateActiveDisplay(playerNum) {
+            const player = matchState[`player${playerNum}`];
+            const activeDiv = document.getElementById(`player${playerNum}Active`);
+            
+            if (player.active) {
+                const hpPercent = (player.active.currentHp / player.active.maxHp) * 100;
+                let hpClass = '';
+                if (hpPercent <= 20) hpClass = 'critical';
+                else if (hpPercent <= 50) hpClass = 'low';
+                
+                activeDiv.innerHTML = `
+                    <div class="active-card">
+                        <img src="${player.active.image}" alt="${player.active.name}">
+                        <div class="hp-overlay">
+                            <div class="hp-text">${player.active.currentHp}/${player.active.maxHp} HP</div>
+                            <div class="hp-bar">
+                                <div class="hp-fill ${hpClass}" style="width: ${hpPercent}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                activeDiv.innerHTML = '<div class="no-active">No Active Pokémon</div>';
+            }
+        }
+        
+        function updateBenchDisplay(playerNum) {
+            const player = matchState[`player${playerNum}`];
+            const benchDiv = document.getElementById(`player${playerNum}Bench`);
+            
+            let benchHTML = '';
+            for (let i = 0; i < 5; i++) {
+                if (player.bench[i]) {
+                    const pokemon = player.bench[i];
+                    benchHTML += `
+                        <div class="bench-slot">
+                            <img src="${pokemon.image}" alt="${pokemon.name}">
+                            <div class="bench-hp">${pokemon.currentHp}/${pokemon.maxHp}</div>
+                        </div>
+                    `;
+                } else {
+                    benchHTML += '<div class="bench-slot empty"></div>';
+                }
+            }
+            
+            benchDiv.innerHTML = benchHTML;
+        }
+        
+        function updatePrizeDisplay(playerNum) {
+            const player = matchState[`player${playerNum}`];
+            const prizeDiv = document.getElementById(`player${playerNum}PrizeCards`);
+            
+            let prizeHTML = '';
+            for (let i = 0; i < 6; i++) {
+                const taken = player.prizesTaken.includes(i);
+                prizeHTML += `<div class="prize-card ${taken ? 'taken' : ''}"></div>`;
+            }
+            
+            prizeDiv.innerHTML = prizeHTML;
+        }
+        
+        function updateMatchInfo() {
+            const timer = document.getElementById('matchTimer');
+            const minutes = String(matchState.timer.minutes).padStart(2, '0');
+            const seconds = String(matchState.timer.seconds).padStart(2, '0');
+            timer.textContent = `${minutes}:${seconds}`;
+            
+            const turnIndicator = document.getElementById('turnIndicator');
+            const currentPlayerName = matchState[`player${matchState.currentTurn}`].name;
+            turnIndicator.textContent = `${currentPlayerName}'s Turn`;
+            
+            const format = document.getElementById('matchFormat');
+            format.textContent = `${matchState.matchFormat.toUpperCase()} • GAME ${matchState.gameNumber}`;
+        }
+        
+        function startTimer() {
+            if (matchState.timerInterval) return;
+            
+            matchState.timerInterval = setInterval(() => {
+                if (matchState.timer.seconds > 0) {
+                    matchState.timer.seconds--;
+                } else if (matchState.timer.minutes > 0) {
+                    matchState.timer.minutes--;
+                    matchState.timer.seconds = 59;
+                } else {
+                    pauseTimer();
+                }
+                updateMatchInfo();
+            }, 1000);
+        }
+        
+        function pauseTimer() {
+            if (matchState.timerInterval) {
+                clearInterval(matchState.timerInterval);
+                matchState.timerInterval = null;
+            }
+        }
+        
+        // Initialize display
+        updateDisplay();
+        
+        // Register as overlay
+        socket.emit('register-overlay', 'pokemon-match');
+        console.log('Registering as pokemon-match overlay');
+        
+        // Auto-show overlay after registration
+        setTimeout(() => {
+            showOverlay();
+        }, 500);
+        
+        // Ping connection status periodically
+        setInterval(() => {
+            socket.emit('register-overlay', 'pokemon-match');
+        }, 5000);
+    </script>
+</body>
+</html>
