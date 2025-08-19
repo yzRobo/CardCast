@@ -1,4 +1,4 @@
-// src/database.js - CardCast Database Handler (Fixed)
+// src/database.js - CardCast Database Handler with Proper Schema
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
@@ -45,11 +45,12 @@ class CardDatabase {
             )
         `);
         
-        // Cards table - stores all cards from all games
+        // Main cards table with all common fields and game-specific attributes
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS cards (
                 id TEXT PRIMARY KEY,
                 game TEXT NOT NULL,
+                product_id TEXT,
                 name TEXT NOT NULL,
                 set_name TEXT,
                 set_code TEXT,
@@ -58,8 +59,93 @@ class CardDatabase {
                 rarity TEXT,
                 card_type TEXT,
                 card_text TEXT,
-                attributes TEXT,
                 search_text TEXT,
+                
+                -- Pokemon specific fields
+                hp INTEGER,
+                stage TEXT,
+                evolves_from TEXT,
+                weakness TEXT,
+                resistance TEXT,
+                retreat_cost TEXT,
+                ability_name TEXT,
+                ability_text TEXT,
+                attack1_name TEXT,
+                attack1_cost TEXT,
+                attack1_damage TEXT,
+                attack1_text TEXT,
+                attack2_name TEXT,
+                attack2_cost TEXT,
+                attack2_damage TEXT,
+                attack2_text TEXT,
+                attack3_name TEXT,
+                attack3_cost TEXT,
+                attack3_damage TEXT,
+                attack3_text TEXT,
+                
+                -- Magic specific fields
+                mana_cost TEXT,
+                cmc INTEGER,
+                power TEXT,
+                toughness TEXT,
+                loyalty INTEGER,
+                colors TEXT,
+                color_identity TEXT,
+                type_line TEXT,
+                oracle_text TEXT,
+                flavor_text TEXT,
+                
+                -- Yu-Gi-Oh specific fields
+                attack INTEGER,
+                defense INTEGER,
+                level INTEGER,
+                rank INTEGER,
+                link_value INTEGER,
+                pendulum_scale INTEGER,
+                attribute TEXT,
+                monster_type TEXT,
+                
+                -- Lorcana specific fields
+                ink_cost INTEGER,
+                strength INTEGER,
+                willpower INTEGER,
+                lore_value INTEGER,
+                inkable BOOLEAN,
+                
+                -- One Piece specific fields
+                cost INTEGER,
+                op_power INTEGER,
+                counter INTEGER,
+                life INTEGER,
+                don_value INTEGER,
+                trigger_text TEXT,
+                
+                -- Digimon specific fields
+                play_cost INTEGER,
+                digivolve_cost INTEGER,
+                digivolve_color TEXT,
+                dp INTEGER,
+                digimon_level INTEGER,
+                digimon_type TEXT,
+                digimon_attribute TEXT,
+                
+                -- Flesh and Blood specific fields
+                pitch_value INTEGER,
+                fab_defense INTEGER,
+                fab_attack INTEGER,
+                resource_cost INTEGER,
+                
+                -- Star Wars Unlimited specific fields
+                sw_cost INTEGER,
+                sw_power INTEGER,
+                sw_hp INTEGER,
+                aspect TEXT,
+                arena TEXT,
+                
+                -- Metadata
+                created_at INTEGER DEFAULT (strftime('%s', 'now')),
+                updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+                
                 FOREIGN KEY (game) REFERENCES games(id)
             )
         `);
@@ -69,6 +155,9 @@ class CardDatabase {
             CREATE INDEX IF NOT EXISTS idx_cards_game ON cards(game);
             CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name);
             CREATE INDEX IF NOT EXISTS idx_cards_search ON cards(search_text);
+            CREATE INDEX IF NOT EXISTS idx_cards_product_id ON cards(game, product_id);
+            CREATE INDEX IF NOT EXISTS idx_cards_set ON cards(game, set_code);
+            CREATE INDEX IF NOT EXISTS idx_cards_number ON cards(game, card_number);
         `);
         
         // Recent cards table for quick access
@@ -78,6 +167,17 @@ class CardDatabase {
                 card_id TEXT NOT NULL,
                 game TEXT NOT NULL,
                 accessed_at INTEGER DEFAULT (strftime('%s', 'now')),
+                FOREIGN KEY (card_id) REFERENCES cards(id)
+            )
+        `);
+        
+        // Card cache tracking table
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS card_cache (
+                card_id TEXT PRIMARY KEY,
+                image_path TEXT,
+                cached_at INTEGER DEFAULT (strftime('%s', 'now')),
+                file_size INTEGER,
                 FOREIGN KEY (card_id) REFERENCES cards(id)
             )
         `);
@@ -107,9 +207,16 @@ class CardDatabase {
     }
     
     prepareStatements() {
+        // Check if card exists
+        this.checkCardStmt = this.db.prepare(`
+            SELECT id, updated_at FROM cards 
+            WHERE game = ? AND product_id = ?
+        `);
+        
         // Search statement
         this.searchStmt = this.db.prepare(`
-            SELECT id, name, set_name, card_number, image_url, rarity, card_type
+            SELECT id, name, set_name, card_number, image_url, rarity, card_type, 
+                   hp, mana_cost, attack, defense, cost
             FROM cards 
             WHERE game = ? AND search_text LIKE ?
             ORDER BY 
@@ -118,12 +225,34 @@ class CardDatabase {
             LIMIT 50
         `);
         
-        // Insert card statement
+        // Insert card statement - now with all fields
         this.insertCardStmt = this.db.prepare(`
             INSERT OR REPLACE INTO cards 
-            (id, game, name, set_name, set_code, card_number, image_url, 
-             rarity, card_type, card_text, attributes, search_text)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, game, product_id, name, set_name, set_code, card_number, image_url, 
+             rarity, card_type, card_text, search_text,
+             hp, stage, evolves_from, weakness, resistance, retreat_cost,
+             ability_name, ability_text, attack1_name, attack1_cost, attack1_damage, attack1_text,
+             attack2_name, attack2_cost, attack2_damage, attack2_text,
+             attack3_name, attack3_cost, attack3_damage, attack3_text,
+             mana_cost, cmc, power, toughness, loyalty, colors, color_identity, type_line, oracle_text, flavor_text,
+             attack, defense, level, rank, link_value, pendulum_scale, attribute, monster_type,
+             ink_cost, strength, willpower, lore_value, inkable,
+             cost, op_power, counter, life, don_value, trigger_text,
+             play_cost, digivolve_cost, digivolve_color, dp, digimon_level, digimon_type, digimon_attribute,
+             pitch_value, fab_defense, fab_attack, resource_cost,
+             sw_cost, sw_power, sw_hp, aspect, arena,
+             updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?,
+                    strftime('%s', 'now'))
         `);
         
         // Get card statement
@@ -146,6 +275,19 @@ class CardDatabase {
         
         // Update game info statement
         this.updateGameStmt = this.db.prepare('UPDATE games SET last_update = ?, card_count = ? WHERE id = ?');
+        
+        // Count cards for game
+        this.countCardsStmt = this.db.prepare('SELECT COUNT(*) as count FROM cards WHERE game = ?');
+    }
+    
+    cardExists(game, productId) {
+        try {
+            const result = this.checkCardStmt.get(game, productId);
+            return result ? result : null;
+        } catch (error) {
+            console.error(`Error checking if card exists: ${productId}`, error);
+            return null;
+        }
     }
     
     hasGameData(game) {
@@ -175,14 +317,6 @@ class CardDatabase {
             if (card) {
                 // Update recent cards
                 this.updateRecentStmt.run(cardId, game);
-                // Parse attributes from JSON
-                if (card.attributes) {
-                    try {
-                        card.attributes = JSON.parse(card.attributes);
-                    } catch (e) {
-                        card.attributes = {};
-                    }
-                }
             }
             return card;
         } catch (error) {
@@ -194,11 +328,19 @@ class CardDatabase {
     insertCard(cardData) {
         try {
             const searchText = `${cardData.name} ${cardData.set_name} ${cardData.card_number} ${cardData.card_text}`.toLowerCase();
-            const attributes = JSON.stringify(cardData.attributes || {});
             
-            this.insertCardStmt.run(
+            // Check if card already exists
+            const existing = this.cardExists(cardData.game, cardData.product_id);
+            if (existing && !cardData.forceUpdate) {
+                // Skip if card already exists and we're not forcing an update
+                return { action: 'skipped', id: existing.id };
+            }
+            
+            // Prepare all the parameters (lots of them!)
+            const params = [
                 cardData.id,
                 cardData.game,
+                cardData.product_id,
                 cardData.name,
                 cardData.set_name,
                 cardData.set_code,
@@ -207,44 +349,152 @@ class CardDatabase {
                 cardData.rarity,
                 cardData.card_type,
                 cardData.card_text,
-                attributes,
-                searchText
-            );
+                searchText,
+                
+                // Pokemon fields
+                cardData.hp || null,
+                cardData.stage || null,
+                cardData.evolves_from || null,
+                cardData.weakness || null,
+                cardData.resistance || null,
+                cardData.retreat_cost || null,
+                cardData.ability_name || null,
+                cardData.ability_text || null,
+                cardData.attack1_name || null,
+                cardData.attack1_cost || null,
+                cardData.attack1_damage || null,
+                cardData.attack1_text || null,
+                cardData.attack2_name || null,
+                cardData.attack2_cost || null,
+                cardData.attack2_damage || null,
+                cardData.attack2_text || null,
+                cardData.attack3_name || null,
+                cardData.attack3_cost || null,
+                cardData.attack3_damage || null,
+                cardData.attack3_text || null,
+                
+                // Magic fields
+                cardData.mana_cost || null,
+                cardData.cmc || null,
+                cardData.power || null,
+                cardData.toughness || null,
+                cardData.loyalty || null,
+                cardData.colors || null,
+                cardData.color_identity || null,
+                cardData.type_line || null,
+                cardData.oracle_text || null,
+                cardData.flavor_text || null,
+                
+                // Yu-Gi-Oh fields
+                cardData.attack || null,
+                cardData.defense || null,
+                cardData.level || null,
+                cardData.rank || null,
+                cardData.link_value || null,
+                cardData.pendulum_scale || null,
+                cardData.attribute || null,
+                cardData.monster_type || null,
+                
+                // Lorcana fields
+                cardData.ink_cost || null,
+                cardData.strength || null,
+                cardData.willpower || null,
+                cardData.lore_value || null,
+                cardData.inkable || null,
+                
+                // One Piece fields
+                cardData.cost || null,
+                cardData.op_power || null,
+                cardData.counter || null,
+                cardData.life || null,
+                cardData.don_value || null,
+                cardData.trigger_text || null,
+                
+                // Digimon fields
+                cardData.play_cost || null,
+                cardData.digivolve_cost || null,
+                cardData.digivolve_color || null,
+                cardData.dp || null,
+                cardData.digimon_level || null,
+                cardData.digimon_type || null,
+                cardData.digimon_attribute || null,
+                
+                // Flesh and Blood fields
+                cardData.pitch_value || null,
+                cardData.fab_defense || null,
+                cardData.fab_attack || null,
+                cardData.resource_cost || null,
+                
+                // Star Wars Unlimited fields
+                cardData.sw_cost || null,
+                cardData.sw_power || null,
+                cardData.sw_hp || null,
+                cardData.aspect || null,
+                cardData.arena || null
+            ];
+            
+            this.insertCardStmt.run(...params);
+            
+            return { action: existing ? 'updated' : 'inserted', id: cardData.id };
         } catch (error) {
             console.error(`Error inserting card ${cardData.id}:`, error);
             throw error;
         }
     }
     
-    bulkInsertCards(cards) {
+    bulkInsertCards(cards, skipExisting = true) {
+        const results = {
+            inserted: 0,
+            updated: 0,
+            skipped: 0,
+            failed: 0
+        };
+        
         const insert = this.db.transaction((cards) => {
             for (const card of cards) {
                 try {
-                    this.insertCard(card);
+                    // Set whether to force update or skip existing
+                    card.forceUpdate = !skipExisting;
+                    const result = this.insertCard(card);
+                    
+                    if (result.action === 'inserted') results.inserted++;
+                    else if (result.action === 'updated') results.updated++;
+                    else if (result.action === 'skipped') results.skipped++;
+                    
                 } catch (error) {
                     console.error(`Error inserting card ${card.id}:`, error);
-                    // Continue with other cards
+                    results.failed++;
                 }
             }
         });
         
         try {
             insert(cards);
+            console.log(`Bulk insert results: ${results.inserted} inserted, ${results.updated} updated, ${results.skipped} skipped, ${results.failed} failed`);
         } catch (error) {
             console.error('Error in bulk insert:', error);
             // Try inserting one by one as fallback
             cards.forEach(card => {
                 try {
+                    card.forceUpdate = !skipExisting;
                     this.insertCard(card);
                 } catch (err) {
                     console.error(`Failed to insert card ${card.id}:`, err);
                 }
             });
         }
+        
+        return results;
     }
     
     updateGameInfo(gameId, cardCount) {
         try {
+            // If cardCount is not provided, count the cards
+            if (cardCount === undefined || cardCount === null) {
+                const result = this.countCardsStmt.get(gameId);
+                cardCount = result ? result.count : 0;
+            }
+            
             this.updateGameStmt.run(Date.now(), cardCount, gameId);
         } catch (error) {
             console.error(`Error updating game info for ${gameId}:`, error);
@@ -271,16 +521,13 @@ class CardDatabase {
         
         const clearTransaction = this.db.transaction(() => {
             try {
-                // IMPORTANT: Delete in correct order due to foreign key constraints
-                // 1. First delete recent cards (they reference cards table)
+                // Delete in correct order due to foreign key constraints
                 const recentResult = this.clearRecentStmt.run(game);
                 console.log(`Deleted ${recentResult.changes} recent cards for ${game}`);
                 
-                // 2. Then delete cards (no longer referenced by recent_cards)
                 const cardsResult = this.clearCardsStmt.run(game);
                 console.log(`Deleted ${cardsResult.changes} cards for ${game}`);
                 
-                // 3. Finally reset game info
                 const resetResult = this.resetGameStmt.run(game);
                 console.log(`Reset game info for ${game}`);
                 
@@ -301,20 +548,13 @@ class CardDatabase {
             if (error.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
                 console.log('Attempting alternative clear method with foreign keys disabled...');
                 try {
-                    // Temporarily disable foreign keys
                     this.db.pragma('foreign_keys = OFF');
-                    
-                    // Delete everything
                     this.clearRecentStmt.run(game);
                     this.clearCardsStmt.run(game);
                     this.resetGameStmt.run(game);
-                    
-                    // Re-enable foreign keys
                     this.db.pragma('foreign_keys = ON');
-                    
                     console.log('Successfully cleared data with alternative method');
                 } catch (altError) {
-                    // Re-enable foreign keys even on error
                     this.db.pragma('foreign_keys = ON');
                     throw altError;
                 }
@@ -334,6 +574,32 @@ class CardDatabase {
         } catch (error) {
             console.error('Error getting game stats:', error);
             return [];
+        }
+    }
+    
+    // Save image cache info
+    saveImageCache(cardId, imagePath, fileSize) {
+        try {
+            const stmt = this.db.prepare(`
+                INSERT OR REPLACE INTO card_cache (card_id, image_path, file_size, cached_at)
+                VALUES (?, ?, ?, strftime('%s', 'now'))
+            `);
+            stmt.run(cardId, imagePath, fileSize);
+        } catch (error) {
+            console.error('Error saving image cache info:', error);
+        }
+    }
+    
+    // Get cached image info
+    getCachedImage(cardId) {
+        try {
+            const stmt = this.db.prepare(`
+                SELECT image_path, cached_at FROM card_cache WHERE card_id = ?
+            `);
+            return stmt.get(cardId);
+        } catch (error) {
+            console.error('Error getting cached image:', error);
+            return null;
         }
     }
     

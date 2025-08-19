@@ -8,7 +8,7 @@ const { exec } = require('child_process');
 
 // Import our modules
 const Database = require('./src/database');
-const TCGApi = require('./src/tcg-api');
+const TCGCSVApi = require('./src/tcgcsv-api');
 const OverlayServer = require('./src/overlay-server');
 
 // Initialize Express app
@@ -62,7 +62,7 @@ function saveConfig() {
 
 // Initialize components
 const db = new Database();
-const tcgApi = new TCGApi(db);
+const tcgApi = new TCGCSVApi(db);
 const overlayServer = new OverlayServer(io);
 
 // Middleware
