@@ -298,7 +298,7 @@ function displaySearchResults(results) {
     
     resultsDiv.innerHTML = results.map(card => `
         <div class="card-result" onclick="selectCard('${card.id}')">
-            <img class="card-thumbnail" src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
+            <img class="card-thumbnail" src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" alt="${card.name}">
             <div class="card-name">${card.name}</div>
             <div class="card-meta">${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</div>
         </div>
@@ -336,12 +336,28 @@ function updateCardPreview(card) {
     }
     
     previewDiv.innerHTML = `
-        <img src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
+        <img src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" alt="${card.name}">
         <div class="card-info">
             <h3>${card.name}</h3>
             <p>${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</p>
         </div>
     `;
+}
+
+// Update recent cards display
+function updateRecentCardsDisplay() {
+    const recentDiv = document.getElementById('recentCards');
+    
+    if (recentCards.length === 0) {
+        recentDiv.innerHTML = '';
+        return;
+    }
+    
+    recentDiv.innerHTML = recentCards.map((card, index) => `
+        <div class="recent-card" onclick="selectCard('${card.id}')" title="${card.name}">
+            <img src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" alt="${card.name}">
+        </div>
+    `).join('');
 }
 
 // Add to recent cards
@@ -375,8 +391,14 @@ function displayCard(position) {
         return;
     }
     
+    // Make sure to use the display_image for overlays too
+    const cardToSend = {
+        ...selectedCard,
+        image_url: selectedCard.display_image || selectedCard.local_image || selectedCard.image_url
+    };
+    
     socket.emit('display-card', {
-        card: selectedCard,
+        card: cardToSend,
         position: position,
         game: currentGame
     });

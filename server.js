@@ -264,10 +264,55 @@ app.get('/api/search/:game', (req, res) => {
     
     try {
         const results = db.searchCards(game, q);
-        res.json(results);
+        // Use local_image if available, otherwise fall back to image_url
+        const processedResults = results.map(card => ({
+            ...card,
+            display_image: card.local_image || card.image_url
+        }));
+        res.json(processedResults);
     } catch (error) {
         console.error('Search error:', error);
         res.json([]);
+    }
+});
+
+app.get('/api/card/:game/:id', (req, res) => {
+    const { game, id } = req.params;
+    
+    try {
+        const card = db.getCard(game, id);
+        
+        if (!card) {
+            return res.status(404).json({ error: 'Card not found' });
+        }
+        
+        // Add display_image field that uses local if available
+        card.display_image = card.local_image || card.image_url;
+        
+        res.json(card);
+    } catch (error) {
+        console.error('Get card error:', error);
+        res.status(500).json({ error: 'Failed to get card' });
+    }
+});
+
+app.get('/api/card/:game/:id', (req, res) => {
+    const { game, id } = req.params;
+    
+    try {
+        const card = db.getCard(game, id);
+        
+        if (!card) {
+            return res.status(404).json({ error: 'Card not found' });
+        }
+        
+        // Add display_image field that uses local if available
+        card.display_image = card.local_image || card.image_url;
+        
+        res.json(card);
+    } catch (error) {
+        console.error('Get card error:', error);
+        res.status(500).json({ error: 'Failed to get card' });
     }
 });
 

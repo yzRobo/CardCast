@@ -745,10 +745,9 @@ class TCGCSVApi {
                     try {
                         const localPath = await this.downloadImage(card.image_url, card.id, game);
                         if (localPath && localPath !== card.image_url) {
-                            // Update the image_url to use the local path
-                            card.local_image = localPath;
-                            // Keep the original URL but also store local path
-                            card.original_image_url = card.image_url;
+                            // Keep original URL in image_url (for re-downloading if needed)
+                            // Store the local web-accessible path in local_image
+                            card.local_image = `/cache/images/${game}/${path.basename(localPath)}`;
                         }
                     } catch (err) {
                         console.error(`Failed to download image for ${card.name}:`, err.message);

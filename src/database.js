@@ -56,6 +56,7 @@ class CardDatabase {
                 set_code TEXT,
                 card_number TEXT,
                 image_url TEXT,
+                local_image TEXT,
                 rarity TEXT,
                 card_type TEXT,
                 card_text TEXT,
@@ -215,7 +216,7 @@ class CardDatabase {
         
         // Search statement
         this.searchStmt = this.db.prepare(`
-            SELECT id, name, set_name, card_number, image_url, rarity, card_type, 
+            SELECT id, name, set_name, card_number, image_url, local_image, rarity, card_type, 
                    hp, mana_cost, attack, defense, cost
             FROM cards 
             WHERE game = ? AND search_text LIKE ?
@@ -225,10 +226,10 @@ class CardDatabase {
             LIMIT 50
         `);
         
-        // Insert card statement - now with all fields
+        // Insert card statement - now with all fields including local_image
         this.insertCardStmt = this.db.prepare(`
             INSERT OR REPLACE INTO cards 
-            (id, game, product_id, name, set_name, set_code, card_number, image_url, 
+            (id, game, product_id, name, set_name, set_code, card_number, image_url, local_image,
              rarity, card_type, card_text, search_text,
              hp, stage, evolves_from, weakness, resistance, retreat_cost,
              ability_name, ability_text, attack1_name, attack1_cost, attack1_damage, attack1_text,
@@ -242,7 +243,7 @@ class CardDatabase {
              pitch_value, fab_defense, fab_attack, resource_cost,
              sw_cost, sw_power, sw_hp, aspect, arena,
              updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -346,6 +347,7 @@ class CardDatabase {
                 cardData.set_code,
                 cardData.card_number,
                 cardData.image_url,
+                cardData.local_image || null,  // Add local_image field
                 cardData.rarity,
                 cardData.card_type,
                 cardData.card_text,
