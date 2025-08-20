@@ -1,4 +1,4 @@
-// server.js - CardCast Main Server (Updated)
+// server.js - CardCast Main Server (Updated with Set Mappings)
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -8,7 +8,7 @@ const { exec } = require('child_process');
 
 // Import our modules
 const Database = require('./src/database');
-const TCGCSVApi = require('./src/tcgcsv-api');
+const TCGCSVApi = require('./src/tcg-api');
 const OverlayServer = require('./src/overlay-server');
 
 // Initialize Express app
@@ -104,6 +104,51 @@ app.get('/api/games', (req, res) => {
             };
         });
     res.json(games);
+});
+
+// Pokemon set mappings endpoint - NEW!
+app.get('/api/pokemon/set-mappings', (req, res) => {
+    try {
+        const mappings = db.getSetMappings('pokemon');
+        
+        // Convert to a map format for easy lookup
+        const mappingObject = {};
+        mappings.forEach(row => {
+            if (row.set_abbreviation) {
+                mappingObject[row.set_abbreviation.toUpperCase()] = row.set_name;
+            }
+        });
+        
+        res.json(mappingObject);
+    } catch (error) {
+        console.error('Error fetching set mappings:', error);
+        res.status(500).json({ error: 'Failed to fetch set mappings' });
+    }
+});
+
+// Pokemon sets endpoint - NEW!
+app.get('/api/pokemon/sets', (req, res) => {
+    try {
+        const query = `
+            SELECT DISTINCT 
+                set_name,
+                set_code,
+                set_abbreviation,
+                COUNT(*) as card_count
+            FROM cards 
+            WHERE game = 'pokemon' 
+                AND set_name IS NOT NULL
+            GROUP BY set_name, set_code, set_abbreviation
+            ORDER BY set_name
+        `;
+        
+        const sets = db.db.prepare(query).all();
+        res.json(sets);
+        
+    } catch (error) {
+        console.error('Error fetching Pokemon sets:', error);
+        res.status(500).json({ error: 'Failed to fetch Pokemon sets' });
+    }
 });
 
 // Delete game data endpoint
@@ -254,6 +299,7 @@ app.post('/api/download/:game', async (req, res) => {
     });
 });
 
+// Enhanced search endpoint that handles set abbreviations - UPDATED!
 app.get('/api/search/:game', (req, res) => {
     const { game } = req.params;
     const { q } = req.query;
@@ -263,12 +309,15 @@ app.get('/api/search/:game', (req, res) => {
     }
     
     try {
+        // Use the database's searchCards method which now handles set abbreviations
         const results = db.searchCards(game, q);
+        
         // Use local_image if available, otherwise fall back to image_url
         const processedResults = results.map(card => ({
             ...card,
             display_image: card.local_image || card.image_url
         }));
+        
         res.json(processedResults);
     } catch (error) {
         console.error('Search error:', error);

@@ -24,6 +24,9 @@ class CardDatabase {
         // Create tables
         this.initializeTables();
         
+        // Add set_abbreviation column if it doesn't exist
+        this.addSetAbbreviationColumn();
+        
         // Initialize games
         this.initializeGames();
         
@@ -54,6 +57,7 @@ class CardDatabase {
                 name TEXT NOT NULL,
                 set_name TEXT,
                 set_code TEXT,
+                set_abbreviation TEXT,
                 card_number TEXT,
                 image_url TEXT,
                 local_image TEXT,
@@ -159,6 +163,7 @@ class CardDatabase {
             CREATE INDEX IF NOT EXISTS idx_cards_product_id ON cards(game, product_id);
             CREATE INDEX IF NOT EXISTS idx_cards_set ON cards(game, set_code);
             CREATE INDEX IF NOT EXISTS idx_cards_number ON cards(game, card_number);
+            CREATE INDEX IF NOT EXISTS idx_cards_set_abbrev ON cards(game, set_abbreviation);
         `);
         
         // Recent cards table for quick access
@@ -182,6 +187,23 @@ class CardDatabase {
                 FOREIGN KEY (card_id) REFERENCES cards(id)
             )
         `);
+    }
+    
+    addSetAbbreviationColumn() {
+        try {
+            // Check if column exists
+            const tableInfo = this.db.prepare("PRAGMA table_info(cards)").all();
+            const hasSetAbbreviation = tableInfo.some(col => col.name === 'set_abbreviation');
+            
+            if (!hasSetAbbreviation) {
+                console.log('Adding set_abbreviation column to cards table...');
+                this.db.prepare('ALTER TABLE cards ADD COLUMN set_abbreviation TEXT').run();
+                // Create index for the new column
+                this.db.prepare('CREATE INDEX IF NOT EXISTS idx_cards_set_abbrev ON cards(game, set_abbreviation)').run();
+            }
+        } catch (error) {
+            console.error('Error adding set_abbreviation column:', error);
+        }
     }
     
     initializeGames() {
@@ -216,7 +238,7 @@ class CardDatabase {
         
         // Search statement
         this.searchStmt = this.db.prepare(`
-            SELECT id, name, set_name, card_number, image_url, local_image, rarity, card_type, 
+            SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type, 
                    hp, mana_cost, attack, defense, cost
             FROM cards 
             WHERE game = ? AND search_text LIKE ?
@@ -226,10 +248,55 @@ class CardDatabase {
             LIMIT 50
         `);
         
-        // Insert card statement - now with all fields including local_image
+        // Search with set abbreviation
+        this.searchWithSetStmt = this.db.prepare(`
+            SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type, 
+                   hp, mana_cost, attack, defense, cost
+            FROM cards 
+            WHERE game = ? 
+                AND name LIKE ? 
+                AND set_abbreviation = ?
+                AND card_number = ?
+            ORDER BY name
+            LIMIT 50
+        `);
+        
+        // Search with set abbreviation but no number
+        this.searchWithSetNoNumberStmt = this.db.prepare(`
+            SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type, 
+                   hp, mana_cost, attack, defense, cost
+            FROM cards 
+            WHERE game = ? 
+                AND name LIKE ? 
+                AND set_abbreviation = ?
+            ORDER BY name
+            LIMIT 50
+        `);
+        
+        // Get set mappings statement
+        this.getSetMappingsStmt = this.db.prepare(`
+            SELECT DISTINCT 
+                set_name,
+                set_code,
+                set_abbreviation
+            FROM cards 
+            WHERE game = ? 
+                AND set_abbreviation IS NOT NULL
+        `);
+        
+        // Get set name from abbreviation
+        this.getSetNameFromAbbrevStmt = this.db.prepare(`
+            SELECT DISTINCT set_name 
+            FROM cards 
+            WHERE game = ? 
+                AND set_abbreviation = ?
+            LIMIT 1
+        `);
+        
+        // Insert card statement - now with set_abbreviation
         this.insertCardStmt = this.db.prepare(`
             INSERT OR REPLACE INTO cards 
-            (id, game, product_id, name, set_name, set_code, card_number, image_url, local_image,
+            (id, game, product_id, name, set_name, set_code, set_abbreviation, card_number, image_url, local_image,
              rarity, card_type, card_text, search_text,
              hp, stage, evolves_from, weakness, resistance, retreat_cost,
              ability_name, ability_text, attack1_name, attack1_cost, attack1_damage, attack1_text,
@@ -243,7 +310,7 @@ class CardDatabase {
              pitch_value, fab_defense, fab_attack, resource_cost,
              sw_cost, sw_power, sw_hp, aspect, arena,
              updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -303,6 +370,22 @@ class CardDatabase {
     
     searchCards(game, query) {
         try {
+            // Check if query contains set abbreviation pattern
+            const setCodeMatch = query.match(/^(.+?)\s+([A-Z]{2,4})\s*(\d+)?$/);
+            
+            if (setCodeMatch) {
+                const [_, cardName, setAbbrev, cardNumber] = setCodeMatch;
+                
+                if (cardNumber) {
+                    // Search with set abbreviation and card number
+                    return this.searchWithSetStmt.all(game, `%${cardName}%`, setAbbrev.toUpperCase(), cardNumber);
+                } else {
+                    // Search with set abbreviation only
+                    return this.searchWithSetNoNumberStmt.all(game, `%${cardName}%`, setAbbrev.toUpperCase());
+                }
+            }
+            
+            // Regular search
             const searchTerm = `%${query.toLowerCase()}%`;
             const startTerm = `${query.toLowerCase()}%`;
             return this.searchStmt.all(game, searchTerm, startTerm);
@@ -326,6 +409,25 @@ class CardDatabase {
         }
     }
     
+    getSetMappings(game) {
+        try {
+            return this.getSetMappingsStmt.all(game);
+        } catch (error) {
+            console.error(`Error getting set mappings for ${game}:`, error);
+            return [];
+        }
+    }
+    
+    getSetNameFromAbbreviation(game, abbreviation) {
+        try {
+            const result = this.getSetNameFromAbbrevStmt.get(game, abbreviation.toUpperCase());
+            return result ? result.set_name : null;
+        } catch (error) {
+            console.error(`Error getting set name from abbreviation ${abbreviation}:`, error);
+            return null;
+        }
+    }
+    
     insertCard(cardData) {
         try {
             const searchText = `${cardData.name} ${cardData.set_name} ${cardData.card_number} ${cardData.card_text}`.toLowerCase();
@@ -345,9 +447,10 @@ class CardDatabase {
                 cardData.name,
                 cardData.set_name,
                 cardData.set_code,
+                cardData.set_abbreviation || null,  // Add set_abbreviation field
                 cardData.card_number,
                 cardData.image_url,
-                cardData.local_image || null,  // Add local_image field
+                cardData.local_image || null,
                 cardData.rarity,
                 cardData.card_type,
                 cardData.card_text,

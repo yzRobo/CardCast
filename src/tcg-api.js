@@ -1,4 +1,4 @@
-// src/tcg-api.js - CardCast TCG API with Local Image Caching
+// src/tcg-api.js - CardCast TCG API with Local Image Caching and Set Abbreviations
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
@@ -175,6 +175,8 @@ class TCGApi {
             });
             
             let allSets = [];
+            let setMappings = new Map(); // Store set abbreviation mappings
+            
             try {
                 const setsResponse = await axios.get('https://api.pokemontcg.io/v2/sets', {
                     params: {
@@ -191,20 +193,38 @@ class TCGApi {
                 if (setsResponse.data && setsResponse.data.data) {
                     allSets = setsResponse.data.data;
                     console.log(`Found ${allSets.length} Pokemon sets`);
+                    
+                    // Build set mappings from the API response
+                    allSets.forEach(set => {
+                        if (set.ptcgoCode) {
+                            setMappings.set(set.id, set.ptcgoCode);
+                        }
+                    });
                 }
             } catch (setsError) {
                 console.error('Error fetching Pokemon sets:', setsError.message);
                 // Fall back to hardcoded recent sets if API fails
                 allSets = [
-                    { id: 'sv8', name: 'Surging Sparks' },
-                    { id: 'sv7', name: 'Stellar Crown' },
-                    { id: 'sv6', name: 'Twilight Masquerade' },
-                    { id: 'sv5', name: 'Temporal Forces' },
-                    { id: 'sv4', name: 'Paradox Rift' },
-                    { id: 'sv3', name: 'Obsidian Flames' },
-                    { id: 'sv2', name: 'Paldea Evolved' },
-                    { id: 'sv1', name: 'Scarlet & Violet' }
+                    { id: 'sv8', name: 'Surging Sparks', ptcgoCode: 'SUR' },
+                    { id: 'sv7', name: 'Stellar Crown', ptcgoCode: 'SCR' },
+                    { id: 'sv6', name: 'Twilight Masquerade', ptcgoCode: 'TWM' },
+                    { id: 'sv5', name: 'Temporal Forces', ptcgoCode: 'TEF' },
+                    { id: 'sv4', name: 'Paradox Rift', ptcgoCode: 'PAR' },
+                    { id: 'sv3', name: 'Obsidian Flames', ptcgoCode: 'OBF' },
+                    { id: 'sv2', name: 'Paldea Evolved', ptcgoCode: 'PAL' },
+                    { id: 'sv1', name: 'Scarlet & Violet', ptcgoCode: 'SVI' },
+                    { id: 'swsh12pt5', name: 'Crown Zenith', ptcgoCode: 'CRZ' },
+                    { id: 'swsh11', name: 'Lost Origin', ptcgoCode: 'LOR' },
+                    { id: 'swsh10', name: 'Astral Radiance', ptcgoCode: 'ASR' },
+                    { id: 'swsh9', name: 'Brilliant Stars', ptcgoCode: 'BRS' }
                 ];
+                
+                // Build mappings from fallback data
+                allSets.forEach(set => {
+                    if (set.ptcgoCode) {
+                        setMappings.set(set.id, set.ptcgoCode);
+                    }
+                });
             }
             
             // Determine which sets to fetch based on setCount
@@ -249,17 +269,44 @@ class TCGApi {
                             
                             response.data.data.forEach(card => {
                                 if (!cardMap.has(card.id)) {
+                                    // Get the set abbreviation from our mappings or the card data
+                                    const setAbbreviation = card.set?.ptcgoCode || 
+                                                          setMappings.get(card.set?.id) || 
+                                                          set.ptcgoCode || 
+                                                          null;
+                                    
                                     const cardData = {
                                         id: `pokemon_${card.id}`,
                                         game: 'pokemon',
                                         name: card.name,
                                         set_name: card.set?.name || set.name,
                                         set_code: card.set?.id || set.id,
+                                        set_abbreviation: setAbbreviation, // Store the abbreviation!
                                         card_number: card.number || '',
                                         image_url: card.images?.large || card.images?.small || '',
                                         rarity: card.rarity || 'Common',
                                         card_type: card.supertype || 'Pokemon',
                                         card_text: this.buildPokemonText(card),
+                                        // Store Pokemon-specific attributes
+                                        hp: card.hp || null,
+                                        stage: card.subtypes?.join(', ') || null,
+                                        evolves_from: card.evolvesFrom || null,
+                                        weakness: card.weaknesses?.[0] ? `${card.weaknesses[0].type} ${card.weaknesses[0].value}` : null,
+                                        resistance: card.resistances?.[0] ? `${card.resistances[0].type} ${card.resistances[0].value}` : null,
+                                        retreat_cost: card.retreatCost?.join('') || null,
+                                        // Store abilities if present
+                                        ability_name: card.abilities?.[0]?.name || null,
+                                        ability_text: card.abilities?.[0]?.text || null,
+                                        // Store attacks if present
+                                        attack1_name: card.attacks?.[0]?.name || null,
+                                        attack1_cost: card.attacks?.[0]?.cost?.join('') || null,
+                                        attack1_damage: card.attacks?.[0]?.damage || null,
+                                        attack1_text: card.attacks?.[0]?.text || null,
+                                        attack2_name: card.attacks?.[1]?.name || null,
+                                        attack2_cost: card.attacks?.[1]?.cost?.join('') || null,
+                                        attack2_damage: card.attacks?.[1]?.damage || null,
+                                        attack2_text: card.attacks?.[1]?.text || null,
+                                        // Store attributes for backward compatibility
                                         attributes: {
                                             hp: card.hp || null,
                                             types: card.types || [],
@@ -293,6 +340,13 @@ class TCGApi {
             // Convert map to array
             cards.push(...cardMap.values());
             console.log(`Total unique Pokemon cards fetched: ${cards.length}`);
+            
+            // Log sample of set abbreviations stored
+            const sampleCards = cards.slice(0, 5);
+            console.log('Sample cards with set abbreviations:');
+            sampleCards.forEach(card => {
+                console.log(`  ${card.name}: ${card.set_code} -> ${card.set_abbreviation}`);
+            });
             
         } catch (error) {
             console.error('Error fetching Pokemon cards:', error.message);
@@ -395,11 +449,23 @@ class TCGApi {
                                         name: card.name,
                                         set_name: card.set_name || set.name,
                                         set_code: card.set || set.code,
+                                        set_abbreviation: card.set?.toUpperCase() || set.code?.toUpperCase(), // Store uppercase set code as abbreviation
                                         card_number: card.collector_number || '',
                                         image_url: card.image_uris?.normal || card.image_uris?.small || card.card_faces?.[0]?.image_uris?.normal || '',
                                         rarity: card.rarity || 'common',
                                         card_type: card.type_line || '',
                                         card_text: card.oracle_text || card.card_faces?.[0]?.oracle_text || '',
+                                        // Store Magic-specific attributes
+                                        mana_cost: card.mana_cost || card.card_faces?.[0]?.mana_cost || '',
+                                        cmc: card.cmc || 0,
+                                        power: card.power || null,
+                                        toughness: card.toughness || null,
+                                        loyalty: card.loyalty || null,
+                                        colors: card.colors?.join(',') || '',
+                                        color_identity: card.color_identity?.join(',') || '',
+                                        type_line: card.type_line || '',
+                                        oracle_text: card.oracle_text || '',
+                                        flavor_text: card.flavor_text || '',
                                         attributes: {
                                             manaCost: card.mana_cost || card.card_faces?.[0]?.mana_cost || '',
                                             cmc: card.cmc || 0,
@@ -486,11 +552,21 @@ class TCGApi {
                         name: card.name,
                         set_name: card.card_sets?.[0]?.set_name || '',
                         set_code: card.card_sets?.[0]?.set_code || '',
+                        set_abbreviation: card.card_sets?.[0]?.set_code || '', // YuGiOh uses set_code as abbreviation
                         card_number: card.card_sets?.[0]?.set_code || '',
                         image_url: card.card_images?.[0]?.image_url || '',
                         rarity: card.card_sets?.[0]?.set_rarity || 'Common',
                         card_type: card.type || '',
                         card_text: card.desc || '',
+                        // Store YuGiOh-specific attributes
+                        attack: card.atk || null,
+                        defense: card.def || null,
+                        level: card.level || null,
+                        rank: card.rank || null,
+                        link_value: card.linkval || null,
+                        pendulum_scale: card.scale || null,
+                        attribute: card.attribute || '',
+                        monster_type: card.race || '',
                         attributes: {
                             attack: card.atk || null,
                             defense: card.def || null,
@@ -511,6 +587,7 @@ class TCGApi {
         return cards;
     }
     
+    // Rest of the methods remain the same...
     async downloadCardImages(cards, game, progressCallback) {
         const totalCards = cards.length;
         const downloadBatch = 10; // Download 10 images at a time
@@ -635,6 +712,7 @@ class TCGApi {
         return text.trim();
     }
     
+    // Sample data generation methods remain the same...
     generateSampleCards(game) {
         const cards = [];
         const sets = this.getSampleSets(game);
@@ -647,6 +725,7 @@ class TCGApi {
                     name: `${set.name} Card ${i}`,
                     set_name: set.name,
                     set_code: set.code,
+                    set_abbreviation: set.code.toUpperCase(),
                     card_number: `${i}/${set.totalCards}`,
                     image_url: this.getSampleImageUrl(game, set.code, i),
                     rarity: this.getRandomRarity(),

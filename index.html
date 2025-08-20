@@ -553,96 +553,75 @@
         let draggedFromCategory = null;
         let draggedFromIndex = null;
         
-        // Pokemon TCG Set abbreviation mappings
-        const setAbbreviations = {
-            // Scarlet & Violet Era
-            'SCR': 'Stellar Crown',
-            'SFA': 'Shrouded Fable', 
-            'TWM': 'Twilight Masquerade',
-            'TEF': 'Temporal Forces',
-            'PAR': 'Paradox Rift',
-            'MEW': '151',
-            'OBF': 'Obsidian Flames',
-            'PAL': 'Paldea Evolved',
-            'SVI': 'Scarlet & Violet',
-            'SVE': 'Scarlet & Violet Energies',
-            'SSP': 'Scarlet & Violet Promos',
-            'PRE': 'Paldean Fates',
-            'JTG': 'Journey Together',
-            
-            // Sword & Shield Era
-            'CRZ': 'Crown Zenith',
-            'SIT': 'Silver Tempest',
-            'LOR': 'Lost Origin',
-            'PGO': 'Pokemon GO',
-            'ASR': 'Astral Radiance',
-            'BRS': 'Brilliant Stars',
-            'FST': 'Fusion Strike',
-            'CEL': 'Celebrations',
-            'EVS': 'Evolving Skies',
-            'CRE': 'Chilling Reign',
-            'BST': 'Battle Styles',
-            'SHF': 'Shining Fates',
-            'VIV': 'Vivid Voltage',
-            'CPA': 'Champion\'s Path',
-            'DAA': 'Darkness Ablaze',
-            'RCL': 'Rebel Clash',
-            'SSH': 'Sword & Shield',
-            'SWSH': 'Sword & Shield Promos',
-            
-            // Sun & Moon Era
-            'CEC': 'Cosmic Eclipse',
-            'HIF': 'Hidden Fates',
-            'UNM': 'Unified Minds',
-            'UNB': 'Unbroken Bonds',
-            'DET': 'Detective Pikachu',
-            'TEU': 'Team Up',
-            'LOT': 'Lost Thunder',
-            'DRM': 'Dragon Majesty',
-            'CES': 'Celestial Storm',
-            'FLI': 'Forbidden Light',
-            'UPR': 'Ultra Prism',
-            'CIN': 'Crimson Invasion',
-            'SLG': 'Shining Legends',
-            'BUS': 'Burning Shadows',
-            'GRI': 'Guardians Rising',
-            'SUM': 'Sun & Moon',
-            'SMP': 'Sun & Moon Promos',
-            
-            // XY Era
-            'EVO': 'Evolutions',
-            'STS': 'Steam Siege',
-            'FCO': 'Fates Collide',
-            'GEN': 'Generations',
-            'BKP': 'BREAKpoint',
-            'BKT': 'BREAKthrough',
-            'AOR': 'Ancient Origins',
-            'ROS': 'Roaring Skies',
-            'PRC': 'Primal Clash',
-            'PHF': 'Phantom Forces',
-            'FFI': 'Furious Fists',
-            'FLF': 'Flashfire',
-            'XY': 'XY',
-            'XYP': 'XY Promos',
-            
-            // Black & White Era
-            'LTR': 'Legendary Treasures',
-            'PLB': 'Plasma Blast',
-            'PLF': 'Plasma Freeze',
-            'PLS': 'Plasma Storm',
-            'BCR': 'Boundaries Crossed',
-            'DRX': 'Dragons Exalted',
-            'DEX': 'Dark Explorers',
-            'NXD': 'Next Destinies',
-            'NVI': 'Noble Victories',
-            'EPO': 'Emerging Powers',
-            'BLW': 'Black & White',
-            'BWP': 'Black & White Promos',
-            'BLK': 'BW Black Star Promos'
-        };
+        // Pokemon Set Resolver using database mappings
+        class PokemonSetResolver {
+            constructor() {
+                this.abbreviationToName = new Map();
+                this.initialized = false;
+            }
+
+            async initialize() {
+                if (this.initialized) return;
+                
+                try {
+                    // Fetch set mappings from your database
+                    const response = await fetch('/api/pokemon/set-mappings');
+                    const mappings = await response.json();
+                    
+                    // Store all mappings
+                    Object.entries(mappings).forEach(([abbrev, name]) => {
+                        this.abbreviationToName.set(abbrev.toUpperCase(), name);
+                    });
+                    
+                    console.log(`Loaded ${this.abbreviationToName.size} set mappings from database`);
+                } catch (error) {
+                    console.warn('Could not load set mappings from database:', error);
+                    // Add minimal fallbacks for newest sets
+                    this.addFallbackMappings();
+                }
+                
+                this.initialized = true;
+            }
+
+            addFallbackMappings() {
+                // Only essential fallbacks for newest sets that might not be in DB yet
+                const fallbacks = {
+                    'SCR': 'Stellar Crown',
+                    'SFA': 'Shrouded Fable',
+                    'TWM': 'Twilight Masquerade',
+                    'TEF': 'Temporal Forces',
+                    'PAR': 'Paradox Rift',
+                    'MEW': '151',
+                    'PAL': 'Paldea Evolved',
+                    'SVI': 'Scarlet & Violet',
+                    'SSP': 'Scarlet & Violet Black Star Promos',
+                    'PRE': 'Paldean Fates',
+                    'SVE': 'Scarlet & Violet Energies',
+                    'JTG': 'Journey Together',
+                    'OBF': 'Obsidian Flames'
+                };
+                
+                Object.entries(fallbacks).forEach(([code, name]) => {
+                    if (!this.abbreviationToName.has(code)) {
+                        this.abbreviationToName.set(code, name);
+                    }
+                });
+            }
+
+            resolveSetCode(code) {
+                if (!code) return null;
+                return this.abbreviationToName.get(code.toUpperCase()) || code;
+            }
+        }
+
+        // Create global instance
+        const pokemonSetResolver = new PokemonSetResolver();
         
         // Enhanced deck parsing function
-        window.parseDeckList = function(text) {
+        window.parseDeckList = async function(text) {
+            // Ensure resolver is initialized
+            await pokemonSetResolver.initialize();
+            
             const lines = text.split('\n').filter(line => line.trim());
             const deck = {
                 pokemon: [],
@@ -667,26 +646,104 @@
                     continue;
                 }
                 
-                // Parse card lines - now capturing set code and number
-                const match = trimmed.match(/^(\d+)\s+(.+?)(?:\s+([A-Z]{2,4})\s+(\d+))?$/);
-                if (match && currentSection) {
+                // Auto-detect section if not set
+                if (!currentSection) {
+                    if (trimmed.match(/\d+\s+.+\s+[A-Z]{2,4}\s+\d+/)) {
+                        currentSection = 'pokemon';
+                    } else if (trimmed.toLowerCase().includes('energy')) {
+                        currentSection = 'energy';
+                    }
+                }
+                
+                if (!currentSection) continue;
+                
+                // Parse card lines
+                let cardData = null;
+                
+                // Pattern 1: "4 Hoothoot SCR 114"
+                let match = trimmed.match(/^(\d+)\s+(.+?)\s+([A-Z]{2,4})\s+(\d+)$/);
+                if (match) {
                     const [_, quantity, cardName, setCode, cardNumber] = match;
+                    const setName = pokemonSetResolver.resolveSetCode(setCode);
                     
-                    // Store the full card information
-                    const cardData = {
+                    cardData = {
                         name: cardName.trim(),
                         quantity: parseInt(quantity),
-                        setCode: setCode || null,
-                        cardNumber: cardNumber || null,
-                        setName: setCode ? (setAbbreviations[setCode] || setCode) : null
+                        setCode: setCode,
+                        cardNumber: cardNumber,
+                        setName: setName || setCode
                     };
                     
+                    // Auto-correct section based on card type
+                    if (cardName.toLowerCase().includes('energy')) {
+                        currentSection = 'energy';
+                    } else if (isTrainerCard(cardName)) {
+                        currentSection = 'trainers';
+                    }
+                }
+                
+                // Pattern 2: "4 Professor's Research"
+                if (!cardData) {
+                    match = trimmed.match(/^(\d+)\s+(.+)$/);
+                    if (match) {
+                        const [_, quantity, cardName] = match;
+                        
+                        cardData = {
+                            name: cardName.trim(),
+                            quantity: parseInt(quantity),
+                            setCode: null,
+                            cardNumber: null,
+                            setName: null
+                        };
+                        
+                        // Auto-correct section
+                        if (cardName.toLowerCase().includes('energy')) {
+                            currentSection = 'energy';
+                        } else if (isTrainerCard(cardName)) {
+                            currentSection = 'trainers';
+                        }
+                    }
+                }
+                
+                if (cardData && currentSection) {
                     deck[currentSection].push(cardData);
                 }
             }
             
             return deck;
         };
+
+        // Helper function to detect trainer cards
+        function isTrainerCard(cardName) {
+            const trainerKeywords = [
+                "Boss's Orders", "Professor", "Ultra Ball", "Nest Ball", "Iono",
+                "Crispin", "Cyrano", "Briar", "Poffin", "Counter Catcher",
+                "Super Rod", "Night Stretcher", "Tera Orb", "Crystal",
+                "Balloon", "Area Zero", "Stadium", "Tool", "Supporter",
+                "Item", "Ball", "Catcher", "Rod", "Stretcher", "Orb",
+                "Buddy-Buddy", "Gravity Mountain", "Sparkling", "Air Balloon"
+            ];
+            
+            const lowerName = cardName.toLowerCase();
+            return trainerKeywords.some(keyword => lowerName.includes(keyword.toLowerCase()));
+        }
+        
+        // Copy button functionality
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const targetId = this.dataset.copy;
+                const targetElement = document.getElementById(targetId);
+                const text = targetElement.textContent;
+                
+                navigator.clipboard.writeText(text).then(() => {
+                    const originalText = this.textContent;
+                    this.textContent = 'Copied!';
+                    setTimeout(() => {
+                        this.textContent = originalText;
+                    }, 2000);
+                });
+            });
+        });
         
         // Update OBS status display
         window.updateOBSStatus = function(connected) {
@@ -880,20 +937,24 @@
             document.getElementById('deckView').innerHTML = deckHTML;
         }
         
-        // Render deck cards with images
+        // Enhanced render deck cards with set resolution
         async function renderDeckCards(cards, game, category) {
             let cardsHTML = '';
             
             for (let i = 0; i < cards.length; i++) {
                 const card = cards[i];
-                // Try to find the card image
                 let cardImage = '/images/card-back.png';
                 let matchedCard = null;
                 
                 try {
-                    // First try to search with set information if available
+                    // Build smart search query
                     let searchQuery = card.name;
-                    if (card.setName) {
+                    
+                    // If we have set info, include it in the search
+                    if (card.setCode && card.cardNumber) {
+                        // Send set code and number for exact match
+                        searchQuery = `${card.name} ${card.setCode} ${card.cardNumber}`;
+                    } else if (card.setName) {
                         searchQuery = `${card.name} ${card.setName}`;
                     }
                     
@@ -901,32 +962,9 @@
                     const results = await response.json();
                     
                     if (results.length > 0) {
-                        // Try to find exact match with set and number
-                        if (card.setName && card.cardNumber) {
-                            matchedCard = results.find(r => 
-                                r.name.toLowerCase() === card.name.toLowerCase() &&
-                                r.set_name && r.set_name.toLowerCase().includes(card.setName.toLowerCase()) &&
-                                r.card_number === card.cardNumber
-                            );
-                        }
-                        
-                        // If no exact match, try just name and set
-                        if (!matchedCard && card.setName) {
-                            matchedCard = results.find(r => 
-                                r.name.toLowerCase() === card.name.toLowerCase() &&
-                                r.set_name && r.set_name.toLowerCase().includes(card.setName.toLowerCase())
-                            );
-                        }
-                        
-                        // Fall back to exact name match
-                        if (!matchedCard) {
-                            matchedCard = results.find(r => r.name.toLowerCase() === card.name.toLowerCase());
-                        }
-                        
-                        // Last resort - use first result
-                        if (!matchedCard) {
-                            matchedCard = results[0];
-                        }
+                        // The server-side search should handle the set abbreviation lookup
+                        // So we should get the right card as the first result
+                        matchedCard = results[0];
                         
                         if (matchedCard) {
                             cardImage = matchedCard.display_image || matchedCard.local_image || matchedCard.image_url || cardImage;
@@ -936,8 +974,9 @@
                     console.error(`Error fetching card image for ${card.name}:`, error);
                 }
                 
-                // Build card element with better metadata
-                const cardTitle = card.setCode ? `${card.name} (${card.setCode} ${card.cardNumber || ''})` : card.name;
+                const cardTitle = card.setCode ? 
+                    `${card.name} (${card.setCode} ${card.cardNumber || ''})` : 
+                    card.name;
                 
                 if (isEditMode) {
                     cardsHTML += `
@@ -1263,8 +1302,8 @@
             }
         }
         
-        // Import and save deck
-        window.importAndSaveDeck = function() {
+        // Enhanced import and save deck with resolver
+        window.importAndSaveDeck = async function() {
             const deckName = document.getElementById('deckNameInput').value.trim();
             const deckGame = document.getElementById('deckGameSelect').value;
             const deckText = document.getElementById('deckImportText').value.trim();
@@ -1284,38 +1323,55 @@
                 return;
             }
             
-            // Parse the deck
-            const deck = parseDeckList(deckText);
-            deck.name = deckName;
-            deck.game = deckGame;
-            deck.dateAdded = new Date().toISOString();
+            // Show loading indicator
+            const importButton = event.target;
+            const originalText = importButton.textContent;
+            importButton.textContent = 'Importing...';
+            importButton.disabled = true;
             
-            // Save to localStorage
-            if (!savedDecks[deckGame]) {
-                savedDecks[deckGame] = [];
-            }
-            
-            // Check if deck with same name exists
-            const existingIndex = savedDecks[deckGame].findIndex(d => d.name === deckName);
-            if (existingIndex > -1) {
-                if (!confirm(`Deck "${deckName}" already exists. Replace it?`)) {
-                    return;
+            try {
+                // Parse the deck with resolver
+                const deck = await parseDeckList(deckText);
+                deck.name = deckName;
+                deck.game = deckGame;
+                deck.dateAdded = new Date().toISOString();
+                
+                // Save to localStorage
+                if (!savedDecks[deckGame]) {
+                    savedDecks[deckGame] = [];
                 }
-                savedDecks[deckGame][existingIndex] = deck;
-            } else {
-                savedDecks[deckGame].push(deck);
+                
+                // Check if deck with same name exists
+                const existingIndex = savedDecks[deckGame].findIndex(d => d.name === deckName);
+                if (existingIndex > -1) {
+                    if (!confirm(`Deck "${deckName}" already exists. Replace it?`)) {
+                        importButton.textContent = originalText;
+                        importButton.disabled = false;
+                        return;
+                    }
+                    savedDecks[deckGame][existingIndex] = deck;
+                } else {
+                    savedDecks[deckGame].push(deck);
+                }
+                
+                localStorage.setItem('savedDecks', JSON.stringify(savedDecks));
+                
+                // Set as current imported deck
+                currentImportedDeck = deck;
+                
+                // Update UI
+                updateSavedDecksList();
+                clearDeckImport();
+                
+                alert(`Deck "${deckName}" imported successfully!`);
+                
+            } catch (error) {
+                console.error('Error importing deck:', error);
+                alert('Error importing deck. Please check the format and try again.');
+            } finally {
+                importButton.textContent = originalText;
+                importButton.disabled = false;
             }
-            
-            localStorage.setItem('savedDecks', JSON.stringify(savedDecks));
-            
-            // Set as current imported deck
-            currentImportedDeck = deck;
-            
-            // Update UI
-            updateSavedDecksList();
-            clearDeckImport();
-            
-            alert(`Deck "${deckName}" saved successfully!`);
         }
         
         // Update saved decks list
@@ -1359,7 +1415,7 @@
         
         // Helper function to escape quotes in deck names
         window.escape = function(str) {
-            return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
+            return str.replace(/'/g, "\\'").replace(/\\"/g, '\\"');
         }
         
         // Load a saved deck
@@ -1408,6 +1464,12 @@
             document.body.appendChild(exportLink);
             exportLink.click();
             document.body.removeChild(exportLink);
+        }
+        
+        // Clear deck import
+        window.clearDeckImport = function() {
+            document.getElementById('deckNameInput').value = '';
+            document.getElementById('deckImportText').value = '';
         }
         
         // Filter search to deck only
@@ -1470,14 +1532,6 @@
                 console.error('Search error:', error);
             }
         }
-        
-        // Initialize on load
-        document.addEventListener('DOMContentLoaded', () => {
-            updateSavedDecksList();
-        });
-        
-        // All the other original functions remain the same...
-        // (Include all the other functions from the original file here)
         
         // Display search results with DaisyUI cards
         window.displaySearchResults = function(results) {
@@ -1646,11 +1700,18 @@
             }
         }
         
-        // Clear deck import
-        window.clearDeckImport = function() {
-            document.getElementById('deckNameInput').value = '';
-            document.getElementById('deckImportText').value = '';
-        }
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            updateSavedDecksList();
+            
+            // Initialize the Pokemon set resolver in the background
+            try {
+                await pokemonSetResolver.initialize();
+                console.log('Pokemon Set Resolver ready');
+            } catch (error) {
+                console.warn('Set resolver initialization failed, using fallbacks:', error);
+            }
+        });
     </script>
 </body>
 </html>
