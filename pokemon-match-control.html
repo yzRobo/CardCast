@@ -143,6 +143,29 @@
             object-fit: cover;
             border-radius: 0.25rem;
         }
+        
+        /* Deck selector styles */
+        .deck-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .deck-selector select {
+            flex: 1;
+        }
+        
+        .deck-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: #9ca3af;
+        }
     </style>
 </head>
 <body class="min-h-screen bg-base-300">
@@ -221,6 +244,15 @@
                             <input type="number" id="player1Ties" value="0" min="0" class="input input-bordered input-xs w-12">
                             <button class="btn btn-xs" onclick="updatePlayerRecord(1)">Set</button>
                         </div>
+                    </div>
+                    
+                    <!-- Deck Selector -->
+                    <div class="deck-selector">
+                        <label class="text-sm font-semibold">Deck:</label>
+                        <select id="player1Deck" class="select select-bordered select-sm" onchange="updatePlayerDeck(1)">
+                            <option value="">No Deck (Search All Cards)</option>
+                        </select>
+                        <div class="deck-info" id="player1DeckInfo"></div>
                     </div>
                     
                     <div class="flex items-center gap-4 mb-2">
@@ -330,6 +362,15 @@
                             <input type="number" id="player2Ties" value="0" min="0" class="input input-bordered input-xs w-12">
                             <button class="btn btn-xs" onclick="updatePlayerRecord(2)">Set</button>
                         </div>
+                    </div>
+                    
+                    <!-- Deck Selector -->
+                    <div class="deck-selector">
+                        <label class="text-sm font-semibold">Deck:</label>
+                        <select id="player2Deck" class="select select-bordered select-sm" onchange="updatePlayerDeck(2)">
+                            <option value="">No Deck (Search All Cards)</option>
+                        </select>
+                        <div class="deck-info" id="player2DeckInfo"></div>
                     </div>
                     
                     <div class="flex items-center gap-4 mb-2">
@@ -507,8 +548,23 @@
                     <h2 class="card-title">Select Pokemon</h2>
                     <button class="btn btn-circle btn-ghost" onclick="closeSearch()">✕</button>
                 </div>
+                
+                <!-- Search mode indicator -->
+                <div id="searchModeIndicator" class="alert alert-info mb-4 hidden">
+                    <span id="searchModeText"></span>
+                </div>
+                
                 <input type="text" id="pokemonSearch" placeholder="Search Pokemon..." 
                        class="input input-bordered w-full mb-4">
+                       
+                <!-- Toggle for searching all cards vs deck -->
+                <div class="form-control mb-4">
+                    <label class="label cursor-pointer">
+                        <span class="label-text">Search all cards (ignore deck restriction)</span>
+                        <input type="checkbox" id="searchAllCards" class="toggle" onchange="toggleSearchMode()">
+                    </label>
+                </div>
+                
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 max-h-96 overflow-y-auto" 
                      id="searchResults">
                     <!-- Search results will appear here -->
@@ -531,7 +587,9 @@
                 prizes: [false, false, false, false, false, false],
                 record: { wins: 0, losses: 0, ties: 0 },
                 matchScore: 0,
-                turnActions: { energy: false, supporter: false, retreat: false }
+                turnActions: { energy: false, supporter: false, retreat: false },
+                deckId: null,
+                deckName: null
             },
             player2: {
                 name: 'Player 2',
@@ -541,23 +599,33 @@
                 prizes: [false, false, false, false, false, false],
                 record: { wins: 0, losses: 0, ties: 0 },
                 matchScore: 0,
-                turnActions: { energy: false, supporter: false, retreat: false }
+                turnActions: { energy: false, supporter: false, retreat: false },
+                deckId: null,
+                deckName: null
             },
             currentTurn: 1,
             timer: { minutes: 50, seconds: 0 },
             timerInterval: null,
             gameNumber: 1,
             matchFormat: 'Best of 3',
-            stadium: null // Changed to object to store full stadium data
+            stadium: null
         };
         
         let currentSelection = null;
         let draggedPokemon = null;
         let draggedFrom = null;
         let stadiumSearchTimeout = null;
+        let availableDecks = [];
+        let playerDeckCards = {
+            player1: [],
+            player2: []
+        };
         
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
+            // Load available decks
+            loadAvailableDecks();
+            
             // Load saved state if any
             loadMatchState();
             
@@ -616,6 +684,158 @@
                 socket.emit('check-overlay-status', 'pokemon-match');
             });
         });
+        
+        // Deck Management Functions
+        async function loadAvailableDecks() {
+            try {
+                // Load decks from localStorage (same as main index.html)
+                const savedDecks = JSON.parse(localStorage.getItem('savedDecks')) || {};
+                availableDecks = [];
+                
+                // Convert saved decks to flat array for easier use
+                Object.keys(savedDecks).forEach(game => {
+                    if (game === 'pokemon') {  // Only show Pokemon decks
+                        savedDecks[game].forEach(deck => {
+                            availableDecks.push({
+                                id: `${game}-${deck.name}`,
+                                name: deck.name,
+                                game: game,
+                                ...deck
+                            });
+                        });
+                    }
+                });
+                
+                // Update both player deck selectors
+                updateDeckSelectors();
+            } catch (error) {
+                console.error('Error loading decks:', error);
+            }
+        }
+        
+        function updateDeckSelectors() {
+            const player1Select = document.getElementById('player1Deck');
+            const player2Select = document.getElementById('player2Deck');
+            
+            // Create options HTML
+            let optionsHTML = '<option value="">No Deck (Search All Cards)</option>';
+            availableDecks.forEach(deck => {
+                optionsHTML += `<option value="${deck.id}">${deck.name}</option>`;
+            });
+            
+            // Preserve current selections
+            const player1Current = player1Select.value;
+            const player2Current = player2Select.value;
+            
+            player1Select.innerHTML = optionsHTML;
+            player2Select.innerHTML = optionsHTML;
+            
+            // Restore selections if they still exist
+            if (player1Current && availableDecks.find(d => d.id == player1Current)) {
+                player1Select.value = player1Current;
+            }
+            if (player2Current && availableDecks.find(d => d.id == player2Current)) {
+                player2Select.value = player2Current;
+            }
+        }
+        
+        async function updatePlayerDeck(playerNum) {
+            const deckSelect = document.getElementById(`player${playerNum}Deck`);
+            const deckId = deckSelect.value;
+            const deckInfo = document.getElementById(`player${playerNum}DeckInfo`);
+            
+            if (!deckId) {
+                // No deck selected - search all cards
+                matchState[`player${playerNum}`].deckId = null;
+                matchState[`player${playerNum}`].deckName = null;
+                playerDeckCards[`player${playerNum}`] = [];
+                deckInfo.innerHTML = '<span class="text-xs">Searching all cards</span>';
+            } else {
+                // Load the selected deck from localStorage
+                try {
+                    const savedDecks = JSON.parse(localStorage.getItem('savedDecks')) || {};
+                    const [game, ...nameParts] = deckId.split('-');
+                    const deckName = nameParts.join('-');
+                    
+                    const deck = savedDecks[game]?.find(d => d.name === deckName);
+                    
+                    if (!deck) {
+                        throw new Error('Deck not found');
+                    }
+                    
+                    matchState[`player${playerNum}`].deckId = deckId;
+                    matchState[`player${playerNum}`].deckName = deck.name;
+                    
+                    // Extract all card names from the deck
+                    const cardNames = [];
+                    if (deck.pokemon) {
+                        deck.pokemon.forEach(p => {
+                            for (let i = 0; i < (p.quantity || p.count || 1); i++) {
+                                cardNames.push(p.name);
+                            }
+                        });
+                    }
+                    if (deck.trainers) {
+                        deck.trainers.forEach(t => {
+                            for (let i = 0; i < (t.quantity || t.count || 1); i++) {
+                                cardNames.push(t.name);
+                            }
+                        });
+                    }
+                    if (deck.energy) {
+                        deck.energy.forEach(e => {
+                            for (let i = 0; i < (e.quantity || e.count || 1); i++) {
+                                cardNames.push(e.name);
+                            }
+                        });
+                    }
+                    
+                    playerDeckCards[`player${playerNum}`] = cardNames;
+                    
+                    // Count unique cards
+                    const uniqueCount = new Set(cardNames).size;
+                    deckInfo.innerHTML = `<span class="text-xs">${cardNames.length} cards (${uniqueCount} unique)</span>`;
+                    
+                } catch (error) {
+                    console.error('Error loading deck:', error);
+                    deckInfo.innerHTML = '<span class="text-xs text-error">Error loading deck</span>';
+                }
+            }
+            
+            saveMatchState();
+        }
+        
+        function toggleSearchMode() {
+            const searchAllCards = document.getElementById('searchAllCards').checked;
+            updateSearchModeIndicator();
+            
+            // Re-trigger search if there's text in the search box
+            const searchInput = document.getElementById('pokemonSearch');
+            if (searchInput.value.length >= 2) {
+                searchPokemon({ target: searchInput });
+            }
+        }
+        
+        function updateSearchModeIndicator() {
+            const indicator = document.getElementById('searchModeIndicator');
+            const indicatorText = document.getElementById('searchModeText');
+            const searchAllCards = document.getElementById('searchAllCards').checked;
+            
+            if (!currentSelection) return;
+            
+            const playerNum = currentSelection.player === 'player1' ? 1 : 2;
+            const deckName = matchState[`player${playerNum}`].deckName;
+            
+            if (deckName && !searchAllCards) {
+                indicator.classList.remove('hidden');
+                indicatorText.textContent = `Searching in deck: ${deckName}`;
+            } else if (searchAllCards && deckName) {
+                indicator.classList.remove('hidden');
+                indicatorText.textContent = `Searching all cards (deck restriction disabled)`;
+            } else {
+                indicator.classList.add('hidden');
+            }
+        }
         
         // Stadium Functions
         async function searchStadiums(event) {
@@ -997,15 +1217,38 @@
             currentSelection = { player, slot, benchIndex };
             document.getElementById('searchOverlay').classList.add('active');
             document.getElementById('pokemonSearch').focus();
+            
+            // Reset search mode checkbox
+            document.getElementById('searchAllCards').checked = false;
+            
+            // Update search mode indicator
+            updateSearchModeIndicator();
         }
         
         async function searchPokemon(event) {
             const query = event.target.value;
-            if (query.length < 2) return;
+            if (query.length < 2) {
+                document.getElementById('searchResults').innerHTML = '';
+                return;
+            }
+            
+            const searchAllCards = document.getElementById('searchAllCards').checked;
+            const playerNum = currentSelection.player === 'player1' ? 1 : 2;
+            const deckCardNames = playerDeckCards[`player${playerNum}`];
             
             try {
+                // Always search all cards from the API
                 const response = await fetch(`/api/search/pokemon?q=${encodeURIComponent(query)}`);
-                const results = await response.json();
+                let results = await response.json();
+                
+                // If deck is selected and not searching all cards, filter by deck card names
+                if (deckCardNames.length > 0 && !searchAllCards) {
+                    const deckCardNamesLower = new Set(deckCardNames.map(name => name.toLowerCase()));
+                    results = results.filter(card => 
+                        deckCardNamesLower.has(card.name.toLowerCase())
+                    );
+                }
+                
                 displaySearchResults(results);
             } catch (error) {
                 console.error('Search error:', error);
@@ -1014,6 +1257,12 @@
         
         function displaySearchResults(results) {
             const container = document.getElementById('searchResults');
+            
+            if (results.length === 0) {
+                container.innerHTML = '<div class="col-span-full text-center text-base-content/50">No matching cards found</div>';
+                return;
+            }
+            
             container.innerHTML = results.map(card => `
                 <div class="card bg-base-200 cursor-pointer hover:shadow-lg transition-shadow" 
                      onclick="selectPokemon('${card.id}')">
@@ -1031,7 +1280,15 @@
         
         async function selectPokemon(cardId) {
             try {
-                const response = await fetch(`/api/card/pokemon/${cardId}`);
+                // Try all endpoints to find the card
+                let response = await fetch(`/api/card/pokemon/${cardId}`);
+                if (!response.ok) {
+                    response = await fetch(`/api/card/trainer/${cardId}`);
+                }
+                if (!response.ok) {
+                    response = await fetch(`/api/card/energy/${cardId}`);
+                }
+                
                 const card = await response.json();
                 
                 const pokemon = {
@@ -1309,6 +1566,12 @@
                 return;
             }
             
+            // Preserve deck selections
+            const player1DeckId = matchState.player1.deckId;
+            const player1DeckName = matchState.player1.deckName;
+            const player2DeckId = matchState.player2.deckId;
+            const player2DeckName = matchState.player2.deckName;
+            
             matchState = {
                 player1: {
                     name: document.getElementById('player1Name').value,
@@ -1318,7 +1581,9 @@
                     prizes: [false, false, false, false, false, false],
                     record: { wins: 0, losses: 0, ties: 0 },
                     matchScore: 0,
-                    turnActions: { energy: false, supporter: false, retreat: false }
+                    turnActions: { energy: false, supporter: false, retreat: false },
+                    deckId: player1DeckId,
+                    deckName: player1DeckName
                 },
                 player2: {
                     name: document.getElementById('player2Name').value,
@@ -1328,7 +1593,9 @@
                     prizes: [false, false, false, false, false, false],
                     record: { wins: 0, losses: 0, ties: 0 },
                     matchScore: 0,
-                    turnActions: { energy: false, supporter: false, retreat: false }
+                    turnActions: { energy: false, supporter: false, retreat: false },
+                    deckId: player2DeckId,
+                    deckName: player2DeckName
                 },
                 currentTurn: 1,
                 timer: { minutes: 50, seconds: 0 },
@@ -1382,6 +1649,7 @@
             document.getElementById('searchOverlay').classList.remove('active');
             document.getElementById('pokemonSearch').value = '';
             document.getElementById('searchResults').innerHTML = '';
+            document.getElementById('searchModeIndicator').classList.add('hidden');
             currentSelection = null;
         }
         
@@ -1399,6 +1667,16 @@
                 document.getElementById('player2Name').value = matchState.player2.name;
                 document.getElementById('gameNumber').value = matchState.gameNumber;
                 document.getElementById('matchFormat').value = matchState.matchFormat;
+                
+                // Load deck selections
+                if (matchState.player1.deckId) {
+                    document.getElementById('player1Deck').value = matchState.player1.deckId;
+                    updatePlayerDeck(1);
+                }
+                if (matchState.player2.deckId) {
+                    document.getElementById('player2Deck').value = matchState.player2.deckId;
+                    updatePlayerDeck(2);
+                }
                 
                 // Load stadium
                 if (matchState.stadium) {
@@ -1513,6 +1791,8 @@
         window.updateTurnActions = updateTurnActions;
         window.resetTurnActions = resetTurnActions;
         window.updateBenchSize = updateBenchSize;
+        window.updatePlayerDeck = updatePlayerDeck;
+        window.toggleSearchMode = toggleSearchMode;
     </script>
 </body>
 </html>
