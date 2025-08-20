@@ -786,44 +786,62 @@ class TCGCSVApi {
                 return imagePath;
             }
             
-            // More aggressive retry logic
-            let retries = 5; // Increased from 3
+            // Smart retry logic - don't retry on 403/404 errors
+            let retries = 5;
             let lastError;
+            let attempt = 0;
             
             while (retries > 0) {
+                attempt++;
+                console.log(`Downloading image for ${safeId}, attempt ${attempt}`);
+                
                 try {
-                    console.log(`Downloading image for ${cardId}, attempt ${6 - retries}`);
                     const response = await axios.get(imageUrl, {
                         responseType: 'arraybuffer',
-                        timeout: 30000, // Increased from 15000
+                        timeout: 15000,
                         headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                            'Accept': 'image/*,*/*',
-                            'Accept-Encoding': 'gzip, deflate',
-                            'Connection': 'keep-alive'
-                        },
-                        maxContentLength: 50 * 1024 * 1024, // 50MB max
-                        maxBodyLength: 50 * 1024 * 1024
+                            'User-Agent': 'CardCast/1.0.0'
+                        }
                     });
                     
                     fs.writeFileSync(imagePath, response.data);
                     console.log(`Successfully downloaded: ${safeId}`);
                     return imagePath;
+                    
                 } catch (error) {
                     lastError = error;
+                    
+                    // Check if it's a 403 or 404 error - these won't be fixed by retrying
+                    if (error.response && (error.response.status === 403 || error.response.status === 404)) {
+                        console.log(`FAILED PERMANENTLY: ${safeId} - ${error.response.status === 403 ? 'Access forbidden (not available yet)' : 'Not found'}`);
+                        console.error(`Error downloading image for ${safeId}: Request failed with status code ${error.response.status}`);
+                        
+                        // Don't retry for 403/404 errors - break immediately
+                        break;
+                    }
+                    
+                    // For other errors (network issues, timeouts), retry with backoff
                     retries--;
-                    console.error(`Failed to download ${cardId}: ${error.message}, ${retries} retries left`);
+                    console.log(`Failed to download ${safeId}: ${error.message}, ${retries} retries left`);
+                    
                     if (retries > 0) {
-                        await this.delay(2000 * (6 - retries)); // Progressive delay
+                        // Exponential backoff for network errors
+                        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+                        await this.delay(waitTime);
                     }
                 }
             }
             
-            console.error(`FAILED PERMANENTLY: ${cardId} - ${lastError.message}`);
-            throw lastError;
+            // If we got here and it wasn't a 403/404, it was a network issue
+            if (!lastError.response || (lastError.response.status !== 403 && lastError.response.status !== 404)) {
+                console.error(`Error downloading image for ${safeId} after ${attempt} attempts:`, lastError.message);
+            }
+            
+            return imageUrl; // Return original URL if download fails
+            
         } catch (error) {
             console.error(`Error downloading image for ${cardId}:`, error.message);
-            return imageUrl; // Return original URL if download fails
+            return imageUrl;
         }
     }
 }
