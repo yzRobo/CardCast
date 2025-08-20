@@ -35,6 +35,34 @@
             justify-content: center;
         }
         
+        /* Stadium card cropping styles */
+        .stadium-card-display {
+            width: 120px;
+            height: 40px;
+            overflow: hidden;
+            position: relative;
+            border-radius: 0.375rem;
+            background: #1f2937;
+        }
+        
+        .stadium-card-display img {
+            position: absolute;
+            width: 100%;
+            top: -15%;
+            left: 0;
+            transform: scale(1.2);
+        }
+        
+        .stadium-mini-display {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 0.5rem;
+            min-height: 3.5rem;
+        }
+        
         /* Drag and Drop Styles */
         .draggable {
             cursor: move;
@@ -80,17 +108,40 @@
             font-weight: bold;
         }
         
-        /* Stadium card display */
-        .stadium-display {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 0.5rem 1rem;
+        /* Stadium search results */
+        .stadium-search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #1f2937;
+            border: 1px solid #374151;
             border-radius: 0.5rem;
-            color: white;
-            font-weight: bold;
-            min-height: 2.5rem;
+            margin-top: 0.25rem;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 50;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stadium-search-item {
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .stadium-search-item:hover {
+            background: #374151;
+        }
+        
+        .stadium-search-item img {
+            width: 60px;
+            height: 84px;
+            object-fit: cover;
+            border-radius: 0.25rem;
         }
     </style>
 </head>
@@ -113,12 +164,43 @@
         <!-- Stadium Control -->
         <div class="card bg-base-100 shadow-xl mb-6">
             <div class="card-body py-4">
-                <div class="flex items-center gap-4">
-                    <label class="text-sm font-semibold">Stadium in Play:</label>
-                    <input type="text" id="stadiumName" placeholder="No Stadium" 
-                           class="input input-bordered input-sm flex-1 max-w-md">
-                    <button class="btn btn-primary btn-sm" onclick="updateStadium()">Update</button>
-                    <button class="btn btn-error btn-sm" onclick="clearStadium()">Clear</button>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4 flex-1">
+                        <label class="text-sm font-semibold whitespace-nowrap">Stadium in Play:</label>
+                        
+                        <!-- Stadium Display Area -->
+                        <div id="stadiumDisplay" class="flex-1">
+                            <!-- Empty state -->
+                            <div id="emptyStadium" class="flex items-center gap-4">
+                                <div class="relative flex-1 max-w-md">
+                                    <input type="text" 
+                                           id="stadiumSearch" 
+                                           placeholder="Search for a Stadium card..." 
+                                           class="input input-bordered input-sm w-full"
+                                           autocomplete="off">
+                                    <div id="stadiumSearchResults" class="stadium-search-results hidden"></div>
+                                </div>
+                                <span class="text-sm text-base-content/50">or</span>
+                                <input type="text" 
+                                       id="stadiumManual" 
+                                       placeholder="Type stadium name manually" 
+                                       class="input input-bordered input-sm flex-1 max-w-xs">
+                                <button class="btn btn-primary btn-sm" onclick="setManualStadium()">Set</button>
+                            </div>
+                            
+                            <!-- Active stadium display (hidden by default) -->
+                            <div id="activeStadium" class="stadium-mini-display hidden">
+                                <div class="stadium-card-display">
+                                    <img id="stadiumCardImage" src="" alt="Stadium">
+                                </div>
+                                <div class="flex-1">
+                                    <div id="stadiumCardName" class="font-bold text-white"></div>
+                                    <div id="stadiumCardSet" class="text-xs text-white/70"></div>
+                                </div>
+                                <button class="btn btn-error btn-sm" onclick="clearStadium()">Remove</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -211,28 +293,25 @@
                         <div>
                             <label class="text-xs">Energy</label>
                             <div class="flex items-center gap-1">
-                                <input type="checkbox" id="player1Energy" class="checkbox checkbox-sm">
+                                <input type="checkbox" id="player1Energy" class="checkbox checkbox-sm" onchange="updateTurnActions(1)">
                                 <span class="text-xs">Attached</span>
                             </div>
                         </div>
                         <div>
                             <label class="text-xs">Supporter</label>
                             <div class="flex items-center gap-1">
-                                <input type="checkbox" id="player1Supporter" class="checkbox checkbox-sm">
+                                <input type="checkbox" id="player1Supporter" class="checkbox checkbox-sm" onchange="updateTurnActions(1)">
                                 <span class="text-xs">Played</span>
                             </div>
                         </div>
                         <div>
                             <label class="text-xs">Retreat</label>
                             <div class="flex items-center gap-1">
-                                <input type="checkbox" id="player1Retreat" class="checkbox checkbox-sm">
+                                <input type="checkbox" id="player1Retreat" class="checkbox checkbox-sm" onchange="updateTurnActions(1)">
                                 <span class="text-xs">Used</span>
                             </div>
                         </div>
                     </div>
-                    <button class="btn btn-sm mt-2" onclick="updateTurnActions(1)">Update Actions</button>
-                    
-
                 </div>
             </div>
             
@@ -323,28 +402,25 @@
                         <div>
                             <label class="text-xs">Energy</label>
                             <div class="flex items-center gap-1">
-                                <input type="checkbox" id="player2Energy" class="checkbox checkbox-sm">
+                                <input type="checkbox" id="player2Energy" class="checkbox checkbox-sm" onchange="updateTurnActions(2)">
                                 <span class="text-xs">Attached</span>
                             </div>
                         </div>
                         <div>
                             <label class="text-xs">Supporter</label>
                             <div class="flex items-center gap-1">
-                                <input type="checkbox" id="player2Supporter" class="checkbox checkbox-sm">
+                                <input type="checkbox" id="player2Supporter" class="checkbox checkbox-sm" onchange="updateTurnActions(2)">
                                 <span class="text-xs">Played</span>
                             </div>
                         </div>
                         <div>
                             <label class="text-xs">Retreat</label>
                             <div class="flex items-center gap-1">
-                                <input type="checkbox" id="player2Retreat" class="checkbox checkbox-sm">
+                                <input type="checkbox" id="player2Retreat" class="checkbox checkbox-sm" onchange="updateTurnActions(2)">
                                 <span class="text-xs">Used</span>
                             </div>
                         </div>
                     </div>
-                    <button class="btn btn-sm mt-2" onclick="updateTurnActions(2)">Update Actions</button>
-                    
-
                 </div>
             </div>
         </div>
@@ -472,12 +548,13 @@
             timerInterval: null,
             gameNumber: 1,
             matchFormat: 'Best of 3',
-            stadium: ''
+            stadium: null // Changed to object to store full stadium data
         };
         
         let currentSelection = null;
         let draggedPokemon = null;
         let draggedFrom = null;
+        let stadiumSearchTimeout = null;
         
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -494,6 +571,22 @@
             
             // Setup search
             document.getElementById('pokemonSearch').addEventListener('input', debounce(searchPokemon, 300));
+            
+            // Setup stadium search
+            document.getElementById('stadiumSearch').addEventListener('input', debounce(searchStadiums, 300));
+            document.getElementById('stadiumSearch').addEventListener('focus', () => {
+                const results = document.getElementById('stadiumSearchResults');
+                if (results.children.length > 0) {
+                    results.classList.remove('hidden');
+                }
+            });
+            
+            // Close stadium search when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#stadiumSearch') && !e.target.closest('#stadiumSearchResults')) {
+                    document.getElementById('stadiumSearchResults').classList.add('hidden');
+                }
+            });
             
             // Update player names on change
             document.getElementById('player1Name').addEventListener('change', updatePlayerNames);
@@ -525,19 +618,133 @@
         });
         
         // Stadium Functions
-        function updateStadium() {
-            const stadiumName = document.getElementById('stadiumName').value;
-            matchState.stadium = stadiumName;
+        async function searchStadiums(event) {
+            const query = event.target.value;
+            const resultsContainer = document.getElementById('stadiumSearchResults');
             
-            socket.emit('stadium-update', { stadium: stadiumName });
+            if (query.length < 2) {
+                resultsContainer.classList.add('hidden');
+                resultsContainer.innerHTML = '';
+                return;
+            }
+            
+            try {
+                // Use the same search as Pokemon - just search all cards
+                const response = await fetch(`/api/search/pokemon?q=${encodeURIComponent(query)}`);
+                const results = await response.json();
+                
+                // Since we can't filter by type, show all results
+                // User can visually identify stadium cards
+                if (results.length > 0) {
+                    displayStadiumResults(results);
+                    resultsContainer.classList.remove('hidden');
+                } else {
+                    resultsContainer.innerHTML = '<div class="p-2 text-sm text-base-content/50">No cards found</div>';
+                    resultsContainer.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Stadium search error:', error);
+            }
+        }
+        
+        function displayStadiumResults(cards) {
+            const container = document.getElementById('stadiumSearchResults');
+            container.innerHTML = cards.map(card => `
+                <div class="stadium-search-item" onclick="selectStadiumCard('${card.id}')">
+                    <img src="${card.display_image || card.local_image || card.image_url}" alt="${card.name}">
+                    <div class="flex-1">
+                        <div class="font-semibold">${card.name}</div>
+                        <div class="text-xs opacity-70">${card.set_name || ''}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function selectStadiumCard(cardId) {
+            try {
+                // Try pokemon endpoint first, then trainer if that fails
+                let response = await fetch(`/api/card/pokemon/${cardId}`);
+                if (!response.ok) {
+                    response = await fetch(`/api/card/trainer/${cardId}`);
+                }
+                const card = await response.json();
+                
+                const stadium = {
+                    id: card.id,
+                    name: card.name,
+                    image: card.display_image || card.local_image || card.image_url,
+                    set: card.set_name || ''
+                };
+                
+                setActiveStadium(stadium);
+                
+                // Clear and hide search
+                document.getElementById('stadiumSearch').value = '';
+                document.getElementById('stadiumSearchResults').classList.add('hidden');
+                document.getElementById('stadiumSearchResults').innerHTML = '';
+            } catch (error) {
+                console.error('Error selecting stadium:', error);
+            }
+        }
+        
+        function setActiveStadium(stadium) {
+            matchState.stadium = stadium;
+            
+            // Update UI
+            document.getElementById('emptyStadium').classList.add('hidden');
+            document.getElementById('activeStadium').classList.remove('hidden');
+            document.getElementById('stadiumCardImage').src = stadium.image;
+            document.getElementById('stadiumCardName').textContent = stadium.name;
+            document.getElementById('stadiumCardSet').textContent = stadium.set;
+            
+            // Send to overlay
+            socket.emit('stadium-update', { stadium: stadium });
+            saveMatchState();
+        }
+        
+        function setManualStadium() {
+            const manualName = document.getElementById('stadiumManual').value;
+            if (!manualName.trim()) return;
+            
+            const stadium = {
+                id: 'manual',
+                name: manualName,
+                image: null,
+                set: 'Custom'
+            };
+            
+            matchState.stadium = stadium;
+            
+            // For manual stadiums, just show the name without image
+            document.getElementById('emptyStadium').classList.add('hidden');
+            document.getElementById('activeStadium').classList.remove('hidden');
+            document.getElementById('stadiumCardImage').style.display = 'none';
+            document.getElementById('stadiumCardImage').parentElement.style.display = 'none';
+            document.getElementById('stadiumCardName').textContent = stadium.name;
+            document.getElementById('stadiumCardSet').textContent = 'Custom Entry';
+            
+            // Clear manual input
+            document.getElementById('stadiumManual').value = '';
+            
+            socket.emit('stadium-update', { stadium: stadium });
             saveMatchState();
         }
         
         function clearStadium() {
-            document.getElementById('stadiumName').value = '';
-            matchState.stadium = '';
+            matchState.stadium = null;
             
-            socket.emit('stadium-update', { stadium: '' });
+            // Reset UI
+            document.getElementById('emptyStadium').classList.remove('hidden');
+            document.getElementById('activeStadium').classList.add('hidden');
+            document.getElementById('stadiumSearch').value = '';
+            document.getElementById('stadiumManual').value = '';
+            
+            // Reset image display
+            const imageContainer = document.getElementById('stadiumCardImage').parentElement;
+            imageContainer.style.display = '';
+            document.getElementById('stadiumCardImage').style.display = '';
+            
+            socket.emit('stadium-update', { stadium: null });
             saveMatchState();
         }
         
@@ -1005,10 +1212,6 @@
             saveMatchState();
         }
         
-        function updatePlayerState(playerNum) {
-            // Function removed - no longer tracking hand/deck
-        }
-        
         function updatePlayerNames() {
             matchState.player1.name = document.getElementById('player1Name').value;
             matchState.player2.name = document.getElementById('player2Name').value;
@@ -1132,7 +1335,7 @@
                 timerInterval: null,
                 gameNumber: matchState.gameNumber,
                 matchFormat: matchState.matchFormat,
-                stadium: ''
+                stadium: null
             };
             
             // Reset UI
@@ -1166,7 +1369,7 @@
             resetTurnActions();
             
             // Clear stadium
-            document.getElementById('stadiumName').value = '';
+            clearStadium();
             
             updateTimerDisplay();
             updateTurnDisplay();
@@ -1198,7 +1401,17 @@
                 document.getElementById('matchFormat').value = matchState.matchFormat;
                 
                 // Load stadium
-                document.getElementById('stadiumName').value = matchState.stadium || '';
+                if (matchState.stadium) {
+                    if (matchState.stadium.image) {
+                        setActiveStadium(matchState.stadium);
+                    } else {
+                        // Handle legacy string format or manual stadiums
+                        const stadium = typeof matchState.stadium === 'string' 
+                            ? { id: 'manual', name: matchState.stadium, image: null, set: 'Custom' }
+                            : matchState.stadium;
+                        setActiveStadium(stadium);
+                    }
+                }
                 
                 // Load bench sizes
                 document.getElementById('player1BenchSize').value = matchState.player1.benchSize || 5;
@@ -1276,6 +1489,8 @@
         // Make functions available globally
         window.selectPokemonFor = selectPokemonFor;
         window.selectPokemon = selectPokemon;
+        window.selectStadiumCard = selectStadiumCard;
+        window.setManualStadium = setManualStadium;
         window.removeActive = removeActive;
         window.removeBench = removeBench;
         window.updateActiveHp = updateActiveHp;
@@ -1292,7 +1507,6 @@
         window.closeSearch = closeSearch;
         window.handleDragStart = handleDragStart;
         window.handleDragEnd = handleDragEnd;
-        window.updateStadium = updateStadium;
         window.clearStadium = clearStadium;
         window.updatePlayerRecord = updatePlayerRecord;
         window.updateMatchScore = updateMatchScore;

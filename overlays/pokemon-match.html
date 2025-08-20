@@ -26,26 +26,33 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.98) 0%, rgba(118, 75, 162, 0.98) 100%);
+            width: 180px;
+            height: 50px;
             border: 2px solid rgba(255, 255, 255, 0.5);
             border-radius: 12px;
-            padding: 12px 30px;
-            color: white;
-            font-weight: bold;
-            font-size: 18px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            overflow: hidden;
             backdrop-filter: blur(10px);
             box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
             opacity: 0;
             transition: all 0.5s ease;
             display: none;
+            position: relative;
         }
         
         .stadium-display.active {
             opacity: 1;
             display: block;
+        }
+        
+        /* Stadium image fills entire container */
+        .stadium-display img {
+            width: 100%;
+            height: auto;
+            position: absolute;
+            top: 0%;  /* Adjust to show name area and top of art */
+            left: 0;
+            right: 0%;
+            transform: scale(1.05);  /* Zoom to fill width and make name readable */
         }
         
         /* Player boards - vertical panels on sides */
@@ -498,7 +505,7 @@
 <body>
     <!-- Stadium Display -->
     <div class="stadium-display" id="stadiumDisplay">
-        <span id="stadiumName">No Stadium</span>
+        <img id="stadiumImage" src="" alt="Stadium">
     </div>
     
     <!-- Player 1 Board (Left) -->
@@ -655,19 +662,24 @@
             timerInterval: null,
             gameNumber: 1,
             matchFormat: 'Best of 3',
-            stadium: '',
+            stadium: null,
             visible: false
         };
         
         // Socket event handlers
         socket.on('pokemon-match-update', (data) => {
+            console.log('Pokemon match update received:', data);
             if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
             if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
-            if (data.stadium !== undefined) matchState.stadium = data.stadium;
+            if (data.stadium !== undefined) {
+                console.log('Stadium data received:', data.stadium);
+                matchState.stadium = data.stadium;
+            }
             updateDisplay();
         });
         
         socket.on('stadium-update', (data) => {
+            console.log('Stadium update received:', data.stadium);
             matchState.stadium = data.stadium;
             updateStadiumDisplay();
         });
@@ -783,7 +795,7 @@
                 timer: { minutes: 50, seconds: 0 },
                 gameNumber: 1,
                 matchFormat: 'Best of 3',
-                stadium: '',
+                stadium: null,
                 visible: matchState.visible
             };
             pauseTimer();
@@ -809,6 +821,7 @@
             document.getElementById('player1Board').classList.add('active');
             document.getElementById('player2Board').classList.add('active');
             document.getElementById('matchInfo').classList.add('active');
+            // Always update stadium display when showing overlay
             updateStadiumDisplay();
         }
         
@@ -840,12 +853,27 @@
         
         function updateStadiumDisplay() {
             const stadiumEl = document.getElementById('stadiumDisplay');
-            const stadiumName = document.getElementById('stadiumName');
+            const stadiumImage = document.getElementById('stadiumImage');
             
-            if (matchState.stadium && matchState.stadium.trim() !== '') {
-                stadiumName.textContent = matchState.stadium;
-                if (matchState.visible) {
-                    stadiumEl.classList.add('active');
+            console.log('Updating stadium display:', matchState.stadium);
+            
+            if (matchState.stadium) {
+                // Handle both object and string formats
+                if (typeof matchState.stadium === 'object' && matchState.stadium !== null) {
+                    // New object format with image
+                    if (matchState.stadium.image) {
+                        stadiumImage.src = matchState.stadium.image;
+                        stadiumEl.classList.add('active');
+                    } else if (matchState.stadium.name) {
+                        // Has name but no image (manual entry) - don't show
+                        stadiumEl.classList.remove('active');
+                    }
+                } else if (typeof matchState.stadium === 'string' && matchState.stadium.trim() !== '') {
+                    // Legacy string format - don't show since we need an image
+                    stadiumEl.classList.remove('active');
+                } else {
+                    // Empty or invalid stadium
+                    stadiumEl.classList.remove('active');
                 }
             } else {
                 stadiumEl.classList.remove('active');
@@ -994,8 +1022,10 @@
         socket.emit('register-overlay', 'pokemon-match');
         console.log('Registering as pokemon-match overlay');
         
-        // Auto-show overlay after registration
+        // Request current state after registration
         setTimeout(() => {
+            console.log('Requesting current state...');
+            socket.emit('request-state', 'pokemon-match');
             showOverlay();
         }, 500);
         
