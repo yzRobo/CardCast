@@ -1,0 +1,36 @@
+/* public/css/input.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom component styles */
+@layer components {
+  .game-item {
+    @apply flex items-center justify-between p-2 rounded-lg bg-base-200 hover:bg-base-300 transition-all cursor-pointer border-2 border-transparent hover:border-primary;
+  }
+  
+  .game-item.active {
+    @apply bg-base-300 border-primary;
+  }
+  
+  .game-icon {
+    @apply w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white shadow-lg;
+  }
+  
+  .card-result {
+    @apply cursor-pointer transition-all hover:scale-105;
+  }
+  
+  .card-thumbnail {
+    @apply aspect-[63/88] rounded-lg overflow-hidden bg-base-300 shadow-lg;
+  }
+}
+
+/* Make the layout more horizontal on larger screens */
+@layer utilities {
+  @media (min-width: 1536px) {
+    .container {
+      max-width: 100%;
+    }
+  }
+}

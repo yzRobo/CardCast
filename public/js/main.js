@@ -145,70 +145,49 @@ function createGameElement(game) {
     gameItem.className = 'game-item';
     gameItem.dataset.game = game.id;
     
-    const gameInfo = document.createElement('div');
-    gameInfo.className = 'game-info';
+    const hasData = game.hasData && game.cardCount > 0;
+    const cardCountFormatted = game.cardCount >= 1000 
+        ? `${(game.cardCount / 1000).toFixed(1)}k` 
+        : `${game.cardCount}`;
     
-    const gameIcon = document.createElement('div');
-    gameIcon.className = `game-icon ${game.id}`;
-    gameIcon.textContent = game.name[0];
+    const gameColors = {
+        pokemon: 'bg-gradient-to-br from-red-500 to-red-600',
+        magic: 'bg-gradient-to-br from-orange-500 to-amber-600',
+        yugioh: 'bg-gradient-to-br from-yellow-500 to-yellow-600',
+        lorcana: 'bg-gradient-to-br from-purple-500 to-pink-600',
+        onepiece: 'bg-gradient-to-br from-red-600 to-orange-600',
+        digimon: 'bg-gradient-to-br from-blue-500 to-cyan-600',
+        fab: 'bg-gradient-to-br from-rose-500 to-red-600',
+        starwars: 'bg-gradient-to-br from-gray-500 to-slate-600'
+    };
     
-    const gameName = document.createElement('span');
-    gameName.className = 'game-name';
-    gameName.textContent = game.name;
+    gameItem.innerHTML = `
+        <div class="flex items-center gap-3 flex-1">
+            <div class="avatar">
+                <div class="w-10 rounded-lg ${gameColors[game.id] || 'bg-gradient-to-br from-gray-500 to-gray-600'}">
+                    <span class="text-white text-lg flex items-center justify-center h-full font-bold">
+                        ${game.name[0]}
+                    </span>
+                </div>
+            </div>
+            <div class="flex-1">
+                <div class="font-semibold text-base-content">${game.name}</div>
+                <div class="text-xs opacity-60">
+                    ${hasData ? `${cardCountFormatted} cards` : 'No data'}
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            ${hasData ? `
+                <button class="btn btn-xs btn-primary" onclick="event.stopPropagation(); updateGameData('${game.id}')">Update</button>
+                <button class="btn btn-xs btn-error btn-outline" onclick="event.stopPropagation(); deleteGameData('${game.id}')">×</button>
+            ` : `
+                <button class="btn btn-xs btn-secondary" onclick="event.stopPropagation(); downloadGameData('${game.id}')">Download</button>
+            `}
+        </div>
+    `;
     
-    gameInfo.appendChild(gameIcon);
-    gameInfo.appendChild(gameName);
-    
-    const gameStatus = document.createElement('div');
-    gameStatus.className = 'game-status';
-    
-    if (game.hasData && game.cardCount > 0) {
-        const cardCount = document.createElement('span');
-        cardCount.className = 'card-count';
-        // Format large numbers more compactly
-        if (game.cardCount >= 1000) {
-            cardCount.textContent = `${(game.cardCount / 1000).toFixed(1)}k`;
-        } else {
-            cardCount.textContent = `${game.cardCount}`;
-        }
-        cardCount.title = `${game.cardCount.toLocaleString()} cards`;
-        gameStatus.appendChild(cardCount);
-        
-        const updateBtn = document.createElement('button');
-        updateBtn.className = 'update-btn';
-        updateBtn.textContent = 'Update';
-        updateBtn.title = 'Check for new cards';
-        updateBtn.onclick = (e) => {
-            e.stopPropagation();
-            updateGameData(game.id);
-        };
-        gameStatus.appendChild(updateBtn);
-        
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'delete-btn';
-        deleteBtn.innerHTML = '×';
-        deleteBtn.title = 'Delete all data';
-        deleteBtn.onclick = (e) => {
-            e.stopPropagation();
-            deleteGameData(game.id);
-        };
-        gameStatus.appendChild(deleteBtn);
-    } else {
-        const downloadBtn = document.createElement('button');
-        downloadBtn.className = 'download-btn';
-        downloadBtn.textContent = 'Download';
-        downloadBtn.title = 'Download card data';
-        downloadBtn.onclick = (e) => {
-            e.stopPropagation();
-            downloadGameData(game.id);
-        };
-        gameStatus.appendChild(downloadBtn);
-    }
-    
-    gameItem.appendChild(gameInfo);
-    gameItem.appendChild(gameStatus);
-    
-    gameItem.onclick = () => selectGame(game.id, game.hasData && game.cardCount > 0);
+    gameItem.onclick = () => selectGame(game.id, hasData);
     
     return gameItem;
 }

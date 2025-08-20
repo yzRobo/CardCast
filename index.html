@@ -1,206 +1,676 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="night">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CardCast - TCG Streaming Overlay Tool</title>
     <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
+<body class="min-h-screen bg-base-100">
     <!-- Header -->
-    <header class="header">
-        <div class="header-content">
-            <div class="logo">
-                <h1>CardCast</h1>
-                <span class="version">v1.0.0</span>
+    <div class="navbar bg-base-200 border-b border-base-300 fixed top-0 z-50">
+        <div class="navbar-start">
+            <div class="text-xl font-bold">
+                <span class="text-primary">Card</span><span>Cast</span>
             </div>
-            <div class="status-bar">
-                <div class="status-item" id="obsStatus">
-                    <span class="status-indicator"></span>
-                    <span class="status-text">OBS Not Connected</span>
-                </div>
+            <div class="badge badge-primary badge-sm ml-2">v1.0.0</div>
+        </div>
+        <div class="navbar-end">
+            <div id="obsStatus" class="badge badge-error gap-2">
+                <div class="w-2 h-2 rounded-full bg-current status-indicator"></div>
+                <span class="status-text">OBS Not Connected</span>
             </div>
         </div>
-    </header>
-
-    <!-- Main Container -->
-    <div class="main-container">
-        <!-- Games Panel -->
-        <aside class="games-panel panel">
-            <div class="panel-header">
-                <h2 class="panel-title">Select Game</h2>
-            </div>
-            <div class="panel-content">
-                <div class="games-list" id="gamesList">
-                    <!-- Games will be populated here -->
-                </div>
-                
-                <div class="download-options">
-                    <h3 class="option-title">Download Options</h3>
-                    <div class="sets-selector">
-                        <label class="sets-option">
-                            <input type="radio" name="sets" value="1" checked>
-                            <span>Most recent set only</span>
-                        </label>
-                        <label class="sets-option">
-                            <input type="radio" name="sets" value="3">
-                            <span>Last 3 sets</span>
-                        </label>
-                        <label class="sets-option">
-                            <input type="radio" name="sets" value="5">
-                            <span>Last 5 sets</span>
-                        </label>
-                        <label class="sets-option">
-                            <input type="radio" name="sets" value="10">
-                            <span>Last 10 sets</span>
-                        </label>
-                        <label class="sets-option">
-                            <input type="radio" name="sets" value="all">
-                            <span>All available sets</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Search Section -->
-        <main class="search-section">
-            <div class="search-panel panel">
-                <div class="search-input-group">
-                    <input type="text" 
-                           class="search-input" 
-                           id="searchInput" 
-                           placeholder="Select a game and download data to search..."
-                           disabled>
-                    <span class="search-icon">🔍</span>
-                </div>
-                
-                <div class="search-results" id="searchResults">
-                    <div class="empty-state">
-                        <div class="empty-icon">📦</div>
-                        <p>Select a game and download card data to begin</p>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <!-- Display Panel -->
-        <aside class="display-panel panel">
-            <div class="panel-header">
-                <h2 class="panel-title">Display Controls</h2>
-            </div>
-            <div class="panel-content">
-                <!-- Card Preview -->
-                <div class="card-preview" id="cardPreview">
-                    <div class="empty-state">
-                        <div class="empty-icon">🎴</div>
-                        <p>No card selected</p>
-                    </div>
-                </div>
-                
-                <!-- Control Buttons -->
-                <div class="controls-group">
-                    <label class="controls-label">Display Position</label>
-                    <div class="button-group">
-                        <button class="control-btn" id="displayLeft" disabled>Left</button>
-                        <button class="control-btn" id="displayRight" disabled>Right</button>
-                    </div>
-                </div>
-                
-                <div class="controls-group">
-                    <div class="button-group">
-                        <button class="control-btn danger" id="clearDisplay">Clear Display</button>
-                    </div>
-                </div>
-                
-                <!-- Pokemon Match Controls (shown when Pokemon is selected) -->
-                <div class="controls-group" id="pokemonMatchControls" style="display: none;">
-                    <label class="controls-label">Pokemon Match</label>
-                    <a href="/pokemon-match-control" target="_blank" class="control-btn" style="display: block; text-align: center; text-decoration: none; margin-bottom: 10px;">
-                        Open Match Control Panel →
-                    </a>
-                    <div class="button-group">
-                        <button class="control-btn" onclick="togglePokemonMatch()">Show/Hide Overlay</button>
-                        <button class="control-btn" onclick="togglePrizeOverlay()">Show/Hide Prizes</button>
-                    </div>
-                </div>
-                
-                <!-- Deck Import Section -->
-                <div class="controls-group">
-                    <label class="controls-label">Import Deck List</label>
-                    <textarea id="deckImportText" 
-                              placeholder="Paste Limitless TCG or PTCGL deck list here..." 
-                              rows="6"
-                              style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.5rem; color: var(--text-primary); font-size: 0.75rem; resize: vertical;"></textarea>
-                    <input type="text" 
-                           id="deckNameInput" 
-                           placeholder="Deck Name (e.g., Gardevoir ex)"
-                           style="width: 100%; margin-top: 0.5rem; padding: 0.5rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-primary); font-size: 0.875rem;">
-                    <div class="button-group" style="margin-top: 0.5rem;">
-                        <button class="control-btn" onclick="importDeck()">Import Deck</button>
-                        <button class="control-btn" onclick="clearDeckImport()">Clear</button>
-                    </div>
-                </div>
-                
-                <!-- Deck List Display Controls -->
-                <div class="controls-group">
-                    <label class="controls-label">Deck List Display</label>
-                    <div class="button-group">
-                        <button class="control-btn" onclick="showDeckList()">Show Deck List</button>
-                        <button class="control-btn" onclick="hideDeckList()">Hide Deck List</button>
-                    </div>
-                    <button class="control-btn" onclick="addSelectedToDeck()" style="margin-top: 5px;">Add Selected Card to Deck</button>
-                    <button class="control-btn danger" onclick="clearDeckList()" style="margin-top: 5px;">Clear Deck List</button>
-                </div>
-                
-                <!-- OBS Links -->
-                <div class="obs-links">
-                    <h3>OBS Browser Sources</h3>
-                    <div class="obs-link">
-                        <span class="obs-link-label">Main Overlay</span>
-                        <span class="obs-link-url" id="obsMainUrl">http://localhost:3888/overlay</span>
-                        <button class="copy-btn" data-copy="obsMainUrl">Copy</button>
-                    </div>
-                    <div class="obs-link">
-                        <span class="obs-link-label">Pokemon Match</span>
-                        <span class="obs-link-url" id="obsPokemonUrl">http://localhost:3888/pokemon-match</span>
-                        <button class="copy-btn" data-copy="obsPokemonUrl">Copy</button>
-                    </div>
-                    <div class="obs-link">
-                        <span class="obs-link-label">Prize Cards</span>
-                        <span class="obs-link-url" id="obsPrizesUrl">http://localhost:3888/prizes</span>
-                        <button class="copy-btn" data-copy="obsPrizesUrl">Copy</button>
-                    </div>
-                    <div class="obs-link">
-                        <span class="obs-link-label">Deck List</span>
-                        <span class="obs-link-url" id="obsDecklistUrl">http://localhost:3888/decklist</span>
-                        <button class="copy-btn" data-copy="obsDecklistUrl">Copy</button>
-                    </div>
-                </div>
-                
-                <!-- Recent Cards -->
-                <div class="recent-cards">
-                    <h3 class="recent-cards-title">Recent Cards</h3>
-                    <div class="recent-cards-list" id="recentCards">
-                        <!-- Recent cards will appear here -->
-                    </div>
-                </div>
-            </div>
-        </aside>
     </div>
 
-    <!-- Download Progress Modal -->
-    <div class="download-progress" id="downloadProgress">
-        <div class="download-title">Downloading...</div>
-        <div class="progress-bar">
-            <div class="progress-fill" id="progressFill"></div>
+    <!-- Main Container -->
+    <div class="max-w-full px-4 pt-20 pb-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            
+            <!-- Left Sidebar - Games Panel -->
+            <aside class="col-span-12 lg:col-span-3 xl:col-span-2">
+                <div class="card bg-base-200">
+                    <div class="card-body p-4">
+                        <h2 class="text-sm font-semibold opacity-60 uppercase tracking-wider">Select Game</h2>
+                        
+                        <div class="space-y-2" id="gamesList">
+                            <!-- Games will be populated here by JavaScript -->
+                        </div>
+                        
+                        <div class="divider my-3"></div>
+                        
+                        <h3 class="text-sm font-semibold opacity-60 uppercase tracking-wider">Download Options</h3>
+                        <div class="form-control space-y-1">
+                            <label class="label cursor-pointer justify-start gap-3 py-1">
+                                <input type="radio" name="sets" value="1" class="radio radio-primary radio-sm" checked />
+                                <span class="label-text text-sm">Most recent set only</span>
+                            </label>
+                            <label class="label cursor-pointer justify-start gap-3 py-1">
+                                <input type="radio" name="sets" value="3" class="radio radio-primary radio-sm" />
+                                <span class="label-text text-sm">Last 3 sets</span>
+                            </label>
+                            <label class="label cursor-pointer justify-start gap-3 py-1">
+                                <input type="radio" name="sets" value="5" class="radio radio-primary radio-sm" />
+                                <span class="label-text text-sm">Last 5 sets</span>
+                            </label>
+                            <label class="label cursor-pointer justify-start gap-3 py-1">
+                                <input type="radio" name="sets" value="10" class="radio radio-primary radio-sm" />
+                                <span class="label-text text-sm">Last 10 sets</span>
+                            </label>
+                            <label class="label cursor-pointer justify-start gap-3 py-1">
+                                <input type="radio" name="sets" value="all" class="radio radio-primary radio-sm" />
+                                <span class="label-text text-sm">All available sets</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center - Search Section -->
+            <main class="col-span-12 lg:col-span-6 xl:col-span-7">
+                <!-- Search Bar -->
+                <div class="card bg-base-200 mb-4">
+                    <div class="card-body p-4">
+                        <div class="join w-full">
+                            <input 
+                                type="text" 
+                                id="searchInput"
+                                placeholder="Select a game and download data to search..." 
+                                class="input input-bordered join-item flex-1"
+                                disabled
+                            />
+                            <button class="btn btn-square join-item">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Search Results -->
+                <div class="card bg-base-200 min-h-[700px]">
+                    <div class="card-body p-4">
+                        <div id="searchResults">
+                            <div class="flex flex-col items-center justify-center py-20">
+                                <div class="text-6xl mb-4">📦</div>
+                                <p class="text-base-content/60">Select a game and download card data to begin</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Right Sidebar - Deck Management -->
+            <aside class="col-span-12 lg:col-span-3 space-y-4">
+                <!-- Match Control Links -->
+                <div class="card bg-base-200">
+                    <div class="card-body p-4">
+                        <h2 class="text-sm font-semibold opacity-60 uppercase tracking-wider">Match Controls</h2>
+                        
+                        <div class="space-y-2 mt-3">
+                            <button onclick="window.open('/pokemon-match-control', '_blank')" class="btn btn-sm btn-primary w-full" id="pokemonMatchBtn" style="display: none;">
+                                ⚡ Pokemon Match Control
+                            </button>
+                            
+                            <p class="text-xs text-center opacity-40" id="noGameSelected">
+                                Select a game to access match controls
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Saved Decks -->
+                <div class="card bg-base-200">
+                    <div class="card-body p-4">
+                        <h2 class="text-sm font-semibold opacity-60 uppercase tracking-wider">Saved Decks</h2>
+                        
+                        <div id="savedDecksList" class="space-y-2 mt-3">
+                            <p class="text-xs text-center opacity-40">No decks saved yet</p>
+                        </div>
+                        
+                        <button class="btn btn-sm btn-outline w-full mt-3" onclick="exportAllDecks()">
+                            Export All Decks
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Deck Import -->
+                <div class="card bg-base-200">
+                    <div class="card-body p-4">
+                        <h2 class="text-sm font-semibold opacity-60 uppercase tracking-wider">Import Deck</h2>
+                        
+                        <input 
+                            type="text"
+                            id="deckNameInput"
+                            class="input input-bordered input-sm w-full mt-2"
+                            placeholder="Deck Name (e.g., Gardevoir ex)"
+                        />
+                        
+                        <select id="deckGameSelect" class="select select-bordered select-sm w-full mt-2">
+                            <option value="">Select game for this deck</option>
+                            <option value="pokemon">Pokemon</option>
+                            <option value="magic">Magic: The Gathering</option>
+                            <option value="yugioh">Yu-Gi-Oh!</option>
+                            <option value="lorcana">Disney Lorcana</option>
+                            <option value="onepiece">One Piece</option>
+                        </select>
+                        
+                        <textarea 
+                            id="deckImportText"
+                            class="textarea textarea-bordered textarea-sm w-full mt-2"
+                            rows="6"
+                            placeholder="Paste deck list here (Limitless TCG, PTCGL, or simple card names)..."
+                        ></textarea>
+                        
+                        <div class="join w-full mt-2">
+                            <button class="btn btn-sm btn-primary join-item flex-1" onclick="importAndSaveDeck()">Import & Save</button>
+                            <button class="btn btn-sm join-item flex-1" onclick="clearDeckImport()">Clear</button>
+                        </div>
+                        
+                        <div class="divider my-2"></div>
+                        
+                        <p class="text-xs font-semibold opacity-60 uppercase tracking-wider">Quick Search Deck</p>
+                        <div class="form-control mt-2">
+                            <label class="label cursor-pointer">
+                                <span class="label-text text-sm">Search imported cards only</span>
+                                <input type="checkbox" id="searchDeckOnly" class="checkbox checkbox-primary checkbox-sm" />
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OBS Links -->
+                <div class="card bg-base-200">
+                    <div class="card-body p-4">
+                        <h2 class="text-sm font-semibold opacity-60 uppercase tracking-wider">OBS Browser Sources</h2>
+                        
+                        <div class="space-y-2 mt-3">
+                            <div class="bg-base-300 p-2 rounded-lg">
+                                <div class="flex justify-between items-center">
+                                    <div class="min-w-0">
+                                        <p class="text-xs opacity-60">Main Overlay</p>
+                                        <p class="text-xs font-mono truncate" id="obsMainUrl">http://localhost:3888/overlay</p>
+                                    </div>
+                                    <button class="btn btn-ghost btn-xs copy-btn" data-copy="obsMainUrl">Copy</button>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-base-300 p-2 rounded-lg">
+                                <div class="flex justify-between items-center">
+                                    <div class="min-w-0">
+                                        <p class="text-xs opacity-60">Pokemon Match</p>
+                                        <p class="text-xs font-mono truncate" id="obsPokemonUrl">http://localhost:3888/pokemon-match</p>
+                                    </div>
+                                    <button class="btn btn-ghost btn-xs copy-btn" data-copy="obsPokemonUrl">Copy</button>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-base-300 p-2 rounded-lg">
+                                <div class="flex justify-between items-center">
+                                    <div class="min-w-0">
+                                        <p class="text-xs opacity-60">Prize Cards</p>
+                                        <p class="text-xs font-mono truncate" id="obsPrizesUrl">http://localhost:3888/prizes</p>
+                                    </div>
+                                    <button class="btn btn-ghost btn-xs copy-btn" data-copy="obsPrizesUrl">Copy</button>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-base-300 p-2 rounded-lg">
+                                <div class="flex justify-between items-center">
+                                    <div class="flex justify-between items-center w-full">
+                                        <div class="min-w-0">
+                                            <p class="text-xs opacity-60">Deck List</p>
+                                            <p class="text-xs font-mono truncate" id="obsDecklistUrl">http://localhost:3888/decklist</p>
+                                        </div>
+                                        <button class="btn btn-ghost btn-xs copy-btn" data-copy="obsDecklistUrl">Copy</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Cards -->
+                <div class="card bg-base-200">
+                    <div class="card-body p-4">
+                        <h2 class="text-sm font-semibold opacity-60 uppercase tracking-wider">Recent Cards</h2>
+                        <div class="flex gap-2 flex-wrap mt-2" id="recentCards">
+                            <!-- Recent cards will appear here -->
+                        </div>
+                    </div>
+                </div>
+            </aside>
         </div>
-        <div class="progress-text" id="progressText">0%</div>
+    </div>
+
+    <!-- Download Progress Toast -->
+    <div class="toast toast-end">
+        <div class="alert alert-info hidden" id="downloadProgress">
+            <span class="loading loading-spinner"></span>
+            <div>
+                <div class="text-sm font-semibold">Downloading...</div>
+                <div class="text-xs" id="progressText">0%</div>
+                <progress class="progress progress-primary w-32" id="progressFill" value="0" max="100"></progress>
+            </div>
+        </div>
     </div>
 
     <!-- Socket.io -->
     <script src="/socket.io/socket.io.js"></script>
     <!-- Main JavaScript -->
     <script src="/js/main.js"></script>
+    
+    <script>
+        // Deck management system
+        let savedDecks = JSON.parse(localStorage.getItem('savedDecks')) || {};
+        let currentImportedDeck = null;
+        
+        // Override functions to work with DaisyUI components
+        
+        // Update OBS status display
+        window.updateOBSStatus = function(connected) {
+            isOBSConnected = connected;
+            const statusElement = document.getElementById('obsStatus');
+            const statusText = statusElement.querySelector('.status-text');
+            
+            if (connected) {
+                statusElement.classList.remove('badge-error');
+                statusElement.classList.add('badge-success');
+                statusText.textContent = 'OBS Connected';
+            } else {
+                statusElement.classList.remove('badge-success');
+                statusElement.classList.add('badge-error');
+                statusText.textContent = 'OBS Not Connected';
+            }
+        }
+        
+        // Override selectGame to show appropriate match control button
+        const originalSelectGame = window.selectGame;
+        window.selectGame = function(gameId, hasData) {
+            // Call original function
+            if (originalSelectGame) {
+                originalSelectGame(gameId, hasData);
+            }
+            
+            // Show/hide match control buttons based on game
+            document.getElementById('pokemonMatchBtn').style.display = gameId === 'pokemon' ? 'block' : 'none';
+            document.getElementById('noGameSelected').style.display = gameId ? 'none' : 'block';
+            
+            // Update deck game selector
+            document.getElementById('deckGameSelect').value = gameId;
+            
+            // Update current game
+            currentGame = gameId;
+            
+            // Update search based on deck filter
+            if (document.getElementById('searchDeckOnly').checked && currentImportedDeck) {
+                // Filter search to only deck cards
+                updateSearchToDeckOnly();
+            }
+        }
+        
+        // Import and save deck
+        window.importAndSaveDeck = function() {
+            const deckName = document.getElementById('deckNameInput').value.trim();
+            const deckGame = document.getElementById('deckGameSelect').value;
+            const deckText = document.getElementById('deckImportText').value.trim();
+            
+            if (!deckName) {
+                alert('Please enter a deck name');
+                return;
+            }
+            
+            if (!deckGame) {
+                alert('Please select a game for this deck');
+                return;
+            }
+            
+            if (!deckText) {
+                alert('Please paste a deck list');
+                return;
+            }
+            
+            // Parse the deck
+            const deck = parseDeckList(deckText);
+            deck.name = deckName;
+            deck.game = deckGame;
+            deck.dateAdded = new Date().toISOString();
+            
+            // Save to localStorage
+            if (!savedDecks[deckGame]) {
+                savedDecks[deckGame] = [];
+            }
+            
+            // Check if deck with same name exists
+            const existingIndex = savedDecks[deckGame].findIndex(d => d.name === deckName);
+            if (existingIndex > -1) {
+                if (!confirm(`Deck "${deckName}" already exists. Replace it?`)) {
+                    return;
+                }
+                savedDecks[deckGame][existingIndex] = deck;
+            } else {
+                savedDecks[deckGame].push(deck);
+            }
+            
+            localStorage.setItem('savedDecks', JSON.stringify(savedDecks));
+            
+            // Set as current imported deck
+            currentImportedDeck = deck;
+            
+            // Update UI
+            updateSavedDecksList();
+            clearDeckImport();
+            
+            alert(`Deck "${deckName}" saved successfully!`);
+        }
+        
+        // Update saved decks list
+        window.updateSavedDecksList = function() {
+            const listDiv = document.getElementById('savedDecksList');
+            
+            const allDecks = [];
+            Object.keys(savedDecks).forEach(game => {
+                savedDecks[game].forEach(deck => {
+                    allDecks.push({ ...deck, game });
+                });
+            });
+            
+            if (allDecks.length === 0) {
+                listDiv.innerHTML = '<p class="text-xs text-center opacity-40">No decks saved yet</p>';
+                return;
+            }
+            
+            listDiv.innerHTML = allDecks.map(deck => {
+                const totalCards = 
+                    (deck.pokemon?.reduce((sum, c) => sum + c.quantity, 0) || 0) +
+                    (deck.trainers?.reduce((sum, c) => sum + c.quantity, 0) || 0) +
+                    (deck.energy?.reduce((sum, c) => sum + c.quantity, 0) || 0);
+                
+                return `
+                    <div class="bg-base-300 p-2 rounded-lg">
+                        <div class="flex justify-between items-start">
+                            <div class="min-w-0 flex-1">
+                                <p class="font-semibold text-sm truncate">${deck.name}</p>
+                                <p class="text-xs opacity-60">${deck.game} • ${totalCards} cards</p>
+                            </div>
+                            <div class="flex gap-1 ml-2">
+                                <button class="btn btn-xs btn-ghost" onclick="loadDeck('${deck.game}', '${deck.name}')">Load</button>
+                                <button class="btn btn-xs btn-error btn-ghost" onclick="deleteDeck('${deck.game}', '${deck.name}')">×</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Load a saved deck
+        window.loadDeck = function(game, deckName) {
+            const deck = savedDecks[game]?.find(d => d.name === deckName);
+            if (!deck) return;
+            
+            currentImportedDeck = deck;
+            
+            // Switch to the deck's game
+            selectGame(game, true);
+            
+            // Update UI to show deck is loaded
+            document.getElementById('searchDeckOnly').checked = true;
+            updateSearchToDeckOnly();
+            
+            alert(`Loaded deck "${deckName}". Search is now filtered to this deck.`);
+        }
+        
+        // Delete a saved deck
+        window.deleteDeck = function(game, deckName) {
+            if (!confirm(`Delete deck "${deckName}"?`)) return;
+            
+            savedDecks[game] = savedDecks[game].filter(d => d.name !== deckName);
+            if (savedDecks[game].length === 0) {
+                delete savedDecks[game];
+            }
+            
+            localStorage.setItem('savedDecks', JSON.stringify(savedDecks));
+            updateSavedDecksList();
+        }
+        
+        // Export all decks
+        window.exportAllDecks = function() {
+            const dataStr = JSON.stringify(savedDecks, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportLink = document.createElement('a');
+            exportLink.setAttribute('href', dataUri);
+            exportLink.setAttribute('download', `cardcast-decks-${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(exportLink);
+            exportLink.click();
+            document.body.removeChild(exportLink);
+        }
+        
+        // Filter search to deck only
+        window.updateSearchToDeckOnly = function() {
+            if (!currentImportedDeck) return;
+            
+            // Get all card names from the deck
+            const deckCardNames = new Set();
+            ['pokemon', 'trainers', 'energy'].forEach(category => {
+                if (currentImportedDeck[category]) {
+                    currentImportedDeck[category].forEach(card => {
+                        deckCardNames.add(card.name.toLowerCase());
+                    });
+                }
+            });
+            
+            // Re-run search with deck filter
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput.value) {
+                handleSearch({ target: searchInput });
+            }
+        }
+        
+        // Override search to support deck filtering
+        const originalHandleSearch = window.handleSearch;
+        window.handleSearch = async function(event) {
+            const query = event.target.value.trim();
+            
+            if (!currentGame || query.length < 2) {
+                clearSearchResults();
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/search/${currentGame}?q=${encodeURIComponent(query)}`);
+                let results = await response.json();
+                
+                // Filter by deck if enabled
+                if (document.getElementById('searchDeckOnly').checked && currentImportedDeck) {
+                    const deckCardNames = new Set();
+                    ['pokemon', 'trainers', 'energy'].forEach(category => {
+                        if (currentImportedDeck[category]) {
+                            currentImportedDeck[category].forEach(card => {
+                                deckCardNames.add(card.name.toLowerCase());
+                            });
+                        }
+                    });
+                    
+                    results = results.filter(card => 
+                        deckCardNames.has(card.name.toLowerCase())
+                    );
+                }
+                
+                searchResults = results;
+                displaySearchResults(results);
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+        }
+        
+        // Create game element with DaisyUI styling
+        window.createGameElement = function(game) {
+            const gameItem = document.createElement('div');
+            gameItem.className = 'game-item';
+            gameItem.dataset.game = game.id;
+            
+            const hasData = game.hasData && game.cardCount > 0;
+            const cardCountFormatted = game.cardCount >= 1000 
+                ? `${(game.cardCount / 1000).toFixed(1)}k` 
+                : `${game.cardCount}`;
+            
+            const gameColors = {
+                pokemon: 'from-red-500 to-red-600',
+                magic: 'from-orange-500 to-amber-600',
+                yugioh: 'from-yellow-500 to-yellow-600',
+                lorcana: 'from-purple-500 to-pink-600',
+                onepiece: 'from-red-600 to-orange-600',
+                digimon: 'from-blue-500 to-cyan-600',
+                fab: 'from-rose-500 to-red-600',
+                starwars: 'from-gray-500 to-slate-600'
+            };
+            
+            gameItem.innerHTML = `
+                <div class="flex items-center gap-3 flex-1">
+                    <div class="avatar">
+                        <div class="w-10 rounded-lg bg-gradient-to-br ${gameColors[game.id] || 'from-gray-500 to-gray-600'}">
+                            <span class="text-white text-lg flex items-center justify-center h-full font-bold">
+                                ${game.name[0]}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <div class="font-semibold">${game.name}</div>
+                        <div class="text-xs opacity-60">
+                            ${hasData ? `${cardCountFormatted} cards` : 'No data'}
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-1">
+                    ${hasData ? `
+                        <button class="btn btn-xs btn-primary" onclick="event.stopPropagation(); updateGameData('${game.id}')">Update</button>
+                        <button class="btn btn-xs btn-error btn-ghost" onclick="event.stopPropagation(); deleteGameData('${game.id}')">×</button>
+                    ` : `
+                        <button class="btn btn-xs btn-secondary" onclick="event.stopPropagation(); downloadGameData('${game.id}')">Download</button>
+                    `}
+                </div>
+            `;
+            
+            gameItem.onclick = () => selectGame(game.id, hasData);
+            
+            return gameItem;
+        }
+        
+        // Display search results with DaisyUI cards
+        window.displaySearchResults = function(results) {
+            const resultsDiv = document.getElementById('searchResults');
+            
+            if (results.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-20">
+                        <div class="text-6xl mb-4">🔍</div>
+                        <h3 class="text-lg font-medium mb-1">No cards found</h3>
+                        <p class="text-sm opacity-60">Try a different search term</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            resultsDiv.innerHTML = `
+                <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                    ${results.map(card => `
+                        <div class="cursor-pointer group card-result" onclick="selectCard('${card.id}')">
+                            <div class="card-thumbnail">
+                                <img 
+                                    src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" 
+                                    alt="${card.name}"
+                                    class="w-full h-full object-cover rounded-lg group-hover:scale-105 transition-transform"
+                                    loading="lazy"
+                                />
+                            </div>
+                            <div class="mt-1">
+                                <p class="text-sm font-medium truncate">${card.name}</p>
+                                <p class="text-xs opacity-60">${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</p>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        // Update card preview with DaisyUI styling
+        window.updateCardPreview = function(card) {
+            const previewDiv = document.getElementById('cardPreview');
+            
+            if (!card) {
+                previewDiv.innerHTML = `
+                    <div class="aspect-[63/88] bg-base-300 rounded-lg flex items-center justify-center">
+                        <div class="text-center">
+                            <div class="text-4xl mb-2">🎴</div>
+                            <span class="text-base-content/40">No card selected</span>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            previewDiv.innerHTML = `
+                <div class="space-y-3">
+                    <div class="aspect-[63/88] rounded-lg overflow-hidden bg-base-300">
+                        <img 
+                            src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" 
+                            alt="${card.name}"
+                            class="w-full h-full object-cover"
+                        />
+                    </div>
+                    <div class="text-center">
+                        <h3 class="font-semibold">${card.name}</h3>
+                        <p class="text-sm opacity-60">${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</p>
+                        ${card.hp ? `<p class="text-sm mt-1"><span class="opacity-60">HP:</span> <span class="font-semibold">${card.hp}</span></p>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Update recent cards display
+        window.updateRecentCardsDisplay = function() {
+            const recentDiv = document.getElementById('recentCards');
+            
+            if (recentCards.length === 0) {
+                recentDiv.innerHTML = '<p class="text-xs opacity-40">No recent cards</p>';
+                return;
+            }
+            
+            recentDiv.innerHTML = recentCards.map((card, index) => `
+                <div class="cursor-pointer" onclick="selectCard('${card.id}')" title="${card.name}">
+                    <div class="w-12 h-16 rounded overflow-hidden border border-base-300 hover:border-primary transition-colors">
+                        <img 
+                            src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" 
+                            alt="${card.name}"
+                            class="w-full h-full object-cover"
+                        />
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Show/hide download progress
+        window.showDownloadProgress = function(show) {
+            const progress = document.getElementById('downloadProgress');
+            if (show) {
+                progress.classList.remove('hidden');
+            } else {
+                progress.classList.add('hidden');
+            }
+        }
+        
+        // Clear search results
+        window.clearSearchResults = function() {
+            document.getElementById('searchResults').innerHTML = `
+                <div class="flex flex-col items-center justify-center py-20">
+                    <div class="text-6xl mb-4">📦</div>
+                    <p class="text-base-content/60">Select a game and download card data to begin</p>
+                </div>
+            `;
+            searchResults = [];
+        }
+    </script>
 </body>
 </html>
