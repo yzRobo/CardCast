@@ -20,11 +20,39 @@
             position: relative;
         }
         
-        /* Player boards - vertical panels on sides - NOW TALLER */
+        /* Stadium Card Display - Top Center */
+        .stadium-display {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.98) 0%, rgba(118, 75, 162, 0.98) 100%);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            padding: 12px 30px;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+            opacity: 0;
+            transition: all 0.5s ease;
+            display: none;
+        }
+        
+        .stadium-display.active {
+            opacity: 1;
+            display: block;
+        }
+        
+        /* Player boards - vertical panels on sides */
         .player-board {
             position: absolute;
-            width: 340px;  /* Increased from 280px */
-            height: 900px;  /* Fixed height for better use of space */
+            width: 360px;
+            height: 900px;  /* Set a fixed height */
             display: flex;
             flex-direction: column;
             opacity: 0;
@@ -37,29 +65,29 @@
         
         .player-board.left {
             left: 20px;
-            top: 40px;  /* Moved up from 50px */
-            transform: translateX(-360px);
+            top: 50%;  /* Center vertically */
+            transform: translateX(-380px) translateY(-56%);  /* Center and hide */
         }
         
         .player-board.left.active {
-            transform: translateX(0);
+            transform: translateX(0) translateY(-56%);  /* Center and show */
         }
         
         .player-board.right {
             right: 20px;
-            top: 40px;
-            transform: translateX(360px);
+            top: 50%;  /* Center vertically */
+            transform: translateX(380px) translateY(-56%);  /* Center and hide */
         }
         
         .player-board.right.active {
-            transform: translateX(0);
+            transform: translateX(0) translateY(-56%);  /* Center and show */
         }
         
-        /* Player Header - LARGER */
+        /* Player Header - with record */
         .player-header {
             background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
             border-radius: 12px;
-            padding: 15px;  /* Increased from 12px */
+            padding: 15px;
             margin-bottom: 12px;
             border: 2px solid #3b82f6;
             backdrop-filter: blur(10px);
@@ -69,14 +97,29 @@
             border-color: #ef4444;
         }
         
+        .player-name-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
         .player-name {
-            font-size: 22px;  /* Increased from 18px */
+            font-size: 22px;
             font-weight: bold;
             color: white;
             text-transform: uppercase;
             letter-spacing: 1.5px;
-            margin-bottom: 10px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        
+        .player-record {
+            font-size: 16px;
+            color: #94a3b8;
+            font-weight: bold;
+            background: rgba(0,0,0,0.5);
+            padding: 4px 10px;
+            border-radius: 6px;
         }
         
         .player-stats {
@@ -89,12 +132,12 @@
             flex: 1;
             text-align: center;
             background: rgba(0,0,0,0.5);
-            padding: 6px;  /* Increased from 4px */
+            padding: 6px;
             border-radius: 6px;
         }
         
         .stat-label {
-            font-size: 11px;  /* Increased from 10px */
+            font-size: 11px;
             color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -102,7 +145,7 @@
         }
         
         .stat-value {
-            font-size: 24px;  /* Increased from 20px */
+            font-size: 24px;
             font-weight: bold;
             color: #3b82f6;
             display: block;
@@ -112,7 +155,20 @@
             color: #ef4444;
         }
         
-        /* Active Pokemon Section - MUCH LARGER vertical card */
+        /* Match Score Display */
+        .match-score {
+            background: rgba(16, 185, 129, 0.2);
+            border: 2px solid #10b981;
+            color: #10b981;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        
+        /* Active Pokemon Section */
         .active-pokemon {
             background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
             border: 2px solid #6366f1;
@@ -120,12 +176,12 @@
             padding: 12px;
             margin-bottom: 12px;
             backdrop-filter: blur(10px);
-            flex: 1;  /* Take up available space */
-            max-height: 480px;  /* Increased from 350px */
+            flex: 1;
+            max-height: 440px;
         }
         
         .section-title {
-            font-size: 13px;  /* Increased from 11px */
+            font-size: 13px;
             color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: 1.2px;
@@ -136,7 +192,7 @@
         
         .active-card {
             position: relative;
-            height: calc(100% - 30px);  /* Account for title */
+            height: calc(100% - 30px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -145,7 +201,7 @@
         .active-card img {
             width: 100%;
             height: 100%;
-            max-height: 430px;  /* Increased from 350px */
+            max-height: 390px;
             object-fit: contain;
             border-radius: 10px;
             box-shadow: 0 15px 40px rgba(0,0,0,0.8);
@@ -165,7 +221,7 @@
         
         .hp-text {
             color: white;
-            font-size: 14px;  /* Increased from 12px */
+            font-size: 14px;
             font-weight: bold;
             margin-bottom: 6px;
             text-align: center;
@@ -173,7 +229,7 @@
         }
         
         .hp-bar {
-            height: 14px;  /* Increased from 10px */
+            height: 14px;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 7px;
             overflow: hidden;
@@ -203,12 +259,12 @@
             align-items: center;
             justify-content: center;
             color: #64748b;
-            font-size: 16px;  /* Increased from 14px */
+            font-size: 16px;
             background: rgba(0,0,0,0.3);
             border-radius: 10px;
         }
         
-        /* Bench Section - LARGER Horizontal layout */
+        /* Bench Section - supports 5-7 cards */
         .bench-section {
             background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
             border: 2px solid rgba(99, 102, 241, 0.5);
@@ -222,17 +278,30 @@
             display: flex;
             gap: 6px;
             justify-content: center;
+            align-items: center;
+            min-height: 90px;
+        }
+        
+        /* Default 5 bench layout */
+        .bench-cards.bench-5 .bench-slot {
+            width: 60px;
+            height: 84px;
+        }
+        
+        /* 7 bench layout - smaller cards to fit */
+        .bench-cards.bench-7 .bench-slot {
+            width: 46px;
+            height: 64px;
         }
         
         .bench-slot {
-            width: 56px;  /* Increased from 45px */
-            height: 78px;  /* Increased from 63px */
             background: rgba(255, 255, 255, 0.05);
             border: 2px solid rgba(255, 255, 255, 0.1);
             border-radius: 6px;
             position: relative;
             overflow: hidden;
             transition: all 0.2s ease;
+            flex-shrink: 0;
         }
         
         .bench-slot:hover {
@@ -258,18 +327,19 @@
             right: 0;
             background: rgba(0,0,0,0.95);
             color: #10b981;
-            font-size: 10px;  /* Increased from 8px */
+            font-size: 10px;
             text-align: center;
             padding: 2px;
             font-weight: bold;
         }
         
-        /* Prize Cards Section - LARGER */
+        /* Prize Cards Section */
         .prizes-section {
             background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
             border: 2px solid rgba(99, 102, 241, 0.5);
             border-radius: 12px;
             padding: 12px;
+            margin-bottom: 12px;
             backdrop-filter: blur(10px);
         }
         
@@ -280,8 +350,8 @@
         }
         
         .prize-card {
-            width: 48px;  /* Increased from 40px */
-            height: 67px;  /* Increased from 56px */
+            width: 52px;
+            height: 73px;
             background: linear-gradient(135deg, #3b4cca 0%, #1a237e 100%);
             border: 2px solid #667eea;
             border-radius: 6px;
@@ -317,21 +387,71 @@
         .prize-card.taken::after {
             content: '✕';
             position: absolute;
-            font-size: 28px;  /* Increased from 24px */
+            font-size: 28px;
             color: #ef4444;
             font-weight: bold;
         }
         
-        /* Match info bar at bottom - LARGER */
+        /* Turn Actions Indicators */
+        .turn-actions {
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
+            border: 2px solid rgba(99, 102, 241, 0.5);
+            border-radius: 12px;
+            padding: 10px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-around;
+            gap: 8px;
+        }
+        
+        .action-indicator {
+            flex: 1;
+            text-align: center;
+            padding: 6px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 6px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .action-indicator.active {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.2);
+        }
+        
+        .action-label {
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-bottom: 4px;
+        }
+        
+        .action-indicator.active .action-label {
+            color: #10b981;
+        }
+        
+        .action-icon {
+            font-size: 20px;
+            opacity: 0.3;
+        }
+        
+        .action-indicator.active .action-icon {
+            opacity: 1;
+            color: #10b981;
+        }
+        
+        /* Match info bar at bottom */
         .match-info {
             position: absolute;
-            bottom: 30px;
+            bottom: 50px;  /* Increased from 30px to move it up from the edge */
             left: 50%;
             transform: translateX(-50%);
             background: linear-gradient(135deg, rgba(0,0,0,0.98) 0%, rgba(20,20,30,0.98) 100%);
             border: 2px solid #6366f1;
             border-radius: 12px;
-            padding: 14px 30px;  /* Increased padding */
+            padding: 14px 30px;
             display: flex;
             align-items: center;
             gap: 25px;
@@ -346,7 +466,7 @@
         }
         
         .match-format {
-            font-size: 14px;  /* Increased from 12px */
+            font-size: 14px;
             color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: 1.2px;
@@ -354,7 +474,7 @@
         }
         
         .timer {
-            font-size: 36px;  /* Increased from 28px */
+            font-size: 36px;
             font-weight: bold;
             color: #00d4ff;
             font-family: 'Courier New', monospace;
@@ -362,12 +482,12 @@
         }
         
         .turn-indicator {
-            padding: 8px 16px;  /* Increased padding */
+            padding: 8px 16px;
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             border-radius: 24px;
             color: white;
             font-weight: bold;
-            font-size: 14px;  /* Increased from 12px */
+            font-size: 14px;
             text-transform: uppercase;
             letter-spacing: 0.8px;
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
@@ -376,22 +496,23 @@
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
+    <!-- Stadium Display -->
+    <div class="stadium-display" id="stadiumDisplay">
+        <span id="stadiumName">No Stadium</span>
+    </div>
+    
     <!-- Player 1 Board (Left) -->
     <div class="player-board left" id="player1Board">
         <div class="player-header">
-            <div class="player-name" id="player1Name">Player 1</div>
+            <div class="player-name-row">
+                <div class="player-name" id="player1Name">Player 1</div>
+                <div class="player-record" id="player1Record">0-0-0</div>
+            </div>
+            <div class="match-score" id="player1MatchScore">Games Won: 0</div>
             <div class="player-stats">
                 <div class="stat-item">
                     <span class="stat-label">Prizes</span>
                     <span class="stat-value" id="player1Prizes">6</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Hand</span>
-                    <span class="stat-value" id="player1Hand">7</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Deck</span>
-                    <span class="stat-value" id="player1Deck">47</span>
                 </div>
             </div>
         </div>
@@ -405,12 +526,8 @@
         
         <div class="bench-section">
             <div class="section-title">Bench</div>
-            <div class="bench-cards" id="player1Bench">
-                <div class="bench-slot empty"></div>
-                <div class="bench-slot empty"></div>
-                <div class="bench-slot empty"></div>
-                <div class="bench-slot empty"></div>
-                <div class="bench-slot empty"></div>
+            <div class="bench-cards bench-5" id="player1Bench">
+                <!-- Bench slots will be dynamically generated -->
             </div>
         </div>
         
@@ -425,24 +542,35 @@
                 <div class="prize-card"></div>
             </div>
         </div>
+        
+        <div class="turn-actions" id="player1Actions">
+            <div class="action-indicator" id="player1Energy">
+                <span class="action-label">Energy</span>
+                <span class="action-icon">⚡</span>
+            </div>
+            <div class="action-indicator" id="player1Supporter">
+                <span class="action-label">Supporter</span>
+                <span class="action-icon">👤</span>
+            </div>
+            <div class="action-indicator" id="player1Retreat">
+                <span class="action-label">Retreat</span>
+                <span class="action-icon">↩️</span>
+            </div>
+        </div>
     </div>
     
     <!-- Player 2 Board (Right) -->
     <div class="player-board right" id="player2Board">
         <div class="player-header">
-            <div class="player-name" id="player2Name">Player 2</div>
+            <div class="player-name-row">
+                <div class="player-name" id="player2Name">Player 2</div>
+                <div class="player-record" id="player2Record">0-0-0</div>
+            </div>
+            <div class="match-score" id="player2MatchScore">Games Won: 0</div>
             <div class="player-stats">
                 <div class="stat-item">
                     <span class="stat-label">Prizes</span>
                     <span class="stat-value" id="player2Prizes">6</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Hand</span>
-                    <span class="stat-value" id="player2Hand">7</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Deck</span>
-                    <span class="stat-value" id="player2Deck">47</span>
                 </div>
             </div>
         </div>
@@ -456,12 +584,8 @@
         
         <div class="bench-section">
             <div class="section-title">Bench</div>
-            <div class="bench-cards" id="player2Bench">
-                <div class="bench-slot empty"></div>
-                <div class="bench-slot empty"></div>
-                <div class="bench-slot empty"></div>
-                <div class="bench-slot empty"></div>
-                <div class="bench-slot empty"></div>
+            <div class="bench-cards bench-5" id="player2Bench">
+                <!-- Bench slots will be dynamically generated -->
             </div>
         </div>
         
@@ -474,6 +598,21 @@
                 <div class="prize-card"></div>
                 <div class="prize-card"></div>
                 <div class="prize-card"></div>
+            </div>
+        </div>
+        
+        <div class="turn-actions" id="player2Actions">
+            <div class="action-indicator" id="player2Energy">
+                <span class="action-label">Energy</span>
+                <span class="action-icon">⚡</span>
+            </div>
+            <div class="action-indicator" id="player2Supporter">
+                <span class="action-label">Supporter</span>
+                <span class="action-icon">👤</span>
+            </div>
+            <div class="action-indicator" id="player2Retreat">
+                <span class="action-label">Retreat</span>
+                <span class="action-icon">↩️</span>
             </div>
         </div>
     </div>
@@ -493,25 +632,30 @@
                 name: 'Player 1',
                 prizes: 6,
                 prizesTaken: [],
-                hand: 7,
-                deck: 47,
                 active: null,
-                bench: []
+                bench: [],
+                benchSize: 5,
+                record: { wins: 0, losses: 0, ties: 0 },
+                matchScore: 0,
+                turnActions: { energy: false, supporter: false, retreat: false }
             },
             player2: {
                 name: 'Player 2',
                 prizes: 6,
                 prizesTaken: [],
-                hand: 7,
-                deck: 47,
                 active: null,
-                bench: []
+                bench: [],
+                benchSize: 5,
+                record: { wins: 0, losses: 0, ties: 0 },
+                matchScore: 0,
+                turnActions: { energy: false, supporter: false, retreat: false }
             },
             currentTurn: 1,
             timer: { minutes: 50, seconds: 0 },
             timerInterval: null,
             gameNumber: 1,
             matchFormat: 'Best of 3',
+            stadium: '',
             visible: false
         };
         
@@ -519,7 +663,44 @@
         socket.on('pokemon-match-update', (data) => {
             if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
             if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
+            if (data.stadium !== undefined) matchState.stadium = data.stadium;
             updateDisplay();
+        });
+        
+        socket.on('stadium-update', (data) => {
+            matchState.stadium = data.stadium;
+            updateStadiumDisplay();
+        });
+        
+        socket.on('record-update', (data) => {
+            const player = `player${data.player}`;
+            matchState[player].record = data.record;
+            updatePlayerRecord(data.player);
+        });
+        
+        socket.on('match-score-update', (data) => {
+            const player = `player${data.player}`;
+            matchState[player].matchScore = data.score;
+            updateMatchScore(data.player);
+        });
+        
+        socket.on('turn-actions-update', (data) => {
+            const player = `player${data.player}`;
+            matchState[player].turnActions = data.actions;
+            updateTurnActions(data.player);
+        });
+        
+        socket.on('turn-actions-reset', () => {
+            matchState.player1.turnActions = { energy: false, supporter: false, retreat: false };
+            matchState.player2.turnActions = { energy: false, supporter: false, retreat: false };
+            updateTurnActions(1);
+            updateTurnActions(2);
+        });
+        
+        socket.on('bench-size-update', (data) => {
+            const player = `player${data.player}`;
+            matchState[player].benchSize = data.size;
+            updateBenchDisplay(data.player);
         });
         
         socket.on('active-pokemon', (data) => {
@@ -568,30 +749,41 @@
             pauseTimer();
         });
         
+        socket.on('timer-reset', () => {
+            pauseTimer();
+            matchState.timer = { minutes: 50, seconds: 0 };
+            updateMatchInfo();
+        });
+        
         socket.on('match-reset', () => {
             matchState = {
                 player1: {
                     name: 'Player 1',
                     prizes: 6,
                     prizesTaken: [],
-                    hand: 7,
-                    deck: 47,
                     active: null,
-                    bench: []
+                    bench: [],
+                    benchSize: 5,
+                    record: { wins: 0, losses: 0, ties: 0 },
+                    matchScore: 0,
+                    turnActions: { energy: false, supporter: false, retreat: false }
                 },
                 player2: {
                     name: 'Player 2',
                     prizes: 6,
                     prizesTaken: [],
-                    hand: 7,
-                    deck: 47,
                     active: null,
-                    bench: []
+                    bench: [],
+                    benchSize: 5,
+                    record: { wins: 0, losses: 0, ties: 0 },
+                    matchScore: 0,
+                    turnActions: { energy: false, supporter: false, retreat: false }
                 },
                 currentTurn: 1,
                 timer: { minutes: 50, seconds: 0 },
                 gameNumber: 1,
                 matchFormat: 'Best of 3',
+                stadium: '',
                 visible: matchState.visible
             };
             pauseTimer();
@@ -617,32 +809,80 @@
             document.getElementById('player1Board').classList.add('active');
             document.getElementById('player2Board').classList.add('active');
             document.getElementById('matchInfo').classList.add('active');
+            updateStadiumDisplay();
         }
         
         function hideOverlay() {
             document.getElementById('player1Board').classList.remove('active');
             document.getElementById('player2Board').classList.remove('active');
             document.getElementById('matchInfo').classList.remove('active');
+            document.getElementById('stadiumDisplay').classList.remove('active');
         }
         
         function updateDisplay() {
             updatePlayerInfo(1);
             updatePlayerInfo(2);
+            updatePlayerRecord(1);
+            updatePlayerRecord(2);
+            updateMatchScore(1);
+            updateMatchScore(2);
             updateActiveDisplay(1);
             updateActiveDisplay(2);
             updateBenchDisplay(1);
             updateBenchDisplay(2);
             updatePrizeDisplay(1);
             updatePrizeDisplay(2);
+            updateTurnActions(1);
+            updateTurnActions(2);
             updateMatchInfo();
+            updateStadiumDisplay();
+        }
+        
+        function updateStadiumDisplay() {
+            const stadiumEl = document.getElementById('stadiumDisplay');
+            const stadiumName = document.getElementById('stadiumName');
+            
+            if (matchState.stadium && matchState.stadium.trim() !== '') {
+                stadiumName.textContent = matchState.stadium;
+                if (matchState.visible) {
+                    stadiumEl.classList.add('active');
+                }
+            } else {
+                stadiumEl.classList.remove('active');
+            }
         }
         
         function updatePlayerInfo(playerNum) {
             const player = matchState[`player${playerNum}`];
             document.getElementById(`player${playerNum}Name`).textContent = player.name;
             document.getElementById(`player${playerNum}Prizes`).textContent = player.prizes;
-            document.getElementById(`player${playerNum}Hand`).textContent = player.hand;
-            document.getElementById(`player${playerNum}Deck`).textContent = player.deck;
+        }
+        
+        function updatePlayerRecord(playerNum) {
+            const player = matchState[`player${playerNum}`];
+            const record = player.record || { wins: 0, losses: 0, ties: 0 };
+            document.getElementById(`player${playerNum}Record`).textContent = 
+                `${record.wins}-${record.losses}-${record.ties}`;
+        }
+        
+        function updateMatchScore(playerNum) {
+            const player = matchState[`player${playerNum}`];
+            document.getElementById(`player${playerNum}MatchScore`).textContent = 
+                `Games Won: ${player.matchScore || 0}`;
+        }
+        
+        function updateTurnActions(playerNum) {
+            const player = matchState[`player${playerNum}`];
+            const actions = player.turnActions || { energy: false, supporter: false, retreat: false };
+            
+            ['Energy', 'Supporter', 'Retreat'].forEach(action => {
+                const element = document.getElementById(`player${playerNum}${action}`);
+                if (actions[action.toLowerCase()]) {
+                    element.classList.add('active');
+                } else {
+                    element.classList.remove('active');
+                }
+            });
         }
         
         function updateActiveDisplay(playerNum) {
@@ -674,9 +914,13 @@
         function updateBenchDisplay(playerNum) {
             const player = matchState[`player${playerNum}`];
             const benchDiv = document.getElementById(`player${playerNum}Bench`);
+            const benchSize = player.benchSize || 5;
+            
+            // Update bench size class
+            benchDiv.className = `bench-cards bench-${benchSize}`;
             
             let benchHTML = '';
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < benchSize; i++) {
                 if (player.bench[i]) {
                     const pokemon = player.bench[i];
                     benchHTML += `

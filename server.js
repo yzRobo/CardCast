@@ -296,43 +296,6 @@ app.get('/api/card/:game/:id', (req, res) => {
     }
 });
 
-app.get('/api/card/:game/:id', (req, res) => {
-    const { game, id } = req.params;
-    
-    try {
-        const card = db.getCard(game, id);
-        
-        if (!card) {
-            return res.status(404).json({ error: 'Card not found' });
-        }
-        
-        // Add display_image field that uses local if available
-        card.display_image = card.local_image || card.image_url;
-        
-        res.json(card);
-    } catch (error) {
-        console.error('Get card error:', error);
-        res.status(500).json({ error: 'Failed to get card' });
-    }
-});
-
-app.get('/api/card/:game/:id', (req, res) => {
-    const { game, id } = req.params;
-    
-    try {
-        const card = db.getCard(game, id);
-        
-        if (!card) {
-            return res.status(404).json({ error: 'Card not found' });
-        }
-        
-        res.json(card);
-    } catch (error) {
-        console.error('Get card error:', error);
-        res.status(500).json({ error: 'Failed to get card' });
-    }
-});
-
 // Get game statistics
 app.get('/api/stats/:game', (req, res) => {
     const { game } = req.params;
@@ -419,12 +382,19 @@ io.on('connection', (socket) => {
         io.emit('obs-status', { connected: true });
         
         // Send current state to the overlay
+        const state = overlayServer.getState();
         if (type === 'pokemon-match') {
-            socket.emit('pokemon-match-state', overlayServer.getState());
+            socket.emit('pokemon-match-state', state.pokemonMatch);
+            // Also send as update for compatibility
+            socket.emit('pokemon-match-update', {
+                player1: state.pokemonMatch.player1,
+                player2: state.pokemonMatch.player2,
+                stadium: state.pokemonMatch.stadium
+            });
         } else if (type === 'prizes') {
-            socket.emit('prizes-state', overlayServer.getState());
+            socket.emit('prizes-state', state);
         } else if (type === 'decklist') {
-            socket.emit('decklist-state', overlayServer.getState());
+            socket.emit('decklist-state', state);
         }
     });
     
@@ -467,13 +437,29 @@ io.on('connection', (socket) => {
                 show: true
             });
         } else if (type === 'pokemon-match') {
-            socket.emit('pokemon-match-state', state);
+            // Send the pokemonMatch state from the overlay server
+            socket.emit('pokemon-match-state', state.pokemonMatch);
+            // Also send as update for compatibility
+            socket.emit('pokemon-match-update', {
+                player1: state.pokemonMatch.player1,
+                player2: state.pokemonMatch.player2,
+                stadium: state.pokemonMatch.stadium
+            });
         }
     });
     
     // Handle OBS status check
     socket.on('check-obs-status', () => {
         socket.emit('obs-status', { connected: overlayClients.size > 0 });
+    });
+    
+    // Check overlay status
+    socket.on('check-overlay-status', (type) => {
+        if (overlayStates[type]) {
+            socket.emit('overlay-connected', type);
+        } else {
+            socket.emit('overlay-disconnected', type);
+        }
     });
     
     // Display card event
@@ -499,17 +485,19 @@ io.on('connection', (socket) => {
     // Pokemon Match events
     socket.on('pokemon-match-update', (data) => {
         console.log('Pokemon match update:', data);
-        // Broadcast to all clients including overlays
+        overlayServer.updatePokemonMatch(data);  // Store in overlay server
         io.emit('pokemon-match-update', data);
     });
     
     socket.on('active-pokemon', (data) => {
         console.log('Active pokemon update for player', data.player);
+        overlayServer.updateActivePokemon(data.player, data.pokemon);  // Store in overlay server
         io.emit('active-pokemon', data);
     });
     
     socket.on('bench-update', (data) => {
         console.log('Bench update for player', data.player);
+        overlayServer.updateBench(data.player, data.bench);  // Store in overlay server
         io.emit('bench-update', data);
     });
     
@@ -563,6 +551,47 @@ io.on('connection', (socket) => {
     socket.on('toggle-prizes', (data) => {
         console.log('Toggle prizes overlay:', data.show);
         io.emit('toggle-prizes', data);
+    });
+    
+    // Stadium events
+    socket.on('stadium-update', (data) => {
+        console.log('Stadium update:', data.stadium);
+        overlayServer.updateStadium(data.stadium);
+        io.emit('stadium-update', data);
+    });
+    
+    // Player record events
+    socket.on('record-update', (data) => {
+        console.log('Record update for player', data.player, ':', data.record);
+        overlayServer.updatePlayerRecord(data.player, data.record);
+        io.emit('record-update', data);
+    });
+    
+    // Match score events
+    socket.on('match-score-update', (data) => {
+        console.log('Match score update for player', data.player, ':', data.score);
+        overlayServer.updateMatchScore(data.player, data.score);
+        io.emit('match-score-update', data);
+    });
+    
+    // Turn actions events
+    socket.on('turn-actions-update', (data) => {
+        console.log('Turn actions update for player', data.player, ':', data.actions);
+        overlayServer.updateTurnActions(data.player, data.actions);
+        io.emit('turn-actions-update', data);
+    });
+    
+    socket.on('turn-actions-reset', () => {
+        console.log('Turn actions reset');
+        overlayServer.resetTurnActions();
+        io.emit('turn-actions-reset');
+    });
+    
+    // Bench size events
+    socket.on('bench-size-update', (data) => {
+        console.log('Bench size update for player', data.player, ':', data.size);
+        overlayServer.updateBenchSize(data.player, data.size);
+        io.emit('bench-size-update', data);
     });
     
     // Prize card events (alternative handling)
@@ -632,6 +661,7 @@ OBS Overlays:
   - Main: http://localhost:${PORT}/overlay
   - Prizes: http://localhost:${PORT}/prizes  
   - Decklist: http://localhost:${PORT}/decklist
+  - Pokemon Match: http://localhost:${PORT}/pokemon-match
 
 Cache directory: ${path.join(__dirname, 'cache')}
 Database: ${path.join(__dirname, 'data', 'cardcast.db')}

@@ -23,6 +23,37 @@ class OverlayServer {
             position: 'bottom-center'
         };
         this.gameSettings = {};
+        
+        // Add Pokemon Match state
+        this.pokemonMatch = {
+            player1: {
+                name: 'Player 1',
+                active: null,
+                bench: [],
+                benchSize: 5,
+                prizes: 6,
+                prizesTaken: [],
+                record: { wins: 0, losses: 0, ties: 0 },
+                matchScore: 0,
+                turnActions: { energy: false, supporter: false, retreat: false }
+            },
+            player2: {
+                name: 'Player 2',
+                active: null,
+                bench: [],
+                benchSize: 5,
+                prizes: 6,
+                prizesTaken: [],
+                record: { wins: 0, losses: 0, ties: 0 },
+                matchScore: 0,
+                turnActions: { energy: false, supporter: false, retreat: false }
+            },
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: 'Best of 3',
+            stadium: ''
+        };
     }
     
     updateCard(cardData, position = 'left') {
@@ -67,16 +98,26 @@ class OverlayServer {
     
     takePrize(player, index) {
         const playerKey = `player${player}`;
+        
+        // Update regular prize cards
         if (this.prizeCards[playerKey] && !this.prizeCards[playerKey].taken.includes(index)) {
             this.prizeCards[playerKey].taken.push(index);
-            
-            this.io.emit('prize-taken', {
-                player: player,
-                index: index,
-                remaining: this.prizeCards[playerKey].total - this.prizeCards[playerKey].taken.length,
-                timestamp: Date.now()
-            });
         }
+        
+        // Update Pokemon match prizes
+        if (this.pokemonMatch[playerKey]) {
+            if (!this.pokemonMatch[playerKey].prizesTaken.includes(index)) {
+                this.pokemonMatch[playerKey].prizesTaken.push(index);
+                this.pokemonMatch[playerKey].prizes = 6 - this.pokemonMatch[playerKey].prizesTaken.length;
+            }
+        }
+        
+        this.io.emit('prize-taken', {
+            player: player,
+            index: index,
+            remaining: 6 - this.pokemonMatch[playerKey].prizesTaken.length,
+            timestamp: Date.now()
+        });
     }
     
     resetPrizes() {
@@ -84,6 +125,11 @@ class OverlayServer {
             player1: { total: 6, taken: [] },
             player2: { total: 6, taken: [] }
         };
+        
+        this.pokemonMatch.player1.prizesTaken = [];
+        this.pokemonMatch.player1.prizes = 6;
+        this.pokemonMatch.player2.prizesTaken = [];
+        this.pokemonMatch.player2.prizes = 6;
         
         this.io.emit('prizes-reset', {
             ...this.prizeCards,
@@ -163,13 +209,126 @@ class OverlayServer {
         });
     }
     
+    // NEW METHODS FOR POKEMON MATCH FEATURES
+    
+    // Stadium management
+    updateStadium(stadium) {
+        this.pokemonMatch.stadium = stadium;
+        this.io.emit('stadium-update', {
+            stadium: stadium,
+            timestamp: Date.now()
+        });
+    }
+    
+    // Player record management
+    updatePlayerRecord(player, record) {
+        const playerKey = `player${player}`;
+        if (this.pokemonMatch[playerKey]) {
+            this.pokemonMatch[playerKey].record = record;
+        }
+        this.io.emit('record-update', {
+            player: player,
+            record: record,
+            timestamp: Date.now()
+        });
+    }
+    
+    // Match score management
+    updateMatchScore(player, score) {
+        const playerKey = `player${player}`;
+        if (this.pokemonMatch[playerKey]) {
+            this.pokemonMatch[playerKey].matchScore = score;
+        }
+        this.io.emit('match-score-update', {
+            player: player,
+            score: score,
+            timestamp: Date.now()
+        });
+    }
+    
+    // Turn actions management
+    updateTurnActions(player, actions) {
+        const playerKey = `player${player}`;
+        if (this.pokemonMatch[playerKey]) {
+            this.pokemonMatch[playerKey].turnActions = actions;
+        }
+        this.io.emit('turn-actions-update', {
+            player: player,
+            actions: actions,
+            timestamp: Date.now()
+        });
+    }
+    
+    resetTurnActions() {
+        this.pokemonMatch.player1.turnActions = { energy: false, supporter: false, retreat: false };
+        this.pokemonMatch.player2.turnActions = { energy: false, supporter: false, retreat: false };
+        this.io.emit('turn-actions-reset', {
+            timestamp: Date.now()
+        });
+    }
+    
+    // Bench size management
+    updateBenchSize(player, size) {
+        const playerKey = `player${player}`;
+        if (this.pokemonMatch[playerKey]) {
+            this.pokemonMatch[playerKey].benchSize = size;
+        }
+        this.io.emit('bench-size-update', {
+            player: player,
+            size: size,
+            timestamp: Date.now()
+        });
+    }
+    
+    // Update Pokemon match state
+    updatePokemonMatch(data) {
+        if (data.player1) {
+            this.pokemonMatch.player1 = { ...this.pokemonMatch.player1, ...data.player1 };
+        }
+        if (data.player2) {
+            this.pokemonMatch.player2 = { ...this.pokemonMatch.player2, ...data.player2 };
+        }
+        if (data.stadium !== undefined) {
+            this.pokemonMatch.stadium = data.stadium;
+        }
+        
+        this.io.emit('pokemon-match-update', data);
+    }
+    
+    // Active Pokemon management
+    updateActivePokemon(player, pokemon) {
+        const playerKey = `player${player}`;
+        if (this.pokemonMatch[playerKey]) {
+            this.pokemonMatch[playerKey].active = pokemon;
+        }
+        this.io.emit('active-pokemon', {
+            player: player,
+            pokemon: pokemon,
+            timestamp: Date.now()
+        });
+    }
+    
+    // Bench management
+    updateBench(player, bench) {
+        const playerKey = `player${player}`;
+        if (this.pokemonMatch[playerKey]) {
+            this.pokemonMatch[playerKey].bench = bench;
+        }
+        this.io.emit('bench-update', {
+            player: player,
+            bench: bench,
+            timestamp: Date.now()
+        });
+    }
+    
     getState() {
         return {
             currentCards: this.currentCards,
             prizeCards: this.prizeCards,
             decklist: this.decklist,
             settings: this.overlaySettings,
-            gameSettings: this.gameSettings
+            gameSettings: this.gameSettings,
+            pokemonMatch: this.pokemonMatch  // Include Pokemon match state
         };
     }
     
@@ -275,6 +434,9 @@ class OverlayServer {
     
     // Player names
     updatePlayerNames(player1, player2) {
+        this.pokemonMatch.player1.name = player1;
+        this.pokemonMatch.player2.name = player2;
+        
         this.io.emit('player-names', {
             player1: player1,
             player2: player2,
