@@ -370,27 +370,92 @@ class CardDatabase {
     
     searchCards(game, query) {
         try {
-            // Check if query contains set abbreviation pattern
-            const setCodeMatch = query.match(/^(.+?)\s+([A-Z]{2,4})\s*(\d+)?$/);
+            // Clean and normalize the query
+            query = query.trim();
             
-            if (setCodeMatch) {
-                const [_, cardName, setAbbrev, cardNumber] = setCodeMatch;
+            console.log(`[DB] Searching ${game} for: "${query}"`);
+            
+            // Pattern 1: "Card Name SETCODE NUMBER" (e.g., "Hoothoot SCR 114")
+            const setCodeWithNumberMatch = query.match(/^(.+?)\s+([A-Z]{2,4})\s+(\d+)$/);
+            
+            if (setCodeWithNumberMatch) {
+                const [_, cardName, setAbbrev, cardNumber] = setCodeWithNumberMatch;
                 
-                if (cardNumber) {
-                    // Search with set abbreviation and card number
-                    return this.searchWithSetStmt.all(game, `%${cardName}%`, setAbbrev.toUpperCase(), cardNumber);
-                } else {
-                    // Search with set abbreviation only
-                    return this.searchWithSetNoNumberStmt.all(game, `%${cardName}%`, setAbbrev.toUpperCase());
+                console.log(`[DB] Exact search: name="${cardName}", set="${setAbbrev}", number="${cardNumber}"`);
+                
+                // Try exact match with set abbreviation and card number
+                let results = this.searchWithSetStmt.all(
+                    game, 
+                    `%${cardName.trim()}%`, 
+                    setAbbrev.toUpperCase(), 
+                    cardNumber
+                );
+                
+                console.log(`[DB] Found ${results.length} exact matches`);
+                
+                // If no exact results, try without the card number
+                if (results.length === 0) {
+                    console.log(`[DB] Trying without card number...`);
+                    results = this.searchWithSetNoNumberStmt.all(
+                        game, 
+                        `%${cardName.trim()}%`, 
+                        setAbbrev.toUpperCase()
+                    );
+                    console.log(`[DB] Found ${results.length} set matches`);
                 }
+                
+                // If still no results, try just the name
+                if (results.length === 0) {
+                    console.log(`[DB] Falling back to name-only search...`);
+                    const searchTerm = `%${cardName.toLowerCase()}%`;
+                    const startTerm = `${cardName.toLowerCase()}%`;
+                    results = this.searchStmt.all(game, searchTerm, startTerm);
+                    console.log(`[DB] Found ${results.length} name matches`);
+                }
+                
+                return results;
             }
             
-            // Regular search
+            // Pattern 2: "Card Name SETCODE" (e.g., "Hoothoot SCR")
+            const setCodeOnlyMatch = query.match(/^(.+?)\s+([A-Z]{2,4})$/);
+            
+            if (setCodeOnlyMatch) {
+                const [_, cardName, setAbbrev] = setCodeOnlyMatch;
+                
+                console.log(`[DB] Set search: name="${cardName}", set="${setAbbrev}"`);
+                
+                // Search with set abbreviation only
+                let results = this.searchWithSetNoNumberStmt.all(
+                    game, 
+                    `%${cardName.trim()}%`, 
+                    setAbbrev.toUpperCase()
+                );
+                
+                console.log(`[DB] Found ${results.length} set matches`);
+                
+                // If no results, fall back to regular search
+                if (results.length === 0) {
+                    console.log(`[DB] Falling back to name-only search...`);
+                    const searchTerm = `%${cardName.toLowerCase()}%`;
+                    const startTerm = `${cardName.toLowerCase()}%`;
+                    results = this.searchStmt.all(game, searchTerm, startTerm);
+                    console.log(`[DB] Found ${results.length} name matches`);
+                }
+                
+                return results;
+            }
+            
+            // Pattern 3: Regular search (just the name)
+            console.log(`[DB] Regular search for: "${query}"`);
             const searchTerm = `%${query.toLowerCase()}%`;
             const startTerm = `${query.toLowerCase()}%`;
-            return this.searchStmt.all(game, searchTerm, startTerm);
+            const results = this.searchStmt.all(game, searchTerm, startTerm);
+            console.log(`[DB] Found ${results.length} matches`);
+            
+            return results;
+            
         } catch (error) {
-            console.error(`Error searching cards for ${game}:`, error);
+            console.error(`[DB] Error searching cards for ${game}:`, error);
             return [];
         }
     }

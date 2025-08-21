@@ -315,7 +315,7 @@ app.get('/api/search/:game', (req, res) => {
         // Use local_image if available, otherwise fall back to image_url
         const processedResults = results.map(card => ({
             ...card,
-            display_image: card.local_image || card.image_url
+            display_image: card.image_url || card.local_image
         }));
         
         res.json(processedResults);
@@ -336,7 +336,7 @@ app.get('/api/card/:game/:id', (req, res) => {
         }
         
         // Add display_image field that uses local if available
-        card.display_image = card.local_image || card.image_url;
+        card.display_image = card.image_url || card.local_image;
         
         res.json(card);
     } catch (error) {

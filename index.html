@@ -944,30 +944,38 @@
             for (let i = 0; i < cards.length; i++) {
                 const card = cards[i];
                 let cardImage = '/images/card-back.png';
-                let matchedCard = null;
                 
                 try {
-                    // Build smart search query
-                    let searchQuery = card.name;
+                    let searchQuery = '';
                     
-                    // If we have set info, include it in the search
                     if (card.setCode && card.cardNumber) {
-                        // Send set code and number for exact match
-                        searchQuery = `${card.name} ${card.setCode} ${card.cardNumber}`;
-                    } else if (card.setName) {
-                        searchQuery = `${card.name} ${card.setName}`;
+                        searchQuery = `${card.name} ${card.setCode.toUpperCase()} ${card.cardNumber}`;
+                    } else if (card.setCode) {
+                        searchQuery = `${card.name} ${card.setCode.toUpperCase()}`;
+                    } else {
+                        searchQuery = card.name;
                     }
                     
                     const response = await fetch(`/api/search/${game}?q=${encodeURIComponent(searchQuery)}`);
                     const results = await response.json();
                     
                     if (results.length > 0) {
-                        // The server-side search should handle the set abbreviation lookup
-                        // So we should get the right card as the first result
-                        matchedCard = results[0];
+                        // Try to find exact match
+                        let matchedCard = null;
+                        if (card.setCode && card.cardNumber) {
+                            matchedCard = results.find(r => 
+                                r.set_abbreviation === card.setCode.toUpperCase() && 
+                                r.card_number === card.cardNumber
+                            );
+                        }
+                        
+                        if (!matchedCard) {
+                            matchedCard = results[0];
+                        }
                         
                         if (matchedCard) {
-                            cardImage = matchedCard.display_image || matchedCard.local_image || matchedCard.image_url || cardImage;
+                            // Simply use image_url which already has the correct /cache/images/... path
+                            cardImage = matchedCard.image_url || cardImage;
                         }
                     }
                 } catch (error) {
@@ -981,13 +989,13 @@
                 if (isEditMode) {
                     cardsHTML += `
                         <div class="deck-card-item edit-mode" 
-                             draggable="true"
-                             ondragstart="handleCardDragStart(event, '${category}', ${i})"
-                             ondragend="handleCardDragEnd(event)"
-                             ondragover="event.preventDefault()"
-                             data-category="${category}"
-                             data-index="${i}"
-                             title="${cardTitle}">
+                            draggable="true"
+                            ondragstart="handleCardDragStart(event, '${category}', ${i})"
+                            ondragend="handleCardDragEnd(event)"
+                            ondragover="event.preventDefault()"
+                            data-category="${category}"
+                            data-index="${i}"
+                            title="${cardTitle}">
                             <div class="deck-card-controls">
                                 <button class="deck-card-control-btn" onclick="event.stopPropagation(); adjustCardQuantity('${category}', ${i}, -1)">−</button>
                                 <span style="color: white; font-size: 0.875rem;">${card.quantity}</span>
@@ -1000,9 +1008,7 @@
                     `;
                 } else {
                     cardsHTML += `
-                        <div class="deck-card-item" 
-                             onclick="selectCardFromDeck('${escape(card.name)}', '${game}')"
-                             title="${cardTitle}">
+                        <div class="deck-card-item" title="${cardTitle}">
                             <img src="${cardImage}" alt="${cardTitle}" class="deck-card-image" />
                             ${card.quantity > 1 ? `<div class="deck-card-quantity">${card.quantity}</div>` : ''}
                         </div>
@@ -1011,6 +1017,126 @@
             }
             
             return cardsHTML;
+        }
+
+        // Fixed parseDeckList function with proper parsing
+        window.parseDeckList = async function(text) {
+            // Ensure resolver is initialized
+            if (typeof pokemonSetResolver !== 'undefined') {
+                await pokemonSetResolver.initialize();
+            }
+            
+            const lines = text.split('\n').filter(line => line.trim());
+            const deck = {
+                pokemon: [],
+                trainers: [],
+                energy: []
+            };
+            
+            let currentSection = null;
+            
+            for (const line of lines) {
+                const trimmed = line.trim();
+                
+                // Skip empty lines and total count lines
+                if (!trimmed || trimmed.match(/^Total:\s*\d+$/i)) {
+                    continue;
+                }
+                
+                // Check for section headers
+                if (trimmed.match(/^Pok[eé]mon:\s*\d+$/i)) {
+                    currentSection = 'pokemon';
+                    continue;
+                } else if (trimmed.match(/^Trainer:\s*\d+$/i)) {
+                    currentSection = 'trainers';
+                    continue;
+                } else if (trimmed.match(/^Energy:\s*\d+$/i)) {
+                    currentSection = 'energy';
+                    continue;
+                }
+                
+                // Skip if no section set yet
+                if (!currentSection) {
+                    // Try to auto-detect based on content
+                    if (trimmed.toLowerCase().includes('energy')) {
+                        currentSection = 'energy';
+                    } else if (trimmed.match(/\d+\s+.+\s+[A-Z]{2,4}\s+\d+/)) {
+                        currentSection = 'pokemon';
+                    }
+                }
+                
+                if (!currentSection) continue;
+                
+                // Parse card lines
+                let cardData = null;
+                
+                // Pattern 1: "4 Hoothoot SCR 114" - with set code and number
+                let match = trimmed.match(/^(\d+)\s+(.+?)\s+([A-Z]{2,4})\s+(\d+)$/);
+                if (match) {
+                    const [_, quantity, name, setCode, number] = match;
+                    
+                    cardData = {
+                        quantity: parseInt(quantity),
+                        name: name.trim(),
+                        setCode: setCode.toUpperCase(),
+                        cardNumber: number,
+                        fullName: `${name.trim()} ${setCode} ${number}`
+                    };
+                    
+                    // Add set name if resolver is available
+                    if (typeof pokemonSetResolver !== 'undefined') {
+                        cardData.setName = pokemonSetResolver.resolveSetCode(setCode);
+                    }
+                } else {
+                    // Pattern 2: "4 Professor's Research" - just quantity and name
+                    match = trimmed.match(/^(\d+)\s+(.+)$/);
+                    if (match) {
+                        const [_, quantity, fullName] = match;
+                        
+                        // Check if the name contains a set code at the end
+                        const setMatch = fullName.match(/^(.+?)\s+([A-Z]{2,4})$/);
+                        if (setMatch) {
+                            const [__, name, setCode] = setMatch;
+                            cardData = {
+                                quantity: parseInt(quantity),
+                                name: name.trim(),
+                                setCode: setCode.toUpperCase(),
+                                fullName: fullName
+                            };
+                        } else {
+                            cardData = {
+                                quantity: parseInt(quantity),
+                                name: fullName.trim(),
+                                fullName: fullName.trim()
+                            };
+                        }
+                    }
+                }
+                
+                // Add the card to the appropriate section
+                if (cardData) {
+                    if (currentSection === 'pokemon') {
+                        deck.pokemon.push(cardData);
+                    } else if (currentSection === 'trainers') {
+                        deck.trainers.push(cardData);
+                    } else if (currentSection === 'energy') {
+                        deck.energy.push(cardData);
+                    }
+                    
+                    console.log(`Parsed ${currentSection}:`, cardData);
+                }
+            }
+            
+            console.log('Deck parsing complete:', {
+                pokemon: deck.pokemon.length + ' cards',
+                trainers: deck.trainers.length + ' cards',
+                energy: deck.energy.length + ' cards',
+                total: deck.pokemon.reduce((sum, c) => sum + c.quantity, 0) +
+                    deck.trainers.reduce((sum, c) => sum + c.quantity, 0) +
+                    deck.energy.reduce((sum, c) => sum + c.quantity, 0) + ' total cards'
+            });
+            
+            return deck;
         }
         
         // Handle card drag start

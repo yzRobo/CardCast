@@ -319,7 +319,7 @@ function displaySearchResults(results) {
     
     resultsDiv.innerHTML = results.map(card => `
         <div class="card-result" onclick="selectCard('${card.id}')">
-            <img class="card-thumbnail" src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" alt="${card.name}">
+            <img class="card-thumbnail" src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
             <div class="card-name">${card.name}</div>
             <div class="card-meta">${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</div>
         </div>
@@ -331,6 +331,11 @@ async function selectCard(cardId) {
     try {
         const response = await fetch(`/api/card/${currentGame}/${cardId}`);
         selectedCard = await response.json();
+        
+        // Ensure selectedCard has a usable image_url
+        if (!selectedCard.image_url && selectedCard.display_image) {
+            selectedCard.image_url = selectedCard.display_image;
+        }
         
         // Update preview
         updateCardPreview(selectedCard);
@@ -357,7 +362,7 @@ function updateCardPreview(card) {
     }
     
     previewDiv.innerHTML = `
-        <img src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" alt="${card.name}">
+        <img src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
         <div class="card-info">
             <h3>${card.name}</h3>
             <p>${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</p>
@@ -385,7 +390,7 @@ function updateRecentCardsDisplay() {
     
     recentDiv.innerHTML = recentCards.map((card, index) => `
         <div class="recent-card" onclick="selectCard('${card.id}')" title="${card.name}">
-            <img src="${card.display_image || card.local_image || card.image_url || '/images/card-back.png'}" alt="${card.name}">
+            <img src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
         </div>
     `).join('');
 }
@@ -399,7 +404,7 @@ function displayCard(position) {
     
     const cardToSend = {
         ...selectedCard,
-        image_url: selectedCard.display_image || selectedCard.local_image || selectedCard.image_url
+        image_url: selectedCard.image_url  // Already has the correct path
     };
     
     socket.emit('display-card', {
@@ -452,7 +457,7 @@ function setActivePokemon(playerNum) {
     const pokemon = {
         id: selectedCard.id,
         name: selectedCard.name,
-        image: selectedCard.display_image || selectedCard.local_image || selectedCard.image_url,
+        image: selectedCard.image_url,
         maxHp: selectedCard.hp || 100,
         currentHp: selectedCard.hp || 100
     };
@@ -478,7 +483,7 @@ function addToBench(playerNum) {
     }
     
     const player = pokemonMatchState[`player${playerNum}`];
-    if (player.bench.length >= 5) {
+    if (player.bench.length >= player.benchSize) {
         alert(`Player ${playerNum}'s bench is full!`);
         return;
     }
@@ -486,7 +491,7 @@ function addToBench(playerNum) {
     const pokemon = {
         id: selectedCard.id,
         name: selectedCard.name,
-        image: selectedCard.display_image || selectedCard.local_image || selectedCard.image_url,
+        image: selectedCard.image_url,
         maxHp: selectedCard.hp || 100,
         currentHp: selectedCard.hp || 100
     };
