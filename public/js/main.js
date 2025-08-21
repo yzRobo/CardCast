@@ -246,13 +246,14 @@ async function downloadGameData(gameId) {
 
 // Update game data
 async function updateGameData(gameId) {
+    const setCount = document.querySelector('input[name="sets"]:checked')?.value || '3';
     showDownloadProgress(true);
     
     try {
         const response = await fetch(`/api/download/${gameId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ incremental: true, setCount: '3' })
+            body: JSON.stringify({ incremental: true, setCount }) // Now includes setCount!
         });
         
         if (!response.ok) {

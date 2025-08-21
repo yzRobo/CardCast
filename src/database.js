@@ -715,6 +715,22 @@ class CardDatabase {
             console.error('Error closing database:', error);
         }
     }
+
+    getDownloadedSets(game) {
+        try {
+            const stmt = this.db.prepare(`
+                SELECT DISTINCT set_code 
+                FROM cards 
+                WHERE game = ?
+            `);
+            const results = stmt.all(game);
+            return new Set(results.map(r => r.set_code));
+        } catch (error) {
+            console.error(`Error getting downloaded sets for ${game}:`, error);
+            return new Set();
+        }
+    }
+    
 }
 
 module.exports = CardDatabase;

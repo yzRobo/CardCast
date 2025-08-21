@@ -1,4 +1,4 @@
-// src/tcg-api.js - CardCast TCG API with Local Image Caching and Set Abbreviations
+// src/tcg-api.js - Fixed CardCast TCG API with Proper Incremental Updates
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
@@ -55,6 +55,28 @@ class TCGApi {
                 parseCard: this.parseOnePieceCard.bind(this)
             }
         };
+    }
+    
+    // Helper method to get downloaded sets from database
+    getDownloadedSets(game) {
+        try {
+            // Check if the database has this method
+            if (this.db.getDownloadedSets) {
+                return this.db.getDownloadedSets(game);
+            }
+            
+            // Fallback: manually query the database
+            const stmt = this.db.db.prepare(`
+                SELECT DISTINCT set_code 
+                FROM cards 
+                WHERE game = ?
+            `);
+            const results = stmt.all(game);
+            return new Set(results.map(r => r.set_code));
+        } catch (error) {
+            console.error(`Error getting downloaded sets for ${game}:`, error);
+            return new Set();
+        }
     }
     
     async downloadGameData(game, progressCallback, incremental = false, setCount = 'all') {
@@ -167,7 +189,6 @@ class TCGApi {
         const cardMap = new Map();
         
         try {
-            // First, fetch all available sets to get the most recent ones
             progressCallback({ 
                 status: 'fetching', 
                 percent: 5, 
@@ -175,65 +196,72 @@ class TCGApi {
             });
             
             let allSets = [];
-            let setMappings = new Map(); // Store set abbreviation mappings
+            let energySets = [];
+            let setMappings = new Map();
             
-            try {
-                const setsResponse = await axios.get('https://api.pokemontcg.io/v2/sets', {
-                    params: {
-                        orderBy: '-releaseDate', // Order by newest first
-                        pageSize: 250
-                    },
-                    timeout: 30000,
-                    headers: {
-                        'User-Agent': 'CardCast/1.0.0',
-                        'Accept': 'application/json'
-                    }
-                });
-                
-                if (setsResponse.data && setsResponse.data.data) {
-                    allSets = setsResponse.data.data;
-                    console.log(`Found ${allSets.length} Pokemon sets`);
-                    
-                    // Build set mappings from the API response
-                    allSets.forEach(set => {
-                        if (set.ptcgoCode) {
-                            setMappings.set(set.id, set.ptcgoCode);
-                        }
-                    });
+            const setsResponse = await axios.get('https://api.pokemontcg.io/v2/sets', {
+                params: {
+                    orderBy: '-releaseDate',
+                    pageSize: 250
+                },
+                timeout: 30000,
+                headers: {
+                    'User-Agent': 'CardCast/1.0.0',
+                    'Accept': 'application/json'
                 }
-            } catch (setsError) {
-                console.error('Error fetching Pokemon sets:', setsError.message);
-                // Fall back to hardcoded recent sets if API fails
-                allSets = [
-                    { id: 'sv8', name: 'Surging Sparks', ptcgoCode: 'SUR' },
-                    { id: 'sv7', name: 'Stellar Crown', ptcgoCode: 'SCR' },
-                    { id: 'sv6', name: 'Twilight Masquerade', ptcgoCode: 'TWM' },
-                    { id: 'sv5', name: 'Temporal Forces', ptcgoCode: 'TEF' },
-                    { id: 'sv4', name: 'Paradox Rift', ptcgoCode: 'PAR' },
-                    { id: 'sv3', name: 'Obsidian Flames', ptcgoCode: 'OBF' },
-                    { id: 'sv2', name: 'Paldea Evolved', ptcgoCode: 'PAL' },
-                    { id: 'sv1', name: 'Scarlet & Violet', ptcgoCode: 'SVI' },
-                    { id: 'swsh12pt5', name: 'Crown Zenith', ptcgoCode: 'CRZ' },
-                    { id: 'swsh11', name: 'Lost Origin', ptcgoCode: 'LOR' },
-                    { id: 'swsh10', name: 'Astral Radiance', ptcgoCode: 'ASR' },
-                    { id: 'swsh9', name: 'Brilliant Stars', ptcgoCode: 'BRS' }
-                ];
-                
-                // Build mappings from fallback data
-                allSets.forEach(set => {
+            });
+            
+            if (setsResponse.data && setsResponse.data.data) {
+                // Separate regular sets from energy sets
+                setsResponse.data.data.forEach(set => {
                     if (set.ptcgoCode) {
                         setMappings.set(set.id, set.ptcgoCode);
                     }
+                    
+                    // Check if this is an energy set
+                    if (set.id === 'sve' || set.id === 'sme' || 
+                        set.name?.toLowerCase().includes('energies') ||
+                        set.name?.toLowerCase().includes('energy')) {
+                        energySets.push(set);
+                        console.log(`Found energy set: ${set.name} (${set.id})`);
+                    } else if (set.series !== 'Other' && !set.name?.includes('Promo')) {
+                        allSets.push(set);
+                    }
                 });
+                
+                console.log(`Found ${allSets.length} regular sets and ${energySets.length} energy sets`);
+            } else {
+                throw new Error('No sets data received from API');
             }
             
-            // Determine which sets to fetch based on setCount
+            // Determine which sets to fetch
             let setsToFetch = [];
-            if (setCount === 'all') {
-                setsToFetch = allSets;
+            
+            if (incremental) {
+                const downloadedSets = this.getDownloadedSets('pokemon');
+                console.log(`Already have ${downloadedSets.size} sets in database`);
+                
+                const availableSets = allSets.filter(set => !downloadedSets.has(set.id));
+                console.log(`Found ${availableSets.length} sets not yet downloaded`);
+                
+                if (availableSets.length === 0) {
+                    console.log('No new sets available for incremental update');
+                    return [];
+                }
+                
+                if (setCount === 'all') {
+                    setsToFetch = availableSets;
+                } else {
+                    const count = parseInt(setCount) || 3;
+                    setsToFetch = availableSets.slice(0, count);
+                }
             } else {
-                const count = parseInt(setCount) || 3;
-                setsToFetch = allSets.slice(0, count);
+                if (setCount === 'all') {
+                    setsToFetch = allSets;
+                } else {
+                    const count = parseInt(setCount) || 3;
+                    setsToFetch = allSets.slice(0, count);
+                }
             }
             
             console.log(`Will fetch ${setsToFetch.length} sets: ${setsToFetch.map(s => s.id).join(', ')}`);
@@ -269,7 +297,6 @@ class TCGApi {
                             
                             response.data.data.forEach(card => {
                                 if (!cardMap.has(card.id)) {
-                                    // Get the set abbreviation from our mappings or the card data
                                     const setAbbreviation = card.set?.ptcgoCode || 
                                                           setMappings.get(card.set?.id) || 
                                                           set.ptcgoCode || 
@@ -278,26 +305,24 @@ class TCGApi {
                                     const cardData = {
                                         id: `pokemon_${card.id}`,
                                         game: 'pokemon',
+                                        product_id: card.id,
                                         name: card.name,
                                         set_name: card.set?.name || set.name,
                                         set_code: card.set?.id || set.id,
-                                        set_abbreviation: setAbbreviation, // Store the abbreviation!
+                                        set_abbreviation: setAbbreviation,
                                         card_number: card.number || '',
                                         image_url: card.images?.large || card.images?.small || '',
                                         rarity: card.rarity || 'Common',
                                         card_type: card.supertype || 'Pokemon',
                                         card_text: this.buildPokemonText(card),
-                                        // Store Pokemon-specific attributes
                                         hp: card.hp || null,
                                         stage: card.subtypes?.join(', ') || null,
                                         evolves_from: card.evolvesFrom || null,
                                         weakness: card.weaknesses?.[0] ? `${card.weaknesses[0].type} ${card.weaknesses[0].value}` : null,
                                         resistance: card.resistances?.[0] ? `${card.resistances[0].type} ${card.resistances[0].value}` : null,
                                         retreat_cost: card.retreatCost?.join('') || null,
-                                        // Store abilities if present
                                         ability_name: card.abilities?.[0]?.name || null,
                                         ability_text: card.abilities?.[0]?.text || null,
-                                        // Store attacks if present
                                         attack1_name: card.attacks?.[0]?.name || null,
                                         attack1_cost: card.attacks?.[0]?.cost?.join('') || null,
                                         attack1_damage: card.attacks?.[0]?.damage || null,
@@ -306,7 +331,6 @@ class TCGApi {
                                         attack2_cost: card.attacks?.[1]?.cost?.join('') || null,
                                         attack2_damage: card.attacks?.[1]?.damage || null,
                                         attack2_text: card.attacks?.[1]?.text || null,
-                                        // Store attributes for backward compatibility
                                         attributes: {
                                             hp: card.hp || null,
                                             types: card.types || [],
@@ -324,7 +348,6 @@ class TCGApi {
                         retries--;
                         console.error(`Error fetching Pokemon set ${set.id}, retries left ${retries}:`, setError.message);
                         if (retries > 0) {
-                            console.log(`Waiting 3 seconds before retry...`);
                             await this.delay(3000);
                         }
                     }
@@ -334,19 +357,102 @@ class TCGApi {
                     console.log(`Skipping set ${set.id} after all retries failed`);
                 }
                 
-                await this.delay(200); // Rate limiting between sets
+                await this.delay(200);
+            }
+            
+            // FETCH ENERGY CARDS FROM API
+            progressCallback({ 
+                status: 'fetching', 
+                percent: 70, 
+                message: 'Fetching energy cards...'
+            });
+            
+            // Find the appropriate energy set to fetch
+            if (energySets.length > 0) {
+                // Get the series of what we're downloading
+                const targetSeries = setsToFetch[0]?.series || 'Scarlet & Violet';
+                
+                // Find matching energy set or use most recent
+                let energySetToFetch = energySets.find(set => set.series === targetSeries) || energySets[0];
+                
+                console.log(`Fetching energy set: ${energySetToFetch.name} (${energySetToFetch.id})`);
+                
+                try {
+                    const energyResponse = await axios.get('https://api.pokemontcg.io/v2/cards', {
+                        params: {
+                            q: `set.id:${energySetToFetch.id}`,
+                            pageSize: 250
+                        },
+                        timeout: 60000,
+                        headers: {
+                            'User-Agent': 'CardCast/1.0.0',
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    if (energyResponse.data && energyResponse.data.data) {
+                        console.log(`${energySetToFetch.name}: Got ${energyResponse.data.data.length} energy cards`);
+                        
+                        energyResponse.data.data.forEach(card => {
+                            if (!cardMap.has(card.id)) {
+                                const setAbbreviation = card.set?.ptcgoCode || 
+                                                      setMappings.get(card.set?.id) || 
+                                                      energySetToFetch.ptcgoCode || 
+                                                      energySetToFetch.id.toUpperCase();
+                                
+                                const cardData = {
+                                    id: `pokemon_${card.id}`,
+                                    game: 'pokemon',
+                                    product_id: card.id,
+                                    name: card.name,
+                                    set_name: card.set?.name || energySetToFetch.name,
+                                    set_code: card.set?.id || energySetToFetch.id,
+                                    set_abbreviation: setAbbreviation,
+                                    card_number: card.number || '',
+                                    image_url: card.images?.large || card.images?.small || '',
+                                    rarity: card.rarity || 'Common',
+                                    card_type: card.supertype || 'Energy',
+                                    card_text: this.buildPokemonText(card),
+                                    hp: card.hp || null,
+                                    stage: card.subtypes?.join(', ') || null,
+                                    evolves_from: card.evolvesFrom || null,
+                                    weakness: card.weaknesses?.[0] ? `${card.weaknesses[0].type} ${card.weaknesses[0].value}` : null,
+                                    resistance: card.resistances?.[0] ? `${card.resistances[0].type} ${card.resistances[0].value}` : null,
+                                    retreat_cost: card.retreatCost?.join('') || null,
+                                    ability_name: card.abilities?.[0]?.name || null,
+                                    ability_text: card.abilities?.[0]?.text || null,
+                                    attack1_name: card.attacks?.[0]?.name || null,
+                                    attack1_cost: card.attacks?.[0]?.cost?.join('') || null,
+                                    attack1_damage: card.attacks?.[0]?.damage || null,
+                                    attack1_text: card.attacks?.[0]?.text || null,
+                                    attack2_name: card.attacks?.[1]?.name || null,
+                                    attack2_cost: card.attacks?.[1]?.cost?.join('') || null,
+                                    attack2_damage: card.attacks?.[1]?.damage || null,
+                                    attack2_text: card.attacks?.[1]?.text || null,
+                                    attributes: {
+                                        hp: card.hp || null,
+                                        types: card.types || [],
+                                        retreatCost: card.retreatCost?.length || 0,
+                                        attacks: card.attacks || [],
+                                        abilities: card.abilities || []
+                                    }
+                                };
+                                cardMap.set(card.id, cardData);
+                            }
+                        });
+                    }
+                } catch (energyError) {
+                    console.error(`Error fetching energy set ${energySetToFetch.id}:`, energyError.message);
+                }
+            } else {
+                console.log('No energy sets found in API response');
             }
             
             // Convert map to array
             cards.push(...cardMap.values());
-            console.log(`Total unique Pokemon cards fetched: ${cards.length}`);
             
-            // Log sample of set abbreviations stored
-            const sampleCards = cards.slice(0, 5);
-            console.log('Sample cards with set abbreviations:');
-            sampleCards.forEach(card => {
-                console.log(`  ${card.name}: ${card.set_code} -> ${card.set_abbreviation}`);
-            });
+            const energyCardCount = cards.filter(c => c.card_type === 'Energy').length;
+            console.log(`Total Pokemon cards fetched: ${cards.length} (including ${energyCardCount} energy cards)`);
             
         } catch (error) {
             console.error('Error fetching Pokemon cards:', error.message);
@@ -357,7 +463,7 @@ class TCGApi {
         
         return cards;
     }
-    
+        
     async fetchMagicCards(progressCallback, incremental = false, setCount = 'all') {
         const cards = [];
         const cardMap = new Map();
@@ -400,12 +506,37 @@ class TCGApi {
             
             // Determine which sets to fetch
             let setsToFetch = [];
-            if (setCount === 'all') {
-                // For Magic, limit to last 20 sets for "all" to be reasonable
-                setsToFetch = allSets.slice(0, 20);
+            
+            if (incremental) {
+                // For incremental updates, get sets we don't already have
+                const downloadedSets = this.getDownloadedSets('magic');
+                console.log(`Already have ${downloadedSets.size} sets in database`);
+                
+                // Filter out sets we already have
+                const availableSets = allSets.filter(set => !downloadedSets.has(set.code));
+                console.log(`Found ${availableSets.length} sets not yet downloaded`);
+                
+                if (availableSets.length === 0) {
+                    console.log('No new sets available for incremental update');
+                    return [];
+                }
+                
+                if (setCount === 'all') {
+                    // For Magic, limit to last 20 sets for "all" to be reasonable
+                    setsToFetch = availableSets.slice(0, 20);
+                } else {
+                    const count = parseInt(setCount) || 3;
+                    setsToFetch = availableSets.slice(0, count);
+                }
             } else {
-                const count = parseInt(setCount) || 3;
-                setsToFetch = allSets.slice(0, count);
+                // For full download
+                if (setCount === 'all') {
+                    // For Magic, limit to last 20 sets for "all" to be reasonable
+                    setsToFetch = allSets.slice(0, 20);
+                } else {
+                    const count = parseInt(setCount) || 3;
+                    setsToFetch = allSets.slice(0, count);
+                }
             }
             
             console.log(`Will fetch ${setsToFetch.length} Magic sets`);
@@ -449,7 +580,7 @@ class TCGApi {
                                         name: card.name,
                                         set_name: card.set_name || set.name,
                                         set_code: card.set || set.code,
-                                        set_abbreviation: card.set?.toUpperCase() || set.code?.toUpperCase(), // Store uppercase set code as abbreviation
+                                        set_abbreviation: card.set?.toUpperCase() || set.code?.toUpperCase(),
                                         card_number: card.collector_number || '',
                                         image_url: card.image_uris?.normal || card.image_uris?.small || card.card_faces?.[0]?.image_uris?.normal || '',
                                         rarity: card.rarity || 'common',
@@ -522,60 +653,52 @@ class TCGApi {
                 message: 'Fetching Yu-Gi-Oh! cards...'
             });
             
-            // For YuGiOh, we'll fetch based on the number requested
-            const cardLimit = setCount === 'all' ? 500 : parseInt(setCount) * 50 || 100;
-            
-            const params = incremental ? {
-                num: Math.min(cardLimit, 100),
-                offset: 0,
-                sort: 'new'
-            } : {
-                staple: 'yes',
-                num: Math.min(cardLimit, 500),
-                offset: 0
-            };
-            
-            const response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php', {
-                params: params,
-                timeout: 30000,
-                headers: {
-                    'User-Agent': 'CardCast/1.0.0'
-                }
-            });
-            
-            if (response.data && response.data.data) {
-                console.log(`YuGiOh: Got ${response.data.data.length} cards`);
-                response.data.data.forEach(card => {
-                    cards.push({
-                        id: `yugioh_${card.id}`,
-                        game: 'yugioh',
-                        name: card.name,
-                        set_name: card.card_sets?.[0]?.set_name || '',
-                        set_code: card.card_sets?.[0]?.set_code || '',
-                        set_abbreviation: card.card_sets?.[0]?.set_code || '', // YuGiOh uses set_code as abbreviation
-                        card_number: card.card_sets?.[0]?.set_code || '',
-                        image_url: card.card_images?.[0]?.image_url || '',
-                        rarity: card.card_sets?.[0]?.set_rarity || 'Common',
-                        card_type: card.type || '',
-                        card_text: card.desc || '',
-                        // Store YuGiOh-specific attributes
-                        attack: card.atk || null,
-                        defense: card.def || null,
-                        level: card.level || null,
-                        rank: card.rank || null,
-                        link_value: card.linkval || null,
-                        pendulum_scale: card.scale || null,
-                        attribute: card.attribute || '',
-                        monster_type: card.race || '',
-                        attributes: {
-                            attack: card.atk || null,
-                            defense: card.def || null,
-                            level: card.level || null,
-                            attribute: card.attribute || '',
-                            race: card.race || ''
-                        }
-                    });
+            // For YuGiOh incremental updates, we need a different approach
+            // since the API doesn't have traditional "sets" like Pokemon/Magic
+            if (incremental) {
+                // Get the latest cards
+                const cardLimit = setCount === 'all' ? 100 : parseInt(setCount) * 20 || 60;
+                
+                const response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php', {
+                    params: {
+                        num: cardLimit,
+                        offset: 0,
+                        sort: 'new'
+                    },
+                    timeout: 30000,
+                    headers: {
+                        'User-Agent': 'CardCast/1.0.0'
+                    }
                 });
+                
+                if (response.data && response.data.data) {
+                    console.log(`YuGiOh: Got ${response.data.data.length} new cards`);
+                    response.data.data.forEach(card => {
+                        cards.push(this.parseYugiohCardData(card));
+                    });
+                }
+            } else {
+                // For full download, get staple cards
+                const cardLimit = setCount === 'all' ? 500 : parseInt(setCount) * 50 || 100;
+                
+                const response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php', {
+                    params: {
+                        staple: 'yes',
+                        num: Math.min(cardLimit, 500),
+                        offset: 0
+                    },
+                    timeout: 30000,
+                    headers: {
+                        'User-Agent': 'CardCast/1.0.0'
+                    }
+                });
+                
+                if (response.data && response.data.data) {
+                    console.log(`YuGiOh: Got ${response.data.data.length} cards`);
+                    response.data.data.forEach(card => {
+                        cards.push(this.parseYugiohCardData(card));
+                    });
+                }
             }
         } catch (error) {
             console.error('Error fetching Yu-Gi-Oh! cards:', error.message);
@@ -585,6 +708,38 @@ class TCGApi {
         }
         
         return cards;
+    }
+    
+    parseYugiohCardData(card) {
+        return {
+            id: `yugioh_${card.id}`,
+            game: 'yugioh',
+            name: card.name,
+            set_name: card.card_sets?.[0]?.set_name || '',
+            set_code: card.card_sets?.[0]?.set_code || '',
+            set_abbreviation: card.card_sets?.[0]?.set_code || '',
+            card_number: card.card_sets?.[0]?.set_code || '',
+            image_url: card.card_images?.[0]?.image_url || '',
+            rarity: card.card_sets?.[0]?.set_rarity || 'Common',
+            card_type: card.type || '',
+            card_text: card.desc || '',
+            // Store YuGiOh-specific attributes
+            attack: card.atk || null,
+            defense: card.def || null,
+            level: card.level || null,
+            rank: card.rank || null,
+            link_value: card.linkval || null,
+            pendulum_scale: card.scale || null,
+            attribute: card.attribute || '',
+            monster_type: card.race || '',
+            attributes: {
+                attack: card.atk || null,
+                defense: card.def || null,
+                level: card.level || null,
+                attribute: card.attribute || '',
+                race: card.race || ''
+            }
+        };
     }
     
     // Rest of the methods remain the same...
@@ -685,7 +840,6 @@ class TCGApi {
                 console.log(`Cleared ${files.length} cached images for ${game}`);
             } catch (err) {
                 console.error(`Error clearing images for ${game}:`, err.message);
-                // Don't throw error, just log it
             }
         }
     }
@@ -712,7 +866,7 @@ class TCGApi {
         return text.trim();
     }
     
-    // Sample data generation methods remain the same...
+    // Sample data generation methods
     generateSampleCards(game) {
         const cards = [];
         const sets = this.getSampleSets(game);
