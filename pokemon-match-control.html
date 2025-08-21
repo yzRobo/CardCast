@@ -540,9 +540,9 @@
         </div>
     </div>
     
-    <!-- Search Overlay -->
+    <!-- Updated Search Overlay -->
     <div class="search-overlay" id="searchOverlay">
-        <div class="card w-full max-w-4xl bg-base-100">
+        <div class="card w-full max-w-5xl bg-base-100">
             <div class="card-body">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="card-title">Select Pokemon</h2>
@@ -551,21 +551,25 @@
                 
                 <!-- Search mode indicator -->
                 <div id="searchModeIndicator" class="alert alert-info mb-4 hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <span id="searchModeText"></span>
                 </div>
                 
-                <input type="text" id="pokemonSearch" placeholder="Search Pokemon..." 
-                       class="input input-bordered w-full mb-4">
-                       
-                <!-- Toggle for searching all cards vs deck -->
-                <div class="form-control mb-4">
-                    <label class="label cursor-pointer">
-                        <span class="label-text">Search all cards (ignore deck restriction)</span>
-                        <input type="checkbox" id="searchAllCards" class="toggle" onchange="toggleSearchMode()">
-                    </label>
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="pokemonSearch" placeholder="Filter cards..." 
+                           class="input input-bordered flex-1">
+                           
+                    <!-- Toggle for searching all cards vs deck -->
+                    <div class="form-control">
+                        <label class="label cursor-pointer flex gap-2">
+                            <span class="label-text whitespace-nowrap">Search all cards</span>
+                            <input type="checkbox" id="searchAllCards" class="toggle toggle-primary" onchange="toggleSearchMode()">
+                        </label>
+                    </div>
                 </div>
                 
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 max-h-96 overflow-y-auto" 
+                <!-- Increased grid size and max height for better viewing -->
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 max-h-[600px] overflow-y-auto p-2" 
                      id="searchResults">
                     <!-- Search results will appear here -->
                 </div>
@@ -637,7 +641,7 @@
             setupActiveZoneDragDrop(1);
             setupActiveZoneDragDrop(2);
             
-            // Setup search
+            // Setup search with updated function
             document.getElementById('pokemonSearch').addEventListener('input', debounce(searchPokemon, 300));
             
             // Setup stadium search
@@ -684,6 +688,91 @@
                 socket.emit('check-overlay-status', 'pokemon-match');
             });
         });
+        
+        // NEW FUNCTION: Populate deck cards when opening search
+        async function populateDeckCards() {
+            const searchAllCards = document.getElementById('searchAllCards').checked;
+            
+            if (!currentSelection) return;
+            
+            const playerNum = currentSelection.player === 'player1' ? 1 : 2;
+            const deckCardNames = playerDeckCards[`player${playerNum}`];
+            
+            // If no deck selected or searching all cards, don't pre-populate
+            if (deckCardNames.length === 0 || searchAllCards) {
+                document.getElementById('searchResults').innerHTML = '<div class="col-span-full text-center text-base-content/50">Search for Pokemon cards to add...</div>';
+                return;
+            }
+            
+            // Get unique card names from deck
+            const uniqueCardNames = [...new Set(deckCardNames)];
+            
+            // Fetch card data for all unique cards in the deck
+            const allCards = [];
+            const loadingIndicator = document.getElementById('searchResults');
+            loadingIndicator.innerHTML = '<div class="col-span-full text-center"><span class="loading loading-spinner loading-md"></span> Loading Pokemon from deck...</div>';
+            
+            for (const cardName of uniqueCardNames) {
+                try {
+                    const response = await fetch(`/api/search/pokemon?q=${encodeURIComponent(cardName)}`);
+                    const results = await response.json();
+                    
+                    // Find the best match for this card name - ONLY POKEMON
+                    const exactMatch = results.find(card => 
+                        card.name.toLowerCase() === cardName.toLowerCase() && isPokemonCard(card)
+                    );
+                    
+                    if (exactMatch) {
+                        allCards.push(exactMatch);
+                    } else {
+                        // If no exact match, look for first Pokemon result
+                        const firstPokemon = results.find(card => isPokemonCard(card));
+                        if (firstPokemon) {
+                            allCards.push(firstPokemon);
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error fetching card: ${cardName}`, error);
+                }
+            }
+            
+            // Display all Pokemon cards from deck
+            displaySearchResults(allCards);
+        }
+        
+        // Helper function to determine if a card is a Pokemon
+        function isPokemonCard(card) {
+            // Check if card has HP (Pokemon cards have HP)
+            if (card.hp && parseInt(card.hp) > 0) {
+                return true;
+            }
+            
+            // Additional checks based on card properties
+            // Trainers and Energy typically don't have HP
+            const cardNameLower = card.name.toLowerCase();
+            
+            // Common trainer keywords to exclude
+            const trainerKeywords = ['trainer', 'supporter', 'item', 'tool', 'stadium'];
+            for (const keyword of trainerKeywords) {
+                if (card.type?.toLowerCase().includes(keyword) || 
+                    card.category?.toLowerCase().includes(keyword)) {
+                    return false;
+                }
+            }
+            
+            // Common energy keywords to exclude
+            const energyKeywords = ['energy', 'basic energy'];
+            for (const keyword of energyKeywords) {
+                if (cardNameLower.includes(keyword) || 
+                    card.type?.toLowerCase().includes(keyword) ||
+                    card.category?.toLowerCase().includes(keyword)) {
+                    return false;
+                }
+            }
+            
+            // If we're not sure but it doesn't have HP, it's probably not a Pokemon
+            return false;
+        }
         
         // Deck Management Functions
         async function loadAvailableDecks() {
@@ -805,13 +894,22 @@
             saveMatchState();
         }
         
+        // UPDATED: Toggle search mode with deck card display
         function toggleSearchMode() {
             const searchAllCards = document.getElementById('searchAllCards').checked;
             updateSearchModeIndicator();
             
-            // Re-trigger search if there's text in the search box
             const searchInput = document.getElementById('pokemonSearch');
-            if (searchInput.value.length >= 2) {
+            
+            // If search input is empty, populate deck cards or clear
+            if (searchInput.value.length === 0) {
+                if (searchAllCards) {
+                    document.getElementById('searchResults').innerHTML = '<div class="col-span-full text-center text-base-content/50">Search for Pokemon cards to add...</div>';
+                } else {
+                    populateDeckCards();
+                }
+            } else if (searchInput.value.length >= 2) {
+                // Re-trigger search if there's text in the search box
                 searchPokemon({ target: searchInput });
             }
         }
@@ -1213,9 +1311,11 @@
             }
         }
         
+        // UPDATED: Select Pokemon with deck card population
         function selectPokemonFor(player, slot, benchIndex = null) {
             currentSelection = { player, slot, benchIndex };
             document.getElementById('searchOverlay').classList.add('active');
+            document.getElementById('pokemonSearch').value = ''; // Clear search input
             document.getElementById('pokemonSearch').focus();
             
             // Reset search mode checkbox
@@ -1223,10 +1323,21 @@
             
             // Update search mode indicator
             updateSearchModeIndicator();
+            
+            // Populate deck cards immediately
+            populateDeckCards();
         }
         
+        // UPDATED: Search Pokemon with better deck filtering
         async function searchPokemon(event) {
-            const query = event.target.value;
+            const query = event.target.value.trim();
+            
+            // If query is empty and we have a deck, show all deck cards
+            if (query.length === 0) {
+                populateDeckCards();
+                return;
+            }
+            
             if (query.length < 2) {
                 document.getElementById('searchResults').innerHTML = '';
                 return;
@@ -1241,12 +1352,46 @@
                 const response = await fetch(`/api/search/pokemon?q=${encodeURIComponent(query)}`);
                 let results = await response.json();
                 
+                // Filter to only Pokemon cards
+                results = results.filter(card => isPokemonCard(card));
+                
                 // If deck is selected and not searching all cards, filter by deck card names
                 if (deckCardNames.length > 0 && !searchAllCards) {
-                    const deckCardNamesLower = new Set(deckCardNames.map(name => name.toLowerCase()));
-                    results = results.filter(card => 
-                        deckCardNamesLower.has(card.name.toLowerCase())
+                    // Create a map of normalized deck card names for better matching
+                    const deckCardNamesNormalized = new Set(
+                        deckCardNames.map(name => 
+                            name.toLowerCase()
+                                .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+                                .replace(/\s+/g, ' ')         // Normalize spaces
+                                .trim()
+                        )
                     );
+                    
+                    // Also keep original names for exact matching
+                    const deckCardNamesLower = new Set(deckCardNames.map(name => name.toLowerCase()));
+                    
+                    results = results.filter(card => {
+                        const cardNameLower = card.name.toLowerCase();
+                        const cardNameNormalized = cardNameLower
+                            .replace(/[^a-z0-9\s]/g, '')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                        
+                        // Check both exact and normalized matches
+                        return deckCardNamesLower.has(cardNameLower) || 
+                               deckCardNamesNormalized.has(cardNameNormalized);
+                    });
+                    
+                    // Remove duplicates by card name
+                    const uniqueResults = [];
+                    const seenNames = new Set();
+                    for (const card of results) {
+                        if (!seenNames.has(card.name.toLowerCase())) {
+                            seenNames.add(card.name.toLowerCase());
+                            uniqueResults.push(card);
+                        }
+                    }
+                    results = uniqueResults;
                 }
                 
                 displaySearchResults(results);
@@ -1255,20 +1400,41 @@
             }
         }
         
+        // UPDATED: Display search results with better messages
         function displaySearchResults(results) {
             const container = document.getElementById('searchResults');
             
             if (results.length === 0) {
-                container.innerHTML = '<div class="col-span-full text-center text-base-content/50">No matching cards found</div>';
+                const searchAllCards = document.getElementById('searchAllCards').checked;
+                const playerNum = currentSelection.player === 'player1' ? 1 : 2;
+                const hasDeck = playerDeckCards[`player${playerNum}`].length > 0;
+                
+                let message = 'No Pokemon cards found';
+                if (hasDeck && !searchAllCards) {
+                    message = 'No Pokemon cards found in deck. Try enabling "Search all cards" to search outside the deck.';
+                }
+                
+                container.innerHTML = `<div class="col-span-full text-center text-base-content/50">${message}</div>`;
                 return;
             }
             
-            container.innerHTML = results.map(card => `
+            // Remove duplicates by card ID
+            const uniqueCards = [];
+            const seenIds = new Set();
+            for (const card of results) {
+                if (!seenIds.has(card.id)) {
+                    seenIds.add(card.id);
+                    uniqueCards.push(card);
+                }
+            }
+            
+            container.innerHTML = uniqueCards.map(card => `
                 <div class="card bg-base-200 cursor-pointer hover:shadow-lg transition-shadow" 
                      onclick="selectPokemon('${card.id}')">
                     <figure class="px-2 pt-2">
                         <img src="${card.display_image || card.local_image || card.image_url}" 
-                             class="rounded-lg pokemon-card-aspect object-cover w-full">
+                             class="rounded-lg pokemon-card-aspect object-cover w-full"
+                             onerror="this.src='/images/card-back.png'">
                     </figure>
                     <div class="card-body p-2">
                         <p class="text-xs font-semibold">${card.name}</p>
@@ -1645,6 +1811,7 @@
             saveMatchState();
         }
         
+        // UPDATED: Close search with input clearing
         function closeSearch() {
             document.getElementById('searchOverlay').classList.remove('active');
             document.getElementById('pokemonSearch').value = '';
