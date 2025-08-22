@@ -1,6 +1,6 @@
 # CardCast
 
-A professional streaming overlay tool for Trading Card Game content creators. Display card images and information in real-time through OBS browser sources, with all data stored locally for offline use.
+A straightforward streaming overlay tool for Trading Card Game content creators. Display card images and information in real-time through OBS browser sources, with all data stored locally for offline use. No Plug-ins needed!
 
 ## Currently Supported Games
 
@@ -26,7 +26,7 @@ A professional streaming overlay tool for Trading Card Game content creators. Di
 ## Quick Start
 
 ### Option 1: Portable Version (Recommended)
-1. Download the latest release from [Releases](https://github.com/yourusername/cardcast/releases)
+1. Download the latest release from [Releases](https://github.com/yzRobo/CardCast/releases)
 2. Extract the ZIP file to any folder
 3. Double-click `CardCast.bat`
 4. The app will automatically:
@@ -37,7 +37,7 @@ A professional streaming overlay tool for Trading Card Game content creators. Di
 ### Option 2: Development Setup
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/cardcast.git
+git clone https://github.com/yzRobo/CardCast.git
 cd cardcast
 
 # Install dependencies
@@ -156,7 +156,7 @@ Edit `config.json` to customize:
 - Node.js 16+ (LTS recommended)
 - Windows 10/11 (primary platform)
 - 4GB RAM minimum
-- 2GB free disk space
+- 5GB free disk space (for card image storage)
 
 ### Project Structure
 - **Express.js** backend with Socket.io

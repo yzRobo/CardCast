@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recent cards quick access
 - Download progress tracking
 - Auto-update checking for card data
+- Deck importing works with PTCGL and Limitless lists. 
 
 ### Changed
 - Switched from pkg executable to portable Node.js distribution
@@ -40,8 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known Issues
 - Only Pokemon TCG is currently functional
-- Some older Pokemon sets may have incomplete data
-- Card images are downloaded on-demand (may cause initial delays)
+- Pokemon Match Control deck lists will show a some extra cards that aren't part of that deck list.
 
 ## [0.9.0] - 2025-08-18 (Pre-release)
 
