@@ -120,8 +120,7 @@ Update documentation when you:
 ### Questions?
 
 - Open an issue for discussion
-- Join our Discord (coming soon)
-- Email: support@cardcast.app
+- Contact me on [Twitter](https://twitter.com/yzRobo)
 
 ## Code of Conduct
 
