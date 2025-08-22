@@ -32,7 +32,7 @@ A straightforward streaming overlay tool for Trading Card Game content creators.
 4. The app will automatically:
    - Download portable Node.js if needed (no admin required)
    - Install dependencies on first run
-   - Open your browser to http://localhost:3888
+   - Open your browser to http://localhost:3888 (It should open automatically in your default browser)
 
 ### Option 2: Development Setup
 ```bash
