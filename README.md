@@ -1,58 +1,40 @@
 # CardCast
 
-Streaming overlay tool for Trading Card Game content creators. Display card information in real-time with OBS Studio.
+A professional streaming overlay tool for Trading Card Game content creators. Display card images and information in real-time through OBS browser sources, with all data stored locally for offline use.
 
-## Supported Games
+## Currently Supported Games
 
-- Pokemon TCG
-- Magic: The Gathering
-- Yu-Gi-Oh!
-- Disney Lorcana
-- One Piece Card Game
-- Digimon Card Game
-- Flesh and Blood
-- Star Wars Unlimited
+- **Pokemon TCG** - Fully functional with 20,000+ cards
+- Magic: The Gathering *(Coming Soon)*
+- Yu-Gi-Oh! *(Coming Soon)*
+- Disney Lorcana *(Coming Soon)*
+- One Piece Card Game *(Coming Soon)*
+- Digimon Card Game *(Coming Soon)*
+- Flesh and Blood *(Coming Soon)*
+- Star Wars Unlimited *(Coming Soon)*
 
 ## Features
 
-- Instant card search
-- Offline mode with local data storage
-- Professional overlay layouts
-- OBS browser source integration
-- Game-specific displays
-- Real-time updates
-- Dark mode interface
+- **Instant Card Search** - Fast fuzzy search with smart filtering
+- **Offline Mode** - All data stored locally after initial download
+- **OBS Integration** - Professional overlays for streaming
+- **Pokemon Match Tracker** - Dual player display with prize cards
+- **Deck Builder** - Import and manage deck lists
+- **Dark Theme** - Modern glassmorphic interface
+- **Auto-Updates** - Keep card data current with one click
 
 ## Quick Start
 
-1. Download the latest release for your platform
-2. Launch CardCast
-3. Select your TCG and download card data
-4. Add the browser source URL to OBS
-5. Start searching and displaying cards
+### Option 1: Portable Version (Recommended)
+1. Download the latest release from [Releases](https://github.com/yourusername/cardcast/releases)
+2. Extract the ZIP file to any folder
+3. Double-click `CardCast.bat`
+4. The app will automatically:
+   - Download portable Node.js if needed (no admin required)
+   - Install dependencies on first run
+   - Open your browser to http://localhost:3888
 
-## Installation
-
-### Windows
-```bash
-# Download the .exe installer from releases
-CardCast-Setup-1.0.0.exe
-```
-
-### macOS
-```bash
-# Download the .dmg from releases
-CardCast-1.0.0.dmg
-```
-
-### Linux
-```bash
-# Download the .AppImage from releases
-CardCast-1.0.0.AppImage
-```
-
-## Development
-
+### Option 2: Development Setup
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/cardcast.git
@@ -61,41 +43,205 @@ cd cardcast
 # Install dependencies
 npm install
 
-# Run in development mode
+# Start development server
 npm run dev
 
-# Build for production
+# Build portable distribution
 npm run build
-
-# Package for distribution
-npm run dist
 ```
 
 ## OBS Setup
 
-1. Open CardCast and navigate to Settings
-2. Copy your browser source URL (default: `http://localhost:3888/overlay`)
-3. In OBS, add a new Browser Source
-4. Paste the URL and set dimensions (1920x1080 recommended)
-5. Cards will appear automatically when searched in CardCast
+1. In CardCast, go to the **OBS Setup** tab
+2. Copy the browser source URLs
+3. In OBS Studio:
+   - Add a new **Browser Source**
+   - Paste the URL
+   - Set dimensions to **1920x1080**
+   - Set FPS to **30**
+
+### Available Overlays
+
+| Overlay | URL | Description |
+|---------|-----|-------------|
+| Main Display | `http://localhost:3888/overlay` | Dual card display with VS indicator |
+| Prize Cards | `http://localhost:3888/prizes` | Pokemon prize tracker (6 cards) |
+| Deck List | `http://localhost:3888/decklist` | Full deck display |
+| Pokemon Match | `http://localhost:3888/pokemon-match` | Complete match overlay |
+
+## Pokemon Features
+
+### Card Search
+- Search by name, set code, or card number
+- Smart search: `"Pikachu SV01 25"` finds exact card
+- Fuzzy matching for partial names
+- Recent cards quick access
+
+### Pokemon Match Overlay
+- Player name displays
+- Active Pokemon slots
+- Bench Pokemon (up to 5)
+- Prize card tracker
+- Turn indicator
+- Match timer
+
+### Deck Import
+Supports multiple formats:
+- **PTCGL Format**: `4 Professor's Research SV01 25`
+- **Limitless TCG**: Copy/paste from deck lists
+- **Simple Format**: Just card names with quantities
+
+## File Structure
+
+```
+CardCast/
+├── CardCast.bat          # One-click launcher
+├── server.js             # Main application
+├── config.json           # User settings
+├── public/               # Web interface
+├── src/                  # Core modules
+├── overlays/             # OBS overlay files
+├── data/                 # Card databases (auto-created)
+└── cache/                # Card images (auto-created)
+```
 
 ## Configuration
 
-CardCast stores all data locally in:
-- Windows: `%APPDATA%/CardCast`
-- macOS: `~/Library/Application Support/CardCast`
-- Linux: `~/.config/CardCast`
+Edit `config.json` to customize:
+```json
+{
+  "port": 3888,           // Change if port is in use
+  "theme": "dark",        // UI theme
+  "autoUpdate": true,     // Auto-check for card updates
+  "games": {
+    "pokemon": { 
+      "enabled": true,    // Currently the only working game
+      "dataPath": null 
+    }
+  }
+}
+```
 
-## Requirements
+## Troubleshooting
 
-- OBS Studio 28.0 or higher
+### Port Already in Use
+1. Edit `config.json`
+2. Change `"port": 3888` to another number (e.g., `3889`)
+3. Restart CardCast
+
+### OBS Not Showing Cards
+- Verify CardCast is running
+- Check the browser source URL is correct
+- Try refreshing the browser source cache in OBS
+- Ensure Windows Firewall isn't blocking connections
+
+### Cards Not Downloading
+- Check your internet connection
+- Verify Windows Defender isn't blocking the app
+- Try running as Administrator
+- Delete `data/cardcast.db` and try again
+
+### Database Errors
+```bash
+# Reset the database
+1. Close CardCast
+2. Delete the `data` folder
+3. Restart CardCast
+4. Re-download card data
+```
+
+## Development
+
+### Requirements
+- Node.js 16+ (LTS recommended)
+- Windows 10/11 (primary platform)
 - 4GB RAM minimum
-- 2GB free disk space per game
+- 2GB free disk space
+
+### Project Structure
+- **Express.js** backend with Socket.io
+- **SQLite** database via better-sqlite3
+- **Vanilla JavaScript** frontend
+- **DaisyUI** + Tailwind CSS styling
+
+### Build Process
+```bash
+# Install dependencies
+npm install
+
+# Run tests
+npm test
+
+# Build portable distribution
+npm run build
+
+# The output will be in dist-portable/
+```
+
+## Data Sources
+
+Card data is sourced from:
+[PokemonTCG.io](https://pokemontcg.io/) - Highly Organized and Comprehensive Pokemon TCG API.
+[TCGCSV.com](https://tcgcsv.com) - A Comprehensive TCGPlayer Database API.
+
+## Contributing
+
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+### Priority Areas
+- Adding support for more TCGs
+- Improving search algorithms
+- Creating new overlay designs
+- Performance optimizations
 
 ## License
 
-GPL-3.0 - This ensures CardCast remains free and open source forever. See [LICENSE](LICENSE) file for details.
+**GPL-3.0** - This ensures CardCast remains free and open source forever.
 
-## Credits
+Key points:
+- Free to use for any purpose
+- Modify and distribute freely
+- Must keep source code open
+- Include license in distributions
 
-Card data provided by TCGCSV.com API
+See [LICENSE](LICENSE) file for full details.
+
+## Roadmap
+
+### Current Focus
+- [x] Pokemon TCG full support
+- [x] OBS overlay system
+- [x] Deck import/export
+- [x] Portable distribution
+
+### Coming Soon
+- [ ] Magic: The Gathering support
+- [ ] Yu-Gi-Oh! integration
+- [ ] Disney Lorcana cards
+- [ ] Tournament mode
+- [ ] Stream deck integration
+- [ ] Custom overlay designer
+- [ ] Multi-language support
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/yzRobo/CardCast/issues)
+- **Discord**: Coming soon
+- **Email**: support@cardcast.app
+
+## Acknowledgments
+
+- [PokemonTCG.io](https://pokemontcg.io/) for card data
+- [TCGCSV.com](https://tcgcsv.com) for card data
+- [Socket.io](https://socket.io) for real-time updates
+- [Better-SQLite3](https://github.com/WiseLibs/better-sqlite3) for database
+- [DaisyUI](https://daisyui.com) for UI components
+- The TCG streaming community for inspiration
+
+---
+
+**CardCast v1.0.0** - Built with love for the TCG streaming community

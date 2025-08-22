@@ -1,0 +1,154 @@
+# Release Checklist for CardCast
+
+## Pre-Release Testing
+
+### Functionality Tests
+- [ ] Pokemon card search works
+- [ ] OBS overlays display correctly
+- [ ] Deck import/export functions
+- [ ] Download progress shows properly
+- [ ] Socket.io real-time updates work
+- [ ] Database operations (CRUD) work
+- [ ] Error handling displays user-friendly messages
+
+### Build Tests
+- [ ] `npm test` passes
+- [ ] `npm run build` creates dist-portable successfully
+- [ ] CardCast.bat launches correctly
+- [ ] Auto-downloads Node.js if not installed
+- [ ] Dependencies install on first run
+- [ ] Server starts and opens browser
+
+### Cross-System Tests
+- [ ] Windows 10 compatibility
+- [ ] Windows 11 compatibility
+- [ ] Works with Node.js 16+
+- [ ] Works with Node.js 18+
+- [ ] Works with Node.js 20+
+
+## Release Preparation
+
+### Code Updates
+- [ ] Version number updated in package.json
+- [ ] CHANGELOG.md updated with new version
+- [ ] README.md reviewed and updated
+- [ ] Config.json has correct defaults
+- [ ] Remove any debug console.log statements
+- [ ] Remove any test data
+
+### Documentation
+- [ ] README.md is current
+- [ ] CHANGELOG.md has release date
+- [ ] API documentation is updated
+- [ ] OBS setup guide is clear
+- [ ] Troubleshooting section covers known issues
+
+### Build Process
+```bash
+# Clean build
+npm run clean
+npm install
+npm test
+npm run build
+```
+
+### Distribution Package
+- [ ] Build creates dist-portable/ folder
+- [ ] All required files are included:
+  - [ ] CardCast.bat
+  - [ ] server.js
+  - [ ] package.json
+  - [ ] config.json
+  - [ ] index.html
+  - [ ] src/ folder
+  - [ ] public/ folder
+  - [ ] overlays/ folder
+  - [ ] scripts/ folder
+  - [ ] README.txt
+- [ ] Test the distribution on clean system
+- [ ] ZIP file size is reasonable (<15MB)
+
+## GitHub Release
+
+### Create Release
+1. Tag version: `git tag v1.0.0`
+2. Push tag: `git push origin v1.0.0`
+3. Create GitHub release
+4. Title: `CardCast v1.0.0 - Pokemon TCG Support`
+5. Attach `CardCast-v1.0.0-portable.zip`
+
+### Release Notes Template
+```markdown
+## CardCast v1.0.0
+
+### Features
+- Full Pokemon TCG support (20,000+ cards)
+- Real-time OBS overlays
+- Offline mode after initial download
+- Deck import/export
+- Auto-updating card data
+
+### Installation
+1. Download CardCast-v1.0.0-portable.zip
+2. Extract to any folder
+3. Run CardCast.bat
+4. Follow setup instructions
+
+### Requirements
+- Windows 10 or later
+- 2GB free disk space
+- Internet for initial card download
+
+### What's New
+- [List major changes]
+
+### Known Issues
+- [List any known problems]
+
+### Coming Soon
+- Magic: The Gathering support
+- Yu-Gi-Oh! support
+- More overlay designs
+
+Full changelog: [CHANGELOG.md]
+```
+
+## Post-Release
+
+### Community
+- [ ] Announce on Reddit (r/Twitch, r/obs, r/pkmntcg)
+- [ ] Post on Twitter/X
+- [ ] Share in Discord communities
+- [ ] Update project website (if exists)
+
+### Monitoring
+- [ ] Watch GitHub issues for bug reports
+- [ ] Monitor download statistics
+- [ ] Gather user feedback
+- [ ] Plan next version features
+
+### Backup
+- [ ] Tag release in Git
+- [ ] Backup distribution file
+- [ ] Archive release notes
+- [ ] Document any hotfix procedures
+
+## Hotfix Procedure
+
+If critical bug found:
+1. Fix in `hotfix/v1.0.1` branch
+2. Test thoroughly
+3. Update version to 1.0.1
+4. Rebuild and test distribution
+5. Create new release
+6. Notify users of update
+
+## Version Numbering
+
+- **Major** (1.0.0): New TCG support or breaking changes
+- **Minor** (1.1.0): New features, overlay designs
+- **Patch** (1.0.1): Bug fixes, small improvements
+
+---
+
+Remember: Quality over speed. Test thoroughly before release!

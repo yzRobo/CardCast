@@ -6,15 +6,16 @@ pnpm-lock.yaml
 
 # Build outputs
 dist/
+dist-portable/
 build/
 out/
-.next/
-.cache/
+*.exe
 
 # Local data and databases
 *.db
 *.sqlite
 data/
+cache/
 cards/
 images/
 
@@ -28,12 +29,14 @@ images/
 .DS_Store
 Thumbs.db
 desktop.ini
-
-# IDE
-.vscode/
-.idea/
 *.swp
 *.swo
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
 
 # Logs
 logs/
@@ -41,16 +44,31 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
 
 # Testing
 coverage/
 .nyc_output/
-
-# Electron
-dist_electron/
-electron-builder.yml
+*.lcov
 
 # Temporary files
 tmp/
 temp/
 *.tmp
+*.temp
+
+# Config overrides (keep the default)
+config.local.json
+config.override.json
+
+# Portable Node.js (from build)
+node-portable/
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Keep default config
+!config.json

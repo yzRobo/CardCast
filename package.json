@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "description": "Streaming overlay tool for TCG content creators",
   "main": "server.js",
+  "bin": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "node scripts/build-exe.js",
+    "build-portable": "node scripts/build-portable.js",
     "test": "node scripts/test-setup.js",
     "setup": "npm install && node scripts/test-setup.js",
     "clean": "rimraf node_modules dist data/*.db cache/*",
@@ -52,12 +54,16 @@
       "src/**/*",
       "overlays/**/*",
       "index.html",
-      "config.json"
+      "config.json",
+      "node_modules/axios/**/*"
+    ],
+    "scripts": [
+      "src/**/*.js",
+      "node_modules/axios/dist/node/axios.cjs"
     ],
     "targets": [
       "node18-win-x64"
     ],
-    "outputPath": "dist",
-    "compress": "GZip"
+    "outputPath": "dist"
   }
 }
