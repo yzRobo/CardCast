@@ -50,6 +50,14 @@ document.addEventListener('DOMContentLoaded', () => {
     loadConfig();
     setupKeyboardShortcuts();
     initOBSConnection();
+    
+    // Auto-select Pokemon on load since it's the only working game
+    setTimeout(() => {
+        const pokemonItem = document.querySelector('[data-game="pokemon"]');
+        if (pokemonItem) {
+            pokemonItem.click();
+        }
+    }, 500);
 });
 
 // Initialize OBS Connection monitoring
@@ -139,12 +147,16 @@ async function loadGames() {
     }
 }
 
-// Create game element
+// Create game element - UPDATED FOR COMING SOON
 function createGameElement(game) {
+    console.log('Creating element for:', game.id, 'isPokemon:', game.id === 'pokemon', 'full game object:', game);
+    
     const gameItem = document.createElement('div');
     gameItem.className = 'game-item';
     gameItem.dataset.game = game.id;
     
+    // Only Pokemon is available
+    const isPokemon = game.id === 'pokemon';
     const hasData = game.hasData && game.cardCount > 0;
     const cardCountFormatted = game.cardCount >= 1000 
         ? `${(game.cardCount / 1000).toFixed(1)}k` 
@@ -161,6 +173,28 @@ function createGameElement(game) {
         starwars: 'bg-gradient-to-br from-gray-500 to-slate-600'
     };
     
+    // Add opacity for non-Pokemon games
+    if (!isPokemon) {
+        gameItem.style.opacity = '0.6';
+        gameItem.style.cursor = 'not-allowed';
+    }
+    
+    // Determine button HTML based on game
+    let buttonHTML = '';
+    if (!isPokemon) {
+        // Not Pokemon - always show Coming Soon
+        buttonHTML = '<div class="badge badge-neutral badge-sm">Coming Soon</div>';
+    } else if (hasData) {
+        // Pokemon with data - show Update and Delete
+        buttonHTML = `
+            <button class="btn btn-xs btn-primary" onclick="event.stopPropagation(); updateGameData('${game.id}')">Update</button>
+            <button class="btn btn-xs btn-error btn-outline" onclick="event.stopPropagation(); deleteGameData('${game.id}')">×</button>
+        `;
+    } else {
+        // Pokemon without data - show Download
+        buttonHTML = `<button class="btn btn-xs btn-secondary" onclick="event.stopPropagation(); downloadGameData('${game.id}')">Download</button>`;
+    }
+    
     gameItem.innerHTML = `
         <div class="flex items-center gap-3 flex-1">
             <div class="avatar">
@@ -173,27 +207,37 @@ function createGameElement(game) {
             <div class="flex-1">
                 <div class="font-semibold text-base-content">${game.name}</div>
                 <div class="text-xs opacity-60">
-                    ${hasData ? `${cardCountFormatted} cards` : 'No data'}
+                    ${!isPokemon ? 'Coming Soon' : (hasData ? `${cardCountFormatted} cards` : 'No data')}
                 </div>
             </div>
         </div>
         <div class="flex gap-2">
-            ${hasData ? `
-                <button class="btn btn-xs btn-primary" onclick="event.stopPropagation(); updateGameData('${game.id}')">Update</button>
-                <button class="btn btn-xs btn-error btn-outline" onclick="event.stopPropagation(); deleteGameData('${game.id}')">×</button>
-            ` : `
-                <button class="btn btn-xs btn-secondary" onclick="event.stopPropagation(); downloadGameData('${game.id}')">Download</button>
-            `}
+            ${buttonHTML}
         </div>
     `;
     
-    gameItem.onclick = () => selectGame(game.id, hasData);
+    // Set click handler
+    if (isPokemon) {
+        gameItem.onclick = () => selectGame(game.id, hasData);
+    } else {
+        gameItem.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showToast(`${game.name} support is coming soon!`);
+        };
+    }
     
     return gameItem;
 }
 
-// Select a game
+// Select a game - UPDATED FOR COMING SOON
 function selectGame(gameId, hasData) {
+    // Only allow selecting Pokemon
+    if (gameId !== 'pokemon') {
+        showToast(`${gameId.charAt(0).toUpperCase() + gameId.slice(1)} support is coming soon!`);
+        return;
+    }
+    
     currentGame = gameId;
     
     // Update UI
@@ -222,8 +266,14 @@ function selectGame(gameId, hasData) {
     clearSearchResults();
 }
 
-// Download game data
+// Download game data - UPDATED FOR COMING SOON
 async function downloadGameData(gameId) {
+    // Only allow download for Pokemon
+    if (gameId !== 'pokemon') {
+        showToast(`${gameId.charAt(0).toUpperCase() + gameId.slice(1)} support is coming soon!`);
+        return;
+    }
+    
     const setCount = document.querySelector('input[name="sets"]:checked')?.value || '1';
     showDownloadProgress(true);
     
@@ -244,8 +294,14 @@ async function downloadGameData(gameId) {
     }
 }
 
-// Update game data
+// Update game data - UPDATED FOR COMING SOON
 async function updateGameData(gameId) {
+    // Only allow update for Pokemon
+    if (gameId !== 'pokemon') {
+        showToast(`${gameId.charAt(0).toUpperCase() + gameId.slice(1)} support is coming soon!`);
+        return;
+    }
+    
     const setCount = document.querySelector('input[name="sets"]:checked')?.value || '3';
     showDownloadProgress(true);
     
@@ -253,7 +309,7 @@ async function updateGameData(gameId) {
         const response = await fetch(`/api/download/${gameId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ incremental: true, setCount }) // Now includes setCount!
+            body: JSON.stringify({ incremental: true, setCount })
         });
         
         if (!response.ok) {
@@ -266,8 +322,14 @@ async function updateGameData(gameId) {
     }
 }
 
-// Delete game data
+// Delete game data - UPDATED FOR COMING SOON
 async function deleteGameData(gameId) {
+    // Only allow delete for Pokemon
+    if (gameId !== 'pokemon') {
+        showToast(`${gameId.charAt(0).toUpperCase() + gameId.slice(1)} support is coming soon!`);
+        return;
+    }
+    
     if (!confirm(`Delete all data for ${gameId}?\n\nThis action cannot be undone.`)) {
         return;
     }
@@ -290,12 +352,18 @@ async function deleteGameData(gameId) {
     }
 }
 
-// Handle search
+// Handle search - UPDATED FOR COMING SOON
 async function handleSearch(event) {
     const query = event.target.value.trim();
     
     if (!currentGame || query.length < 2) {
         clearSearchResults();
+        return;
+    }
+    
+    // Only allow search for Pokemon
+    if (currentGame !== 'pokemon') {
+        showToast(`${currentGame.charAt(0).toUpperCase() + currentGame.slice(1)} support is coming soon!`);
         return;
     }
     
@@ -483,7 +551,7 @@ function addToBench(playerNum) {
     }
     
     const player = pokemonMatchState[`player${playerNum}`];
-    if (player.bench.length >= player.benchSize) {
+    if (player.bench.length >= 5) {
         alert(`Player ${playerNum}'s bench is full!`);
         return;
     }
@@ -857,6 +925,35 @@ function showDownloadProgress(show) {
     }
 }
 
+// Toast notification function - NEW
+function showToast(message) {
+    // Check if toast container exists, if not create it
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast toast-top toast-end';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-info';
+    toast.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <span>${message}</span>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Remove toast after 3 seconds
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
 // Load config
 async function loadConfig() {
     try {
@@ -973,3 +1070,31 @@ window.showDeckList = showDeckList;
 window.hideDeckList = hideDeckList;
 window.addSelectedToDeck = addSelectedToDeck;
 window.clearDeckList = clearDeckList;
+window.downloadGameData = downloadGameData;
+window.updateGameData = updateGameData;
+window.deleteGameData = deleteGameData;
+window.selectGame = selectGame;
+
+// Add CSS for coming soon styling
+const style = document.createElement('style');
+style.textContent = `
+    .game-item[data-game]:not([data-game="pokemon"]) {
+        position: relative;
+    }
+    
+    .game-item[data-game]:not([data-game="pokemon"])::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.1);
+        pointer-events: none;
+    }
+    
+    .toast {
+        z-index: 9999;
+    }
+`;
+document.head.appendChild(style);

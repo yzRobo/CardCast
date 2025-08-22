@@ -1,4 +1,4 @@
-// server.js - CardCast Main Server (Updated with Set Mappings)
+// server.js - CardCast Main Server (Updated with Coming Soon functionality)
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -88,25 +88,62 @@ app.post('/api/config', (req, res) => {
     res.json({ success: true, config });
 });
 
+// Helper function to get game name
+function getGameName(gameId) {
+    const names = {
+        pokemon: 'Pokemon',
+        magic: 'Magic: The Gathering',
+        yugioh: 'Yu-Gi-Oh!',
+        lorcana: 'Disney Lorcana',
+        onepiece: 'One Piece Card Game',
+        digimon: 'Digimon Card Game',
+        fab: 'Flesh and Blood',
+        starwars: 'Star Wars Unlimited'
+    };
+    return names[gameId] || gameId;
+}
+
+// Get list of games - UPDATED FOR COMING SOON
 app.get('/api/games', (req, res) => {
     const games = Object.keys(config.games)
         .filter(key => config.games[key].enabled)
         .map(key => {
-            const hasData = db.hasGameData(key);
-            const stats = db.getGameStats().find(g => g.id === key);
-            return {
-                id: key,
-                name: key.charAt(0).toUpperCase() + key.slice(1),
-                enabled: config.games[key].enabled,
-                hasData: hasData,
-                cardCount: stats?.card_count || 0,
-                lastUpdate: stats?.last_update || null
-            };
+            // Only Pokemon is available, all others are coming soon
+            const isComingSoon = key !== 'pokemon';
+            
+            if (isComingSoon) {
+                // For coming soon games, return minimal data
+                return {
+                    id: key,
+                    name: getGameName(key),
+                    enabled: config.games[key].enabled,
+                    available: false,
+                    comingSoon: true,
+                    hasData: false,  // Always false for coming soon games
+                    cardCount: 0,
+                    lastUpdate: null
+                };
+            } else {
+                // For Pokemon, return actual data
+                const hasData = db.hasGameData(key);
+                const stats = db.getGameStats().find(g => g.id === key);
+                
+                return {
+                    id: key,
+                    name: getGameName(key),
+                    enabled: config.games[key].enabled,
+                    available: true,
+                    comingSoon: false,
+                    hasData: hasData,
+                    cardCount: stats?.card_count || 0,
+                    lastUpdate: stats?.last_update || null
+                };
+            }
         });
     res.json(games);
 });
 
-// Pokemon set mappings endpoint - NEW!
+// Pokemon set mappings endpoint
 app.get('/api/pokemon/set-mappings', (req, res) => {
     try {
         const mappings = db.getSetMappings('pokemon');
@@ -126,7 +163,7 @@ app.get('/api/pokemon/set-mappings', (req, res) => {
     }
 });
 
-// Pokemon sets endpoint - NEW!
+// Pokemon sets endpoint
 app.get('/api/pokemon/sets', (req, res) => {
     try {
         const query = `
@@ -151,9 +188,17 @@ app.get('/api/pokemon/sets', (req, res) => {
     }
 });
 
-// Delete game data endpoint
+// Delete game data endpoint - UPDATED FOR COMING SOON
 app.delete('/api/games/:game/data', (req, res) => {
     const game = req.params.game;
+    
+    // Only allow delete for Pokemon
+    if (game !== 'pokemon') {
+        return res.status(400).json({ 
+            error: `${getGameName(game)} support is coming soon!`,
+            comingSoon: true 
+        });
+    }
     
     console.log(`DELETE request for game: ${game}`);
     
@@ -246,10 +291,19 @@ app.delete('/api/games/:game/data', (req, res) => {
     }
 });
 
+// Download/Update cards - UPDATED FOR COMING SOON
 app.post('/api/download/:game', async (req, res) => {
     const game = req.params.game;
     const incremental = req.body.incremental || false;
-    const setCount = req.body.setCount || 'all'; // How many sets to download
+    const setCount = req.body.setCount || 'all';
+    
+    // Only allow download for Pokemon
+    if (game !== 'pokemon') {
+        return res.status(400).json({ 
+            error: `${getGameName(game)} support is coming soon!`,
+            comingSoon: true 
+        });
+    }
     
     if (!config.games[game]) {
         return res.status(400).json({ error: 'Invalid game' });
@@ -299,10 +353,18 @@ app.post('/api/download/:game', async (req, res) => {
     });
 });
 
-// Enhanced search endpoint that handles set abbreviations - UPDATED!
+// Search cards - UPDATED FOR COMING SOON
 app.get('/api/search/:game', (req, res) => {
     const { game } = req.params;
     const { q } = req.query;
+    
+    // Only allow search for Pokemon
+    if (game !== 'pokemon') {
+        return res.status(400).json({ 
+            error: `${getGameName(game)} support is coming soon!`,
+            comingSoon: true 
+        });
+    }
     
     if (!q || q.length < 2) {
         return res.json([]);
@@ -325,8 +387,17 @@ app.get('/api/search/:game', (req, res) => {
     }
 });
 
+// Get card by ID - UPDATED FOR COMING SOON
 app.get('/api/card/:game/:id', (req, res) => {
     const { game, id } = req.params;
+    
+    // Only allow for Pokemon
+    if (game !== 'pokemon') {
+        return res.status(400).json({ 
+            error: `${getGameName(game)} support is coming soon!`,
+            comingSoon: true 
+        });
+    }
     
     try {
         const card = db.getCard(game, id);
@@ -345,9 +416,17 @@ app.get('/api/card/:game/:id', (req, res) => {
     }
 });
 
-// Get game statistics
+// Get game statistics - UPDATED FOR COMING SOON
 app.get('/api/stats/:game', (req, res) => {
     const { game } = req.params;
+    
+    // Only allow stats for Pokemon
+    if (game !== 'pokemon') {
+        return res.status(400).json({ 
+            error: `${getGameName(game)} support is coming soon!`,
+            comingSoon: true 
+        });
+    }
     
     try {
         const stats = db.getGameStats().find(g => g.id === game);
@@ -509,6 +588,23 @@ io.on('connection', (socket) => {
         } else {
             socket.emit('overlay-disconnected', type);
         }
+    });
+    
+    // Search handler - UPDATED FOR COMING SOON
+    socket.on('search', async (data) => {
+        const { game, query } = data;
+        
+        // Only allow search for Pokemon
+        if (game !== 'pokemon') {
+            socket.emit('search-error', {
+                error: `${getGameName(game)} support is coming soon!`,
+                comingSoon: true
+            });
+            return;
+        }
+        
+        const results = db.searchCards(game, query);
+        socket.emit('search-results', results);
     });
     
     // Display card event
@@ -711,6 +807,18 @@ OBS Overlays:
   - Prizes: http://localhost:${PORT}/prizes  
   - Decklist: http://localhost:${PORT}/decklist
   - Pokemon Match: http://localhost:${PORT}/pokemon-match
+
+Currently Available:
+  ✓ Pokemon TCG (20,000+ cards)
+
+Coming Soon:
+  ○ Magic: The Gathering
+  ○ Yu-Gi-Oh!
+  ○ Disney Lorcana
+  ○ One Piece Card Game
+  ○ Digimon Card Game
+  ○ Flesh and Blood
+  ○ Star Wars Unlimited
 
 Cache directory: ${path.join(__dirname, 'cache')}
 Database: ${path.join(__dirname, 'data', 'cardcast.db')}

@@ -617,102 +617,6 @@
         // Create global instance
         const pokemonSetResolver = new PokemonSetResolver();
         
-        // Enhanced deck parsing function
-        window.parseDeckList = async function(text) {
-            // Ensure resolver is initialized
-            await pokemonSetResolver.initialize();
-            
-            const lines = text.split('\n').filter(line => line.trim());
-            const deck = {
-                pokemon: [],
-                trainers: [],
-                energy: []
-            };
-            
-            let currentSection = null;
-            
-            for (const line of lines) {
-                const trimmed = line.trim();
-                
-                // Check for section headers
-                if (trimmed.toLowerCase().includes('pokémon') || trimmed.toLowerCase().includes('pokemon')) {
-                    currentSection = 'pokemon';
-                    continue;
-                } else if (trimmed.toLowerCase().includes('trainer')) {
-                    currentSection = 'trainers';
-                    continue;
-                } else if (trimmed.toLowerCase().includes('energy')) {
-                    currentSection = 'energy';
-                    continue;
-                }
-                
-                // Auto-detect section if not set
-                if (!currentSection) {
-                    if (trimmed.match(/\d+\s+.+\s+[A-Z]{2,4}\s+\d+/)) {
-                        currentSection = 'pokemon';
-                    } else if (trimmed.toLowerCase().includes('energy')) {
-                        currentSection = 'energy';
-                    }
-                }
-                
-                if (!currentSection) continue;
-                
-                // Parse card lines
-                let cardData = null;
-                
-                // Pattern 1: "4 Hoothoot SCR 114"
-                let match = trimmed.match(/^(\d+)\s+(.+?)\s+([A-Z]{2,4})\s+(\d+)$/);
-                if (match) {
-                    const [_, quantity, cardName, setCode, cardNumber] = match;
-                    const setName = pokemonSetResolver.resolveSetCode(setCode);
-                    
-                    cardData = {
-                        name: cardName.trim(),
-                        quantity: parseInt(quantity),
-                        setCode: setCode,
-                        cardNumber: cardNumber,
-                        setName: setName || setCode
-                    };
-                    
-                    // Auto-correct section based on card type
-                    if (cardName.toLowerCase().includes('energy')) {
-                        currentSection = 'energy';
-                    } else if (isTrainerCard(cardName)) {
-                        currentSection = 'trainers';
-                    }
-                }
-                
-                // Pattern 2: "4 Professor's Research"
-                if (!cardData) {
-                    match = trimmed.match(/^(\d+)\s+(.+)$/);
-                    if (match) {
-                        const [_, quantity, cardName] = match;
-                        
-                        cardData = {
-                            name: cardName.trim(),
-                            quantity: parseInt(quantity),
-                            setCode: null,
-                            cardNumber: null,
-                            setName: null
-                        };
-                        
-                        // Auto-correct section
-                        if (cardName.toLowerCase().includes('energy')) {
-                            currentSection = 'energy';
-                        } else if (isTrainerCard(cardName)) {
-                            currentSection = 'trainers';
-                        }
-                    }
-                }
-                
-                if (cardData && currentSection) {
-                    deck[currentSection].push(cardData);
-                }
-            }
-            
-            return deck;
-        };
-
         // Helper function to detect trainer cards
         function isTrainerCard(cardName) {
             const trainerKeywords = [
@@ -1019,7 +923,7 @@
             return cardsHTML;
         }
 
-        // Fixed parseDeckList function with proper parsing
+        // parseDeckList function with proper parsing
         window.parseDeckList = async function(text) {
             // Ensure resolver is initialized
             if (typeof pokemonSetResolver !== 'undefined') {
@@ -1039,27 +943,28 @@
                 const trimmed = line.trim();
                 
                 // Skip empty lines and total count lines
-                if (!trimmed || trimmed.match(/^Total:\s*\d+$/i)) {
+                if (!trimmed || trimmed.match(/^Total:\s*\d+$/i) || trimmed.match(/^Total Cards:\s*\d+$/i)) {
                     continue;
                 }
                 
                 // Check for section headers
-                if (trimmed.match(/^Pok[eé]mon:\s*\d+$/i)) {
+                if (trimmed.match(/^Pok[eé]mon:\s*\d*$/i)) {
                     currentSection = 'pokemon';
                     continue;
-                } else if (trimmed.match(/^Trainer:\s*\d+$/i)) {
+                } else if (trimmed.match(/^Trainer:\s*\d*$/i)) {
                     currentSection = 'trainers';
                     continue;
-                } else if (trimmed.match(/^Energy:\s*\d+$/i)) {
+                } else if (trimmed.match(/^Energy:\s*\d*$/i)) {
                     currentSection = 'energy';
                     continue;
                 }
                 
-                // Skip if no section set yet
+                // Auto-detect section if not set
                 if (!currentSection) {
-                    // Try to auto-detect based on content
                     if (trimmed.toLowerCase().includes('energy')) {
                         currentSection = 'energy';
+                    } else if (isTrainerCard(trimmed)) {
+                        currentSection = 'trainers';
                     } else if (trimmed.match(/\d+\s+.+\s+[A-Z]{2,4}\s+\d+/)) {
                         currentSection = 'pokemon';
                     }
@@ -1070,67 +975,113 @@
                 // Parse card lines
                 let cardData = null;
                 
-                // Pattern 1: "4 Hoothoot SCR 114" - with set code and number
-                let match = trimmed.match(/^(\d+)\s+(.+?)\s+([A-Z]{2,4})\s+(\d+)$/);
-                if (match) {
-                    const [_, quantity, name, setCode, number] = match;
-                    
-                    cardData = {
-                        quantity: parseInt(quantity),
-                        name: name.trim(),
-                        setCode: setCode.toUpperCase(),
-                        cardNumber: number,
-                        fullName: `${name.trim()} ${setCode} ${number}`
-                    };
-                    
-                    // Add set name if resolver is available
-                    if (typeof pokemonSetResolver !== 'undefined') {
-                        cardData.setName = pokemonSetResolver.resolveSetCode(setCode);
-                    }
-                } else {
-                    // Pattern 2: "4 Professor's Research" - just quantity and name
-                    match = trimmed.match(/^(\d+)\s+(.+)$/);
-                    if (match) {
-                        const [_, quantity, fullName] = match;
+                // Special handling for PTCGL energy format: "3 Basic {D} Energy SVE 15"
+                if (trimmed.includes('{') && trimmed.includes('Energy')) {
+                    const energyMatch = trimmed.match(/^(\d+)\s+Basic\s+\{([A-Z])\}\s+Energy\s+([A-Z]{2,4})\s+(\d+)$/);
+                    if (energyMatch) {
+                        const [_, quantity, type, setCode, number] = energyMatch;
                         
-                        // Check if the name contains a set code at the end
-                        const setMatch = fullName.match(/^(.+?)\s+([A-Z]{2,4})$/);
-                        if (setMatch) {
-                            const [__, name, setCode] = setMatch;
-                            cardData = {
-                                quantity: parseInt(quantity),
-                                name: name.trim(),
-                                setCode: setCode.toUpperCase(),
-                                fullName: fullName
-                            };
-                        } else {
-                            cardData = {
-                                quantity: parseInt(quantity),
-                                name: fullName.trim(),
-                                fullName: fullName.trim()
-                            };
+                        // Convert type letter to full name
+                        const types = {
+                            'P': 'Psychic',
+                            'D': 'Darkness', 
+                            'F': 'Fighting',
+                            'R': 'Fire',
+                            'W': 'Water',
+                            'L': 'Lightning',
+                            'G': 'Grass',
+                            'M': 'Metal',
+                            'C': 'Colorless',
+                            'N': 'Dragon',
+                            'Y': 'Fairy'
+                        };
+                        
+                        const energyName = `${types[type] || type} Energy`;
+                        
+                        cardData = {
+                            quantity: parseInt(quantity),
+                            name: energyName,
+                            setCode: setCode.toUpperCase(),
+                            cardNumber: number,
+                            fullName: `${energyName} ${setCode} ${number}`
+                        };
+                        
+                        currentSection = 'energy'; // Force to energy section
+                    }
+                }
+                
+                // If not matched as PTCGL energy, try standard patterns
+                if (!cardData) {
+                    // Pattern 1: "4 Hoothoot SCR 114" - standard format with set and number
+                    let match = trimmed.match(/^(\d+)\s+(.+?)\s+([A-Z]{2,4})\s+(\d+)$/);
+                    if (match) {
+                        let [_, quantity, name, setCode, number] = match;
+                        
+                        cardData = {
+                            quantity: parseInt(quantity),
+                            name: name.trim(),
+                            setCode: setCode.toUpperCase(),
+                            cardNumber: number,
+                            fullName: `${name.trim()} ${setCode} ${number}`
+                        };
+                        
+                        // Add set name if resolver is available
+                        if (typeof pokemonSetResolver !== 'undefined') {
+                            cardData.setName = pokemonSetResolver.resolveSetCode(setCode);
+                        }
+                        
+                        // Auto-correct section based on card type
+                        if (name.toLowerCase().includes('energy')) {
+                            currentSection = 'energy';
+                        } else if (isTrainerCard(name)) {
+                            currentSection = 'trainers';
+                        }
+                        
+                    } else {
+                        // Pattern 2: "4 Professor's Research" - just quantity and name
+                        match = trimmed.match(/^(\d+)\s+(.+)$/);
+                        if (match) {
+                            let [_, quantity, fullName] = match;
+                            
+                            // Check if the name contains a set code at the end
+                            const setMatch = fullName.match(/^(.+?)\s+([A-Z]{2,4})$/);
+                            if (setMatch) {
+                                const [__, name, setCode] = setMatch;
+                                cardData = {
+                                    quantity: parseInt(quantity),
+                                    name: name.trim(),
+                                    setCode: setCode.toUpperCase(),
+                                    fullName: fullName
+                                };
+                            } else {
+                                cardData = {
+                                    quantity: parseInt(quantity),
+                                    name: fullName.trim(),
+                                    fullName: fullName.trim()
+                                };
+                            }
+                            
+                            // Auto-correct section
+                            if (fullName.toLowerCase().includes('energy')) {
+                                currentSection = 'energy';
+                            } else if (isTrainerCard(fullName)) {
+                                currentSection = 'trainers';
+                            }
                         }
                     }
                 }
                 
                 // Add the card to the appropriate section
                 if (cardData) {
-                    if (currentSection === 'pokemon') {
-                        deck.pokemon.push(cardData);
-                    } else if (currentSection === 'trainers') {
-                        deck.trainers.push(cardData);
-                    } else if (currentSection === 'energy') {
-                        deck.energy.push(cardData);
-                    }
-                    
+                    deck[currentSection].push(cardData);
                     console.log(`Parsed ${currentSection}:`, cardData);
                 }
             }
             
             console.log('Deck parsing complete:', {
-                pokemon: deck.pokemon.length + ' cards',
-                trainers: deck.trainers.length + ' cards',
-                energy: deck.energy.length + ' cards',
+                pokemon: deck.pokemon.length + ' unique cards',
+                trainers: deck.trainers.length + ' unique cards', 
+                energy: deck.energy.length + ' unique cards',
                 total: deck.pokemon.reduce((sum, c) => sum + c.quantity, 0) +
                     deck.trainers.reduce((sum, c) => sum + c.quantity, 0) +
                     deck.energy.reduce((sum, c) => sum + c.quantity, 0) + ' total cards'
@@ -1531,6 +1482,7 @@
                             </div>
                             <div class="flex gap-1 ml-2">
                                 <button class="btn btn-xs btn-ghost" onclick="loadDeck('${deck.game}', '${escape(deck.name)}')">View</button>
+                                <button class="btn btn-xs btn-ghost" onclick="exportDeckToClipboard('${deck.game}', '${escape(deck.name)}')">📋</button>
                                 <button class="btn btn-xs btn-error btn-ghost" onclick="deleteDeck('${deck.game}', '${escape(deck.name)}')">×</button>
                             </div>
                         </div>
@@ -1580,7 +1532,7 @@
         }
         
         // Export all decks
-        window.exportAllDecks = function() {
+        window.exportAllDecksJSON = function() {
             const dataStr = JSON.stringify(savedDecks, null, 2);
             const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
             
@@ -1590,6 +1542,117 @@
             document.body.appendChild(exportLink);
             exportLink.click();
             document.body.removeChild(exportLink);
+        }
+
+        window.exportAllDecks = function() {
+            const choice = confirm('Export as JSON file?\n\nOK = JSON file (for backup)\nCancel = Copy individual deck to clipboard');
+            
+            if (choice) {
+                exportAllDecksJSON();
+            } else {
+                alert('Click the 📋 button next to any deck to copy it to clipboard');
+            }
+        }
+
+        // Export single deck to clipboard in standard format
+        window.exportDeckToClipboard = function(game, deckName) {
+            // Unescape the deck name if needed
+            if (typeof deckName === 'string') {
+                deckName = deckName.replace(/\\'/g, "'").replace(/\\"/g, '"');
+            }
+            
+            const deck = savedDecks[game]?.find(d => d.name === deckName);
+            if (!deck) {
+                alert('Deck not found');
+                return;
+            }
+            
+            let deckText = '';
+            
+            // Calculate totals
+            const pokemonCount = deck.pokemon?.reduce((sum, c) => sum + c.quantity, 0) || 0;
+            const trainerCount = deck.trainers?.reduce((sum, c) => sum + c.quantity, 0) || 0;
+            const energyCount = deck.energy?.reduce((sum, c) => sum + c.quantity, 0) || 0;
+            const totalCards = pokemonCount + trainerCount + energyCount;
+            
+            // Add Pokemon section
+            if (pokemonCount > 0) {
+                deckText += `Pokémon: ${pokemonCount}\n`;
+                deck.pokemon.forEach(card => {
+                    if (card.setCode && card.cardNumber) {
+                        deckText += `${card.quantity} ${card.name} ${card.setCode} ${card.cardNumber}\n`;
+                    } else {
+                        deckText += `${card.quantity} ${card.name}\n`;
+                    }
+                });
+            }
+            
+            // Add Trainer section
+            if (trainerCount > 0) {
+                if (deckText) deckText += '\n';
+                deckText += `Trainer: ${trainerCount}\n`;
+                deck.trainers.forEach(card => {
+                    if (card.setCode && card.cardNumber) {
+                        deckText += `${card.quantity} ${card.name} ${card.setCode} ${card.cardNumber}\n`;
+                    } else {
+                        deckText += `${card.quantity} ${card.name}\n`;
+                    }
+                });
+            }
+            
+            // Add Energy section
+            if (energyCount > 0) {
+                if (deckText) deckText += '\n';
+                deckText += `Energy: ${energyCount}\n`;
+                deck.energy.forEach(card => {
+                    if (card.setCode && card.cardNumber) {
+                        deckText += `${card.quantity} ${card.name} ${card.setCode} ${card.cardNumber}\n`;
+                    } else {
+                        deckText += `${card.quantity} ${card.name}\n`;
+                    }
+                });
+            }
+            
+            // Add total
+            deckText += `\nTotal Cards: ${totalCards}`;
+            
+            // Copy to clipboard
+            navigator.clipboard.writeText(deckText).then(() => {
+                // Show success message
+                showToast(`Deck "${deck.name}" copied to clipboard!`);
+            }).catch(err => {
+                alert('Failed to copy to clipboard. Please try again.');
+                console.error('Clipboard error:', err);
+            });
+        }
+
+        // Add toast notification for success messages
+        window.showToast = function(message) {
+            // Check if toast container exists
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'toast toast-top toast-end';
+                document.body.appendChild(toastContainer);
+            }
+            
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = 'alert alert-success';
+            toast.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>${message}</span>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            // Remove toast after 3 seconds
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
         }
         
         // Clear deck import
@@ -1706,60 +1769,7 @@
             `;
             searchResults = [];
         }
-        
-        // Create game element with DaisyUI styling
-        window.createGameElement = function(game) {
-            const gameItem = document.createElement('div');
-            gameItem.className = 'game-item';
-            gameItem.dataset.game = game.id;
-            
-            const hasData = game.hasData && game.cardCount > 0;
-            const cardCountFormatted = game.cardCount >= 1000 
-                ? `${(game.cardCount / 1000).toFixed(1)}k` 
-                : `${game.cardCount}`;
-            
-            const gameColors = {
-                pokemon: 'from-red-500 to-red-600',
-                magic: 'from-orange-500 to-amber-600',
-                yugioh: 'from-yellow-500 to-yellow-600',
-                lorcana: 'from-purple-500 to-pink-600',
-                onepiece: 'from-red-600 to-orange-600',
-                digimon: 'from-blue-500 to-cyan-600',
-                fab: 'from-rose-500 to-red-600',
-                starwars: 'from-gray-500 to-slate-600'
-            };
-            
-            gameItem.innerHTML = `
-                <div class="flex items-center gap-3 flex-1">
-                    <div class="avatar">
-                        <div class="w-10 rounded-lg bg-gradient-to-br ${gameColors[game.id] || 'from-gray-500 to-gray-600'}">
-                            <span class="text-white text-lg flex items-center justify-center h-full font-bold">
-                                ${game.name[0]}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="flex-1">
-                        <div class="font-semibold">${game.name}</div>
-                        <div class="text-xs opacity-60">
-                            ${hasData ? `${cardCountFormatted} cards` : 'No data'}
-                        </div>
-                    </div>
-                </div>
-                <div class="flex gap-1">
-                    ${hasData ? `
-                        <button class="btn btn-xs btn-primary" onclick="event.stopPropagation(); updateGameData('${game.id}')">Update</button>
-                        <button class="btn btn-xs btn-error btn-ghost" onclick="event.stopPropagation(); deleteGameData('${game.id}')">×</button>
-                    ` : `
-                        <button class="btn btn-xs btn-secondary" onclick="event.stopPropagation(); downloadGameData('${game.id}')">Download</button>
-                    `}
-                </div>
-            `;
-            
-            gameItem.onclick = () => selectGame(game.id, hasData);
-            
-            return gameItem;
-        }
-        
+                
         // Update card preview with DaisyUI styling
         window.updateCardPreview = function(card) {
             const previewDiv = document.getElementById('cardPreview');
