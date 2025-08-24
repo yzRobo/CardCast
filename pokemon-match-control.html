@@ -723,7 +723,7 @@
             });
         });
         
-        // NEW FUNCTION: Populate deck cards when opening search
+        // Populate deck cards when opening search
         async function populateDeckCards() {
             const searchAllCards = document.getElementById('searchAllCards').checked;
             
@@ -751,60 +751,89 @@
                     const response = await fetch(`/api/search/pokemon?q=${encodeURIComponent(cardName)}`);
                     const results = await response.json();
                     
-                    // Find the best match for this card name - ONLY POKEMON
-                    const exactMatch = results.find(card => 
-                        card.name.toLowerCase() === cardName.toLowerCase() && isPokemonCard(card)
+                    // FIXED: Only add cards that EXACTLY match the deck card name
+                    // Filter to Pokemon cards first
+                    const pokemonResults = results.filter(card => isPokemonCard(card));
+                    
+                    // Look for exact name match (case-insensitive)
+                    const exactMatch = pokemonResults.find(card => 
+                        card.name.toLowerCase() === cardName.toLowerCase()
                     );
                     
+                    // IMPORTANT: Only add the card if we found an exact match
+                    // Don't fall back to "first result" as that causes incorrect cards to appear
                     if (exactMatch) {
                         allCards.push(exactMatch);
-                    } else {
-                        // If no exact match, look for first Pokemon result
-                        const firstPokemon = results.find(card => isPokemonCard(card));
-                        if (firstPokemon) {
-                            allCards.push(firstPokemon);
-                        }
                     }
+                    // If no exact match found, we simply don't show that card
+                    // This prevents wrong cards from appearing in the list
+                    
                 } catch (error) {
                     console.error(`Error fetching card: ${cardName}`, error);
                 }
             }
             
-            // Display all Pokemon cards from deck
+            // Display all Pokemon cards from deck that we found exact matches for
             displaySearchResults(allCards);
         }
         
         // Helper function to determine if a card is a Pokemon
         function isPokemonCard(card) {
-            // Check if card has HP (Pokemon cards have HP)
+            // Primary check: Pokemon cards have HP
             if (card.hp && parseInt(card.hp) > 0) {
                 return true;
             }
             
-            // Additional checks based on card properties
-            // Trainers and Energy typically don't have HP
+            // Check card type/supertype if available
+            if (card.supertype) {
+                const supertype = card.supertype.toLowerCase();
+                if (supertype === 'pokemon' || supertype === 'pokémon') {
+                    return true;
+                }
+                if (supertype === 'trainer' || supertype === 'energy') {
+                    return false;
+                }
+            }
+            
+            // Check category
+            if (card.category) {
+                const category = card.category.toLowerCase();
+                if (category.includes('pokemon') || category.includes('pokémon')) {
+                    return true;
+                }
+                if (category.includes('trainer') || category.includes('energy')) {
+                    return false;
+                }
+            }
+            
+            // Check card type field
+            if (card.type) {
+                const type = card.type.toLowerCase();
+                // Trainer and Energy exclusions
+                if (type.includes('trainer') || type.includes('supporter') || 
+                    type.includes('item') || type.includes('tool') || 
+                    type.includes('stadium') || type.includes('energy')) {
+                    return false;
+                }
+            }
+            
+            // Name-based exclusions for common non-Pokemon cards
             const cardNameLower = card.name.toLowerCase();
+            const nonPokemonKeywords = [
+                'energy', 'trainer', 'professor', 'boss', 'stadium', 
+                'ball', 'potion', 'switch', 'catcher', 'belt', 'tool'
+            ];
             
-            // Common trainer keywords to exclude
-            const trainerKeywords = ['trainer', 'supporter', 'item', 'tool', 'stadium'];
-            for (const keyword of trainerKeywords) {
-                if (card.type?.toLowerCase().includes(keyword) || 
-                    card.category?.toLowerCase().includes(keyword)) {
-                    return false;
+            for (const keyword of nonPokemonKeywords) {
+                if (cardNameLower.includes(keyword)) {
+                    // But allow cards like "Energy Switch Pikachu" if they have HP
+                    if (!card.hp || parseInt(card.hp) === 0) {
+                        return false;
+                    }
                 }
             }
             
-            // Common energy keywords to exclude
-            const energyKeywords = ['energy', 'basic energy'];
-            for (const keyword of energyKeywords) {
-                if (cardNameLower.includes(keyword) || 
-                    card.type?.toLowerCase().includes(keyword) ||
-                    card.category?.toLowerCase().includes(keyword)) {
-                    return false;
-                }
-            }
-            
-            // If we're not sure but it doesn't have HP, it's probably not a Pokemon
+            // If we still can't determine, and it doesn't have HP, it's likely not a Pokemon
             return false;
         }
         
@@ -1391,37 +1420,24 @@
                 
                 // If deck is selected and not searching all cards, filter by deck card names
                 if (deckCardNames.length > 0 && !searchAllCards) {
-                    // Create a map of normalized deck card names for better matching
-                    const deckCardNamesNormalized = new Set(
-                        deckCardNames.map(name => 
-                            name.toLowerCase()
-                                .replace(/[^a-z0-9\s]/g, '') // Remove special characters
-                                .replace(/\s+/g, ' ')         // Normalize spaces
-                                .trim()
-                        )
-                    );
-                    
-                    // Also keep original names for exact matching
+                    // FIXED: Use exact matching for deck cards
                     const deckCardNamesLower = new Set(deckCardNames.map(name => name.toLowerCase()));
                     
+                    // Filter results to only include cards that are actually in the deck
                     results = results.filter(card => {
                         const cardNameLower = card.name.toLowerCase();
-                        const cardNameNormalized = cardNameLower
-                            .replace(/[^a-z0-9\s]/g, '')
-                            .replace(/\s+/g, ' ')
-                            .trim();
                         
-                        // Check both exact and normalized matches
-                        return deckCardNamesLower.has(cardNameLower) || 
-                               deckCardNamesNormalized.has(cardNameNormalized);
+                        // Check for exact match in deck
+                        return deckCardNamesLower.has(cardNameLower);
                     });
                     
                     // Remove duplicates by card name
                     const uniqueResults = [];
                     const seenNames = new Set();
                     for (const card of results) {
-                        if (!seenNames.has(card.name.toLowerCase())) {
-                            seenNames.add(card.name.toLowerCase());
+                        const cardKey = `${card.name.toLowerCase()}_${card.set_name}_${card.card_number}`;
+                        if (!seenNames.has(cardKey)) {
+                            seenNames.add(cardKey);
                             uniqueResults.push(card);
                         }
                     }
