@@ -669,12 +669,68 @@
         // Socket event handlers
         socket.on('pokemon-match-update', (data) => {
             console.log('Pokemon match update received:', data);
-            if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
-            if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
+            
+            // Update player 1
+            if (data.player1) {
+                // Merge basic data
+                Object.keys(data.player1).forEach(key => {
+                    if (key !== 'prizes' && key !== 'prizesTaken') {
+                        matchState.player1[key] = data.player1[key];
+                    }
+                });
+                
+                // Handle prizes specially
+                if (data.player1.prizesTaken !== undefined) {
+                    matchState.player1.prizesTaken = data.player1.prizesTaken;
+                    matchState.player1.prizes = 6 - data.player1.prizesTaken.length;
+                } else if (data.player1.prizes !== undefined) {
+                    if (typeof data.player1.prizes === 'number') {
+                        matchState.player1.prizes = data.player1.prizes;
+                        if (!data.player1.prizesTaken) {
+                            matchState.player1.prizesTaken = [];
+                        }
+                    }
+                }
+            }
+            
+            // Update player 2
+            if (data.player2) {
+                // Merge basic data
+                Object.keys(data.player2).forEach(key => {
+                    if (key !== 'prizes' && key !== 'prizesTaken') {
+                        matchState.player2[key] = data.player2[key];
+                    }
+                });
+                
+                // Handle prizes specially
+                if (data.player2.prizesTaken !== undefined) {
+                    matchState.player2.prizesTaken = data.player2.prizesTaken;
+                    matchState.player2.prizes = 6 - data.player2.prizesTaken.length;
+                } else if (data.player2.prizes !== undefined) {
+                    if (typeof data.player2.prizes === 'number') {
+                        matchState.player2.prizes = data.player2.prizes;
+                        if (!data.player2.prizesTaken) {
+                            matchState.player2.prizesTaken = [];
+                        }
+                    }
+                }
+            }
+            
+            // Update other data
             if (data.stadium !== undefined) {
-                console.log('Stadium data received:', data.stadium);
                 matchState.stadium = data.stadium;
             }
+            if (data.currentTurn !== undefined) {
+                matchState.currentTurn = data.currentTurn;
+            }
+            if (data.gameNumber !== undefined) {
+                matchState.gameNumber = data.gameNumber;
+            }
+            if (data.matchFormat !== undefined) {
+                matchState.matchFormat = data.matchFormat;
+            }
+            
+            // Always update display
             updateDisplay();
         });
         
@@ -762,12 +818,34 @@
         });
         
         socket.on('timer-reset', () => {
-            pauseTimer();
+            console.log('Timer reset received');
+            
+            // Clear any existing timer interval
+            if (matchState.timerInterval) {
+                clearInterval(matchState.timerInterval);
+                matchState.timerInterval = null;
+            }
+            
+            // Reset timer values
             matchState.timer = { minutes: 50, seconds: 0 };
+            
+            // Update display but DON'T start the timer
             updateMatchInfo();
         });
         
         socket.on('match-reset', () => {
+            console.log('Match reset received');
+            
+            // Preserve visibility
+            const wasVisible = matchState.visible;
+            
+            // Clear any running timer
+            if (matchState.timerInterval) {
+                clearInterval(matchState.timerInterval);
+                matchState.timerInterval = null;
+            }
+            
+            // Full reset
             matchState = {
                 player1: {
                     name: 'Player 1',
@@ -793,12 +871,14 @@
                 },
                 currentTurn: 1,
                 timer: { minutes: 50, seconds: 0 },
+                timerInterval: null,
                 gameNumber: 1,
                 matchFormat: 'Best of 3',
                 stadium: null,
-                visible: matchState.visible
+                visible: wasVisible
             };
-            pauseTimer();
+            
+            // Force complete update
             updateDisplay();
         });
         
@@ -833,21 +913,34 @@
         }
         
         function updateDisplay() {
+            console.log('Updating full display with state:', matchState);
+            
+            // Update all player info
             updatePlayerInfo(1);
             updatePlayerInfo(2);
             updatePlayerRecord(1);
             updatePlayerRecord(2);
             updateMatchScore(1);
             updateMatchScore(2);
+            
+            // Update Pokemon displays
             updateActiveDisplay(1);
             updateActiveDisplay(2);
             updateBenchDisplay(1);
             updateBenchDisplay(2);
+            
+            // Update prize displays - these are critical
             updatePrizeDisplay(1);
             updatePrizeDisplay(2);
+            
+            // Update turn actions
             updateTurnActions(1);
             updateTurnActions(2);
+            
+            // Update match info
             updateMatchInfo();
+            
+            // Update stadium
             updateStadiumDisplay();
         }
         
@@ -882,8 +975,28 @@
         
         function updatePlayerInfo(playerNum) {
             const player = matchState[`player${playerNum}`];
-            document.getElementById(`player${playerNum}Name`).textContent = player.name;
-            document.getElementById(`player${playerNum}Prizes`).textContent = player.prizes;
+            const nameEl = document.getElementById(`player${playerNum}Name`);
+            const prizesEl = document.getElementById(`player${playerNum}Prizes`);
+            
+            if (nameEl) {
+                nameEl.textContent = player.name || `Player ${playerNum}`;
+            }
+            
+            if (prizesEl) {
+                // Always display as a number
+                let remainingPrizes = 6;
+                
+                if (typeof player.prizes === 'number') {
+                    remainingPrizes = player.prizes;
+                } else if (Array.isArray(player.prizesTaken)) {
+                    remainingPrizes = 6 - player.prizesTaken.length;
+                } else if (Array.isArray(player.prizes)) {
+
+                    remainingPrizes = player.prizes.filter(p => !p).length;
+                }
+                
+                prizesEl.textContent = remainingPrizes;
+            }
         }
         
         function updatePlayerRecord(playerNum) {
@@ -967,15 +1080,46 @@
         
         function updatePrizeDisplay(playerNum) {
             const player = matchState[`player${playerNum}`];
-            const prizeDiv = document.getElementById(`player${playerNum}PrizeCards`);
+            const prizeContainer = document.getElementById(`player${playerNum}PrizeCards`); // This is the correct ID
             
-            let prizeHTML = '';
-            for (let i = 0; i < 6; i++) {
-                const taken = player.prizesTaken.includes(i);
-                prizeHTML += `<div class="prize-card ${taken ? 'taken' : ''}"></div>`;
+            if (!prizeContainer) {
+                console.error(`Prize container not found for player ${playerNum}`);
+                return;
             }
             
-            prizeDiv.innerHTML = prizeHTML;
+            const prizeCards = prizeContainer.querySelectorAll('.prize-card');
+            
+            // Clear all taken states first
+            prizeCards.forEach(card => card.classList.remove('taken'));
+            
+            // Handle prizesTaken array (preferred format)
+            if (player.prizesTaken && Array.isArray(player.prizesTaken)) {
+                prizeCards.forEach((card, index) => {
+                    if (player.prizesTaken.includes(index)) {
+                        card.classList.add('taken');
+                    }
+                });
+            } 
+            // Handle old boolean array format
+            else if (Array.isArray(player.prizes) && typeof player.prizes[0] === 'boolean') {
+                prizeCards.forEach((card, index) => {
+                    if (player.prizes[index] === true) {
+                        card.classList.add('taken');
+                    }
+                });
+            } 
+            // Handle simple prize count
+            else if (typeof player.prizes === 'number') {
+                const takenCount = 6 - player.prizes;
+                prizeCards.forEach((card, index) => {
+                    if (index < takenCount) {
+                        card.classList.add('taken');
+                    }
+                });
+            }
+            
+            // Always update the count display
+            updatePlayerInfo(playerNum);
         }
         
         function updateMatchInfo() {

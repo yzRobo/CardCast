@@ -591,7 +591,7 @@ function takePrize(playerNum) {
     const player = pokemonMatchState[`player${playerNum}`];
     
     if (player.prizesTaken.length >= 6) {
-        alert(`Player ${playerNum} has already taken all prizes!`);
+        showNotification(`Player ${playerNum} has already taken all prizes!`, 'error');
         return;
     }
     
@@ -599,12 +599,22 @@ function takePrize(playerNum) {
     player.prizesTaken.push(nextPrize);
     player.prizes = 6 - player.prizesTaken.length;
     
+    // Send both the specific prize taken event and the full update
     socket.emit('prize-taken', {
         player: playerNum,
         index: nextPrize
     });
     
+    // Also send complete prize state to ensure synchronization
+    socket.emit('pokemon-match-update', {
+        [`player${playerNum}`]: {
+            prizes: player.prizes,
+            prizesTaken: player.prizesTaken
+        }
+    });
+    
     updatePrizeDisplay();
+    showNotification(`Prize taken! Player ${playerNum} has ${player.prizes} prizes remaining`, 'info');
 }
 
 function resetPrizes() {
@@ -654,9 +664,16 @@ function resetMatch() {
         return;
     }
     
+    // Get current player names to preserve them
+    const p1NameInput = document.getElementById('p1NameInput');
+    const p2NameInput = document.getElementById('p2NameInput');
+    const player1Name = p1NameInput ? p1NameInput.value || 'Player 1' : 'Player 1';
+    const player2Name = p2NameInput ? p2NameInput.value || 'Player 2' : 'Player 2';
+    
+    // Reset the state with preserved names
     pokemonMatchState = {
         player1: {
-            name: document.getElementById('p1NameInput').value || 'Player 1',
+            name: player1Name,
             prizes: 6,
             prizesTaken: [],
             active: null,
@@ -665,7 +682,7 @@ function resetMatch() {
             deck: 47
         },
         player2: {
-            name: document.getElementById('p2NameInput').value || 'Player 2',
+            name: player2Name,
             prizes: 6,
             prizesTaken: [],
             active: null,
@@ -674,12 +691,126 @@ function resetMatch() {
             deck: 47
         },
         currentTurn: 1,
-        timerRunning: false
+        timerRunning: false,
+        showPokemonMatch: pokemonMatchState.showPokemonMatch || false,
+        showPrizes: pokemonMatchState.showPrizes || false
     };
     
+    // Send reset event first
     socket.emit('match-reset');
+    
+    // Then send complete updated state to ensure overlay gets all data
+    socket.emit('pokemon-match-update', {
+        player1: {
+            name: player1Name,
+            prizes: 6,
+            prizesTaken: [],
+            active: null,
+            bench: [],
+            benchSize: 5,
+            record: { wins: 0, losses: 0, ties: 0 },
+            matchScore: 0,
+            turnActions: { energy: false, supporter: false, retreat: false }
+        },
+        player2: {
+            name: player2Name,
+            prizes: 6,
+            prizesTaken: [],
+            active: null,
+            bench: [],
+            benchSize: 5,
+            record: { wins: 0, losses: 0, ties: 0 },
+            matchScore: 0,
+            turnActions: { energy: false, supporter: false, retreat: false }
+        },
+        stadium: null,
+        currentTurn: 1,
+        gameNumber: 1,
+        matchFormat: 'Best of 3'
+    });
+    
+    // Also emit prizes reset for the separate prizes overlay
+    socket.emit('prizes-reset');
+    
+    // Update the local display
     updatePrizeDisplay();
-    alert('Match reset');
+    
+    // Show confirmation with fade animation
+    showNotification('Match has been reset', 'success');
+}
+
+// Helper function for notifications
+function showNotification(message, type = 'info') {
+    // Remove any existing notification
+    const existing = document.querySelector('.notification-toast');
+    if (existing) {
+        existing.remove();
+    }
+    
+    const notification = document.createElement('div');
+    notification.className = `notification-toast toast-${type}`;
+    notification.textContent = message;
+    
+    const style = document.createElement('style');
+    style.textContent = `
+        .notification-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            animation: slideIn 0.3s ease, slideOut 0.3s ease 2.7s;
+            animation-fill-mode: forwards;
+            z-index: 10000;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .toast-success {
+            background: #10b981;
+        }
+        
+        .toast-error {
+            background: #ef4444;
+        }
+        
+        .toast-info {
+            background: #3b82f6;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+    `;
+    
+    if (!document.querySelector('#notification-styles')) {
+        style.id = 'notification-styles';
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(notification);
+    
+    // Remove after animation completes
+    setTimeout(() => notification.remove(), 3000);
 }
 
 function togglePokemonMatch() {

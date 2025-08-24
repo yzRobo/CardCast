@@ -1118,12 +1118,16 @@
             document.getElementById('emptyStadium').classList.remove('hidden');
             document.getElementById('activeStadium').classList.add('hidden');
             document.getElementById('stadiumSearch').value = '';
-            document.getElementById('stadiumManual').value = '';
             
             // Reset image display
             const imageContainer = document.getElementById('stadiumCardImage').parentElement;
-            imageContainer.style.display = '';
-            document.getElementById('stadiumCardImage').style.display = '';
+            if (imageContainer) {
+                imageContainer.style.display = '';
+            }
+            const stadiumCardImage = document.getElementById('stadiumCardImage');
+            if (stadiumCardImage) {
+                stadiumCardImage.style.display = '';
+            }
             
             socket.emit('stadium-update', { stadium: null });
             saveMatchState();
@@ -1666,6 +1670,10 @@
             prizes[prizeIndex] = !prizes[prizeIndex];
             
             const prizeCard = document.querySelector(`#player${playerNum}Prizes > div:nth-child(${prizeIndex + 1})`);
+            
+            // Add animation class
+            prizeCard.classList.add('toggling');
+            
             if (prizes[prizeIndex]) {
                 prizeCard.classList.add('prize-card-taken');
                 socket.emit('prize-taken', { player: playerNum, index: prizeIndex });
@@ -1673,12 +1681,17 @@
                 prizeCard.classList.remove('prize-card-taken');
             }
             
-            // Update prize count
-            const takenCount = prizes.filter(p => p).length;
+            // Remove animation class after animation completes
+            setTimeout(() => prizeCard.classList.remove('toggling'), 300);
+            
+            // Calculate and send proper prize data
+            const takenIndices = prizes.map((taken, i) => taken ? i : null).filter(i => i !== null);
+            const remainingPrizes = 6 - takenIndices.length;
+            
             socket.emit('pokemon-match-update', {
                 [`player${playerNum}`]: {
-                    prizes: 6 - takenCount,
-                    prizesTaken: prizes.map((taken, i) => taken ? i : null).filter(i => i !== null)
+                    prizes: remainingPrizes,
+                    prizesTaken: takenIndices
                 }
             });
             
@@ -1742,9 +1755,14 @@
         }
         
         function resetTimer() {
+            // Pause first
             pauseTimer();
+            
+            // Then reset values
             matchState.timer = { minutes: 50, seconds: 0 };
             updateTimerDisplay();
+            
+            // Send reset but DON'T start
             socket.emit('timer-reset');
             saveMatchState();
         }
@@ -1782,42 +1800,47 @@
                 return;
             }
             
-            // Preserve deck selections
-            const player1DeckId = matchState.player1.deckId;
-            const player1DeckName = matchState.player1.deckName;
-            const player2DeckId = matchState.player2.deckId;
-            const player2DeckName = matchState.player2.deckName;
+            // IMPORTANT: Pause timer FIRST
+            if (matchState.timerInterval) {
+                clearInterval(matchState.timerInterval);
+                matchState.timerInterval = null;
+            }
             
+            // Preserve player names
+            const player1Name = matchState.player1.name;
+            const player2Name = matchState.player2.name;
+            
+            // Reset match state
             matchState = {
                 player1: {
-                    name: document.getElementById('player1Name').value,
+                    name: player1Name,
                     active: null,
+                    bench: Array(7).fill(null),  // Support up to 7
                     benchSize: 5,
-                    bench: [null, null, null, null, null, null, null],
                     prizes: [false, false, false, false, false, false],
                     record: { wins: 0, losses: 0, ties: 0 },
                     matchScore: 0,
                     turnActions: { energy: false, supporter: false, retreat: false },
-                    deckId: player1DeckId,
-                    deckName: player1DeckName
+                    deckId: matchState.player1.deckId,  // Preserve deck selection
+                    deckName: matchState.player1.deckName
                 },
                 player2: {
-                    name: document.getElementById('player2Name').value,
+                    name: player2Name,
                     active: null,
+                    bench: Array(7).fill(null),  // Support up to 7
                     benchSize: 5,
-                    bench: [null, null, null, null, null, null, null],
                     prizes: [false, false, false, false, false, false],
                     record: { wins: 0, losses: 0, ties: 0 },
                     matchScore: 0,
                     turnActions: { energy: false, supporter: false, retreat: false },
-                    deckId: player2DeckId,
-                    deckName: player2DeckName
+                    deckId: matchState.player2.deckId,  // Preserve deck selection
+                    deckName: matchState.player2.deckName
                 },
                 currentTurn: 1,
                 timer: { minutes: 50, seconds: 0 },
                 timerInterval: null,
-                gameNumber: matchState.gameNumber,
-                matchFormat: matchState.matchFormat,
+                gameNumber: 1,
+                matchFormat: 'Best of 3',
                 stadium: null
             };
             
@@ -1848,20 +1871,60 @@
             document.getElementById('player1MatchScore').textContent = '0';
             document.getElementById('player2MatchScore').textContent = '0';
             
-            // Reset turn actions
-            resetTurnActions();
+            // Reset turn actions checkboxes
+            document.getElementById('player1Energy').checked = false;
+            document.getElementById('player1Supporter').checked = false;
+            document.getElementById('player1Retreat').checked = false;
+            document.getElementById('player2Energy').checked = false;
+            document.getElementById('player2Supporter').checked = false;
+            document.getElementById('player2Retreat').checked = false;
             
-            // Clear stadium
+            // Clear stadium (with fixed function)
             clearStadium();
             
+            // Update displays
             updateTimerDisplay();
             updateTurnDisplay();
             
+            // Send reset events in correct order
+            socket.emit('timer-reset');
             socket.emit('match-reset');
+            
+            // Send complete updated data
+            socket.emit('pokemon-match-update', {
+                player1: {
+                    name: player1Name,
+                    active: null,
+                    bench: [],
+                    prizes: 6,
+                    prizesTaken: [],
+                    benchSize: 5,
+                    record: { wins: 0, losses: 0, ties: 0 },
+                    matchScore: 0,
+                    turnActions: { energy: false, supporter: false, retreat: false }
+                },
+                player2: {
+                    name: player2Name,
+                    active: null,
+                    bench: [],
+                    prizes: 6,
+                    prizesTaken: [],
+                    benchSize: 5,
+                    record: { wins: 0, losses: 0, ties: 0 },
+                    matchScore: 0,
+                    turnActions: { energy: false, supporter: false, retreat: false }
+                },
+                stadium: null,
+                currentTurn: 1,
+                gameNumber: 1,
+                matchFormat: 'Best of 3'
+            });
+            
+            socket.emit('prizes-reset');
             saveMatchState();
         }
         
-        // UPDATED: Close search with input clearing
+        // Close search with input clearing
         function closeSearch() {
             document.getElementById('searchOverlay').classList.remove('active');
             document.getElementById('pokemonSearch').value = '';
