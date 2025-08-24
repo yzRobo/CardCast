@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="business">
+<html lang="en" data-theme="cardcast">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CardCast - Pokemon Match Control</title>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link href="/css/style.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Minimal custom styles for specific needs */
@@ -108,7 +108,7 @@
             font-weight: bold;
         }
         
-        /* Stadium search results */
+        /* Stadium search results - FIXED Z-INDEX */
         .stadium-search-results {
             position: absolute;
             top: 100%;
@@ -120,8 +120,43 @@
             margin-top: 0.25rem;
             max-height: 300px;
             overflow-y: auto;
-            z-index: 50;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 99999 !important;  /* Maximum z-index with !important */
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .card {
+            overflow: visible !important;
+        }
+
+        .card-body {
+            overflow: visible !important;
+        }
+
+        /* Make sure the stadium card specifically doesn't clip */
+        .card:has(#stadiumDisplay) {
+            overflow: visible !important;
+            z-index: 9999 !important;
+        }
+
+        /* Ensure the relative container is high enough */
+        #stadiumDisplay {
+            position: relative;
+            z-index: 9998 !important;
+        }
+
+        #emptyStadium {
+            position: relative;
+            z-index: 9997 !important;
+        }
+
+        #stadiumDisplay {
+            position: relative;
+            z-index: 100;
+        }
+        
+        /* Make sure the card containing the stadium doesn't have overflow hidden */
+        .card-body {
+            overflow: visible !important;
         }
         
         .stadium-search-item {
@@ -168,9 +203,14 @@
         }
     </style>
 </head>
-<body class="min-h-screen bg-base-300">
+<body class="min-h-screen bg-gradient-to-br from-base-100 via-base-200 to-base-100">
+    <div class="animated-bg"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
     <!-- Header -->
-    <div class="navbar bg-base-100 shadow-lg fixed top-0 z-40">
+    <div class="navbar glass-card border-b-0 fixed top-0 z-50">
         <div class="flex-1">
             <h1 class="text-xl font-bold">CardCast - Pokemon Match Control</h1>
             <a href="/" class="btn btn-ghost btn-sm ml-4">← Back to Main</a>
@@ -203,12 +243,6 @@
                                            autocomplete="off">
                                     <div id="stadiumSearchResults" class="stadium-search-results hidden"></div>
                                 </div>
-                                <span class="text-sm text-base-content/50">or</span>
-                                <input type="text" 
-                                       id="stadiumManual" 
-                                       placeholder="Type stadium name manually" 
-                                       class="input input-bordered input-sm flex-1 max-w-xs">
-                                <button class="btn btn-primary btn-sm" onclick="setManualStadium()">Set</button>
                             </div>
                             
                             <!-- Active stadium display (hidden by default) -->

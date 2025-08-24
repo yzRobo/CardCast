@@ -1,33 +1,561 @@
-/* public/css/input.css */
+/* public/css/input.css - Complete CardCast Modern Theme */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Custom component styles */
+/* ============================================
+   MODERN COMPONENT STYLES WITH FIXES
+   ============================================ */
+
 @layer components {
+  /* Glassmorphic Cards with Better Contrast */
+  .glass-card {
+    @apply bg-base-200/95 border border-white/10 shadow-xl;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
+    backdrop-filter: blur(10px);
+  }
+  
+  /* Fixed Game Items with Proper Spacing */
   .game-item {
-    @apply flex items-center justify-between p-2 rounded-lg bg-base-200 hover:bg-base-300 transition-all cursor-pointer border-2 border-transparent hover:border-primary;
+    @apply flex items-center justify-between p-3 rounded-lg transition-all cursor-pointer border-2;
+    background: rgba(30, 41, 59, 0.6);
+    border-color: transparent;
+    min-height: 60px;
+    margin-bottom: 8px;
+  }
+  
+  .game-item:hover {
+    @apply bg-base-300/80 border-primary/50;
+    transform: translateX(2px);
+    box-shadow: 0 4px 12px rgba(129, 140, 248, 0.2);
   }
   
   .game-item.active {
-    @apply bg-base-300 border-primary;
+    @apply bg-primary/20 border-primary;
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.15) 0%, rgba(129, 140, 248, 0.05) 100%);
   }
   
+  /* Fix Game Icon positioning */
   .game-icon {
     @apply w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white shadow-lg;
+    flex-shrink: 0;
   }
   
+  /* Neon Glow Effects */
+  .neon-glow {
+    box-shadow: 
+      0 0 20px rgba(129, 140, 248, 0.5),
+      0 0 40px rgba(129, 140, 248, 0.3),
+      0 0 60px rgba(129, 140, 248, 0.1);
+  }
+  
+  .neon-glow-sm {
+    box-shadow: 
+      0 0 10px rgba(129, 140, 248, 0.4),
+      0 0 20px rgba(129, 140, 248, 0.2);
+  }
+  
+  /* Gradient Buttons */
+  .btn-gradient {
+    @apply relative overflow-hidden font-semibold tracking-wider;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transition: all 0.3s ease;
+  }
+  
+  .btn-gradient:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+  }
+  
+  .btn-gradient::before {
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    content: '';
+    background: linear-gradient(135deg, #764ba2 0%, #f093fb 100%);
+  }
+  
+  .btn-gradient:hover::before {
+    @apply opacity-100;
+  }
+  
+  .btn-gradient span {
+    @apply relative z-10;
+  }
+  
+  /* Animated Card Hover */
+  .card-hover {
+    @apply transition-all duration-300 ease-out;
+    transform-style: preserve-3d;
+  }
+  
+  .card-hover:hover {
+    transform: translateY(-8px);
+    box-shadow: 
+      0 20px 40px rgba(129, 140, 248, 0.3),
+      0 10px 20px rgba(0, 0, 0, 0.4);
+  }
+  
+  /* Shimmer Loading Effect */
+  .shimmer {
+    @apply relative overflow-hidden;
+  }
+  
+  .shimmer::after {
+    @apply absolute inset-0;
+    content: '';
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.05),
+      transparent
+    );
+    animation: shimmer 2s infinite;
+  }
+  
+  /* Modern Input */
+  .input-modern {
+    @apply bg-base-300/50 border-2 border-base-300/50 rounded-xl px-4 py-3;
+    @apply focus:border-primary focus:bg-base-300/70;
+    @apply transition-all duration-200;
+    backdrop-filter: blur(10px);
+  }
+  
+  .input-modern:focus {
+    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.1);
+  }
+  
+  /* Card Result with 3D Effect */
   .card-result {
-    @apply cursor-pointer transition-all hover:scale-105;
+    @apply cursor-pointer transition-all;
   }
   
+  .card-result:hover {
+    transform: scale(1.05);
+    z-index: 10;
+  }
+  
+  .card-result-3d {
+    @apply relative transition-all duration-300 cursor-pointer;
+    transform-style: preserve-3d;
+    transform: perspective(1000px) rotateY(0deg);
+  }
+  
+  .card-result-3d:hover {
+    transform: perspective(1000px) rotateY(5deg) scale(1.05);
+    z-index: 10;
+  }
+  
+  /* Card Thumbnail */
   .card-thumbnail {
     @apply aspect-[63/88] rounded-lg overflow-hidden bg-base-300 shadow-lg;
   }
+  
+  /* Gradient Text */
+  .gradient-text {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .gradient-text-cyan {
+    background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  /* Modern Badge */
+  .badge-modern {
+    @apply px-3 py-1 rounded-full text-xs font-semibold;
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.2) 0%, rgba(192, 132, 252, 0.2) 100%);
+    border: 1px solid rgba(129, 140, 248, 0.3);
+    backdrop-filter: blur(10px);
+  }
+  
+  /* Animated Border */
+  .animated-border {
+    @apply relative rounded-xl;
+  }
+  
+  .animated-border::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: linear-gradient(45deg, #f093fb, #f5576c, #4facfe, #00f2fe, #f093fb);
+    border-radius: inherit;
+    background-size: 400% 400%;
+    animation: gradient-border 15s ease infinite;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  
+  .animated-border:hover::before {
+    opacity: 1;
+  }
+  
+  /* Modern Toast */
+  .toast-modern {
+    @apply fixed bottom-4 right-4 z-50;
+    @apply glass-card rounded-xl p-4 min-w-[300px];
+    @apply transform transition-all duration-300;
+    animation: slide-in 0.3s ease-out;
+  }
+  
+  /* Pulse Animation for Active Elements */
+  .pulse-active {
+    @apply relative;
+  }
+  
+  .pulse-active::after {
+    @apply absolute inset-0 rounded-lg;
+    content: '';
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
 }
 
-/* Make the layout more horizontal on larger screens */
+/* ============================================
+   SPACING FIXES FOR SIDEBAR
+   ============================================ */
+
+/* Fix game item content layout */
+.game-item > div:first-child {
+  @apply flex items-center gap-3;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Fix game title and subtitle */
+.game-item .game-title {
+  @apply font-semibold text-sm;
+  line-height: 1.2;
+}
+
+.game-item .game-subtitle {
+  @apply text-xs opacity-60;
+  line-height: 1.2;
+}
+
+/* Fix button spacing in game items */
+.game-item .btn-group {
+  @apply flex items-center gap-2;
+  flex-shrink: 0;
+}
+
+/* Fix small buttons */
+.game-item .btn-xs {
+  @apply px-2 py-1 min-w-fit;
+  font-size: 0.7rem;
+  height: auto;
+  line-height: 1.2;
+}
+
+/* Fix "Coming Soon" badge */
+.badge-coming-soon {
+  @apply badge badge-sm badge-neutral;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+/* Fix radio button spacing */
+.label {
+  @apply cursor-pointer flex items-center gap-2 py-2;
+  min-height: 32px;
+}
+
+.radio {
+  @apply w-4 h-4;
+  flex-shrink: 0;
+}
+
+/* Fix section headers */
+.card-body h2 {
+  @apply text-sm uppercase tracking-wider font-semibold mb-3;
+  line-height: 1;
+}
+
+/* Ensure proper card padding */
+.card-body {
+  @apply p-4;
+}
+
+/* Fix button positioning */
+#downloadButton, #updateButton {
+  @apply w-full mb-2;
+}
+
+/* Specific fixes for the game list structure */
+#gameList {
+  @apply space-y-2;
+}
+
+#gameList .game-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+#gameList .game-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+#gameList .game-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+#gameList .game-text > span:first-child {
+  font-weight: 600;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#gameList .game-text > span:last-child {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+#gameList .game-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#gameList .btn-update {
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  height: 24px;
+  line-height: 1;
+  min-width: 50px;
+}
+
+#gameList .btn-close {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+}
+
+/* ============================================
+   AUTO-UPGRADE EXISTING ELEMENTS
+   ============================================ */
+
+/* Auto-upgrade all existing cards */
+.card:not(.no-upgrade) {
+  @apply backdrop-blur-sm bg-base-200/80 border border-white/5 shadow-xl transition-all duration-300;
+  background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0) 100%);
+}
+
+.card:not(.no-upgrade):hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(129, 140, 248, 0.15);
+}
+
+/* Auto-upgrade all primary buttons */
+.btn-primary:not(.no-upgrade) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: none !important;
+  transition: all 0.3s ease !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.btn-primary:not(.no-upgrade):hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4) !important;
+  filter: brightness(1.1);
+}
+
+/* Auto-upgrade inputs */
+input.input-bordered:not(.no-upgrade) {
+  @apply bg-base-300/50 border-2 border-base-300/30 backdrop-blur-sm;
+  transition: all 0.2s;
+}
+
+input.input-bordered:not(.no-upgrade):focus {
+  @apply border-primary bg-base-300/70;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.1);
+}
+
+/* Auto-upgrade navbar */
+.navbar:not(.no-upgrade) {
+  @apply backdrop-blur-xl bg-base-200/50 border-b border-white/10;
+  background: linear-gradient(135deg, rgba(19, 24, 36, 0.95) 0%, rgba(10, 14, 26, 0.95) 100%);
+}
+
+/* ============================================
+   BACKGROUND EFFECTS
+   ============================================ */
+
+/* Animated gradient background */
+.animated-bg {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  z-index: -2;
+  background: linear-gradient(-45deg, #0a0e1a, #1e293b, #312e81, #1e1b4b);
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+/* Floating orbs */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.3;
+  animation: float-orb 20s infinite ease-in-out;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.orb-1 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, #818cf8, transparent);
+  top: -10%;
+  left: -10%;
+}
+
+.orb-2 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, #c084fc, transparent);
+  bottom: -10%;
+  right: -10%;
+  animation-delay: -5s;
+}
+
+.orb-3 {
+  width: 250px;
+  height: 250px;
+  background: radial-gradient(circle, #22d3ee, transparent);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation-delay: -10s;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(129, 140, 248, 0.5); }
+  50% { box-shadow: 0 0 40px rgba(129, 140, 248, 0.8); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes gradient-border {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes float-orb {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -30px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* ============================================
+   CUSTOM SCROLLBAR
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(30, 41, 59, 0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #f093fb 100%);
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
 @layer utilities {
+  /* Performance optimization */
+  .hardware-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+  
+  /* Glow text effect */
+  .text-glow {
+    text-shadow: 0 0 20px currentColor;
+  }
+  
+  /* Float animation utility */
+  .float-animation {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  /* Reduce motion for accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+  
+  /* Make the layout more horizontal on larger screens */
   @media (min-width: 1536px) {
     .container {
       max-width: 100%;
