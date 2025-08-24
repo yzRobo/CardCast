@@ -146,7 +146,7 @@ cd /d "%~dp0"
 cls
 
 echo =========================================
-echo          CardCast v1.0.0
+echo             CardCast
 echo     TCG Streaming Overlay Tool
 echo =========================================
 echo.

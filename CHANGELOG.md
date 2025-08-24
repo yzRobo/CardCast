@@ -5,6 +5,29 @@ All notable changes to CardCast will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-08-24
+
+### Fixed
+- Fixed prize card display showing "false,false,false,false,false,false" instead of numbers
+- Fixed match reset throwing error due to non-existent stadiumManual element
+- Fixed timer auto-starting after match reset
+- Fixed prize cards not visually resetting in overlay
+- Fixed turn actions not clearing on match reset
+- Fixed element ID mismatches between control page and overlay
+- Fixed match state not properly syncing between control and overlay
+
+### Improved
+- Enhanced error handling in clearStadium function
+- Better prize data conversion between boolean arrays and prizesTaken arrays
+- Improved timer management to prevent auto-start
+- More robust match reset sequence
+
+### Technical Changes
+- Removed reference to non-existent stadiumManual element
+- Fixed updatePlayerInfo using wrong element ID (PrizeCount → Prizes)
+- Fixed updatePrizeDisplay using wrong container ID (Prizes → PrizeCards)
+- Added proper timer pause before all reset operations
+
 ## [1.0.0] - 2025-08-21
 
 ### Added

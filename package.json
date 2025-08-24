@@ -1,6 +1,6 @@
 {
   "name": "cardcast",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Streaming overlay tool for TCG content creators",
   "main": "server.js",
   "bin": "server.js",
