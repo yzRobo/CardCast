@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTG Match Overlay - CardCast</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            background: transparent;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* Player Containers */
+        .player-container {
+            position: absolute;
+            width: 450px;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 15px;
+            padding: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .player-container.active {
+            border-color: #3b82f6;
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.6);
+        }
+
+        #player1-container {
+            top: 50px;
+            left: 50px;
+        }
+
+        #player2-container {
+            top: 50px;
+            right: 50px;
+        }
+
+        .player-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 5px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .player-record {
+            font-size: 18px;
+            color: #a0a0a0;
+            margin-bottom: 15px;
+        }
+
+        .life-display {
+            font-size: 96px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.9);
+            transition: all 0.3s ease;
+        }
+
+        .life-healthy { color: #10b981; }
+        .life-warning { color: #f59e0b; }
+        .life-critical { color: #ef4444; animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            font-size: 20px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 15px;
+            border-radius: 8px;
+            color: #ffffff;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #a0a0a0;
+            margin-right: 5px;
+        }
+
+        .stat-value {
+            font-weight: bold;
+        }
+
+        /* Featured Permanents */
+        .featured-permanents {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+            max-height: 200px;
+        }
+
+        .permanent-card {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s;
+        }
+
+        .permanent-card:hover {
+            transform: scale(1.05);
+        }
+
+        .permanent-card img {
+            width: 100%;
+            display: block;
+        }
+
+        .permanent-name {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 4px;
+            font-size: 11px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Commander Damage */
+        .commander-damage {
+            margin-top: 15px;
+            background: rgba(139, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .commander-damage-title {
+            font-size: 14px;
+            color: #ff6b6b;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .commander-damage-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px;
+            margin-bottom: 4px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 5px;
+            font-size: 16px;
+            color: #ffffff;
+        }
+
+        .commander-damage-item.lethal {
+            background: rgba(239, 68, 68, 0.8);
+            animation: pulse 1s infinite;
+        }
+
+        /* Phase Indicator */
+        .phase-indicator {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px 40px;
+            border-radius: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .phase-text {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ffffff;
+            text-transform: uppercase;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Timer */
+        .timer-display {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 10px 30px;
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .timer-text {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Format Badge */
+        .format-badge {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffffff;
+            text-transform: uppercase;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .slide-in-left {
+            animation: slideInLeft 0.5s ease-out;
+        }
+
+        @keyframes slideInLeft {
+            from { transform: translateX(-100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .slide-in-right {
+            animation: slideInRight 0.5s ease-out;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Connection Status (for debugging) */
+        .connection-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 5px;
+            font-size: 12px;
+            color: #10b981;
+        }
+
+        .connection-status.disconnected {
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <!-- Connection Status -->
+    <div id="connection-status" class="connection-status">Connected</div>
+
+    <!-- Format Badge -->
+    <div id="format-badge" class="format-badge">Standard</div>
+
+    <!-- Player 1 -->
+    <div id="player1-container" class="player-container slide-in-left">
+        <div class="player-name" id="p1-name">Player 1</div>
+        <div class="player-record" id="p1-record">0-0-0 | Games Won: 0</div>
+        <div class="life-display life-healthy" id="p1-life">20</div>
+        
+        <div class="stats-row">
+            <div class="stat-item">
+                <span class="stat-label">⛰️ Lands:</span>
+                <span class="stat-value" id="p1-lands">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">🎴 Permanents:</span>
+                <span class="stat-value" id="p1-perm-count">0</span>
+            </div>
+        </div>
+
+        <div id="p1-commander-damage" class="commander-damage" style="display: none;">
+            <div class="commander-damage-title">⚔️ Commander Damage</div>
+            <div id="p1-commander-list"></div>
+        </div>
+
+        <div id="p1-featured" class="featured-permanents"></div>
+    </div>
+
+    <!-- Player 2 -->
+    <div id="player2-container" class="player-container slide-in-right">
+        <div class="player-name" id="p2-name">Player 2</div>
+        <div class="player-record" id="p2-record">0-0-0 | Games Won: 0</div>
+        <div class="life-display life-healthy" id="p2-life">20</div>
+        
+        <div class="stats-row">
+            <div class="stat-item">
+                <span class="stat-label">⛰️ Lands:</span>
+                <span class="stat-value" id="p2-lands">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">🎴 Permanents:</span>
+                <span class="stat-value" id="p2-perm-count">0</span>
+            </div>
+        </div>
+
+        <div id="p2-commander-damage" class="commander-damage" style="display: none;">
+            <div class="commander-damage-title">⚔️ Commander Damage</div>
+            <div id="p2-commander-list"></div>
+        </div>
+
+        <div id="p2-featured" class="featured-permanents"></div>
+    </div>
+
+    <!-- Phase Indicator -->
+    <div class="phase-indicator">
+        <div class="phase-text" id="phase-text">Main Phase</div>
+    </div>
+
+    <script>
+        let socket;
+        let currentState = null;
+
+        // Phase display names
+        const phaseNames = {
+            'untap': 'Untap',
+            'upkeep': 'Upkeep',
+            'draw': 'Draw',
+            'main1': 'Main Phase 1',
+            'combat': 'Combat',
+            'main2': 'Main Phase 2',
+            'end': 'End Step'
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initSocket();
+        });
+
+        function initSocket() {
+            socket = io();
+            
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                updateConnectionStatus(true);
+                // Register as MTG overlay
+                socket.emit('register-overlay', { type: 'mtg-match' });
+                // Request current state
+                socket.emit('request-state');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+                updateConnectionStatus(false);
+            });
+
+            // Listen for state updates
+            socket.on('state-update', (state) => {
+                if (state.mtgMatch) {
+                    currentState = state.mtgMatch;
+                    updateOverlay(state.mtgMatch);
+                }
+            });
+
+            // Listen for individual update events
+            socket.on('mtg-life-update', (data) => {
+                updateLife(data.player, data.life);
+            });
+
+            socket.on('mtg-lands-update', (data) => {
+                updateLands(data.player, data.count);
+            });
+
+            socket.on('mtg-commander-damage-update', (data) => {
+                if (currentState) {
+                    updateCommanderDamage(data.player, currentState[`player${data.player}`].commanderDamage);
+                }
+            });
+
+            socket.on('mtg-permanent-added', (data) => {
+                if (currentState) {
+                    updateFeaturedPermanents(data.player, currentState[`player${data.player}`].featuredPermanents);
+                }
+            });
+
+            socket.on('mtg-permanent-removed', (data) => {
+                if (currentState) {
+                    updateFeaturedPermanents(data.player, currentState[`player${data.player}`].featuredPermanents);
+                }
+            });
+
+            socket.on('mtg-permanents-cleared', (data) => {
+                updateFeaturedPermanents(data.player, []);
+            });
+
+            socket.on('mtg-phase-update', (data) => {
+                updatePhase(data.phase);
+            });
+
+            socket.on('mtg-player-name-update', (data) => {
+                document.getElementById(`p${data.player}-name`).textContent = data.name;
+            });
+
+            socket.on('mtg-player-record-update', (data) => {
+                if (currentState) {
+                    const player = currentState[`player${data.player}`];
+                    document.getElementById(`p${data.player}-record`).textContent = 
+                        `${data.record} | Games Won: ${player.gamesWon}`;
+                }
+            });
+
+            socket.on('mtg-games-won-update', (data) => {
+                if (currentState) {
+                    const player = currentState[`player${data.player}`];
+                    document.getElementById(`p${data.player}-record`).textContent = 
+                        `${player.record} | Games Won: ${data.gamesWon}`;
+                }
+            });
+
+            socket.on('mtg-player-switch', (data) => {
+                updateActivePlayer(data.activePlayer || 1);
+            });
+
+            socket.on('mtg-format-update', (data) => {
+                updateFormat(data.format);
+            });
+
+            socket.on('mtg-match-reset', () => {
+                // Reload to reset all UI
+                location.reload();
+            });
+        }
+
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connection-status');
+            status.textContent = connected ? 'Connected' : 'Disconnected';
+            status.className = connected ? 'connection-status' : 'connection-status disconnected';
+        }
+
+        function updateOverlay(state) {
+            // Update format
+            updateFormat(state.format);
+
+            // Update both players
+            [1, 2].forEach(p => {
+                const player = state[`player${p}`];
+                document.getElementById(`p${p}-name`).textContent = player.name;
+                document.getElementById(`p${p}-record`).textContent = 
+                    `${player.record} | Games Won: ${player.gamesWon}`;
+                updateLife(p, player.life);
+                updateLands(p, player.lands);
+                updateFeaturedPermanents(p, player.featuredPermanents);
+                
+                if (state.format === 'commander') {
+                    updateCommanderDamage(p, player.commanderDamage);
+                }
+            });
+
+            // Update phase
+            updatePhase(state.currentPhase);
+
+            // Update active player
+            updateActivePlayer(state.activePlayer);
+        }
+
+        function updateLife(player, life) {
+            const lifeElement = document.getElementById(`p${player}-life`);
+            lifeElement.textContent = life;
+            
+            // Update color based on life total
+            lifeElement.className = 'life-display';
+            if (life <= 5) {
+                lifeElement.classList.add('life-critical');
+            } else if (life <= 10) {
+                lifeElement.classList.add('life-warning');
+            } else {
+                lifeElement.classList.add('life-healthy');
+            }
+
+            // Add flash animation
+            lifeElement.classList.add('fade-in');
+            setTimeout(() => lifeElement.classList.remove('fade-in'), 500);
+        }
+
+        function updateLands(player, count) {
+            document.getElementById(`p${player}-lands`).textContent = count;
+        }
+
+        function updateFeaturedPermanents(player, permanents) {
+            const container = document.getElementById(`p${player}-featured`);
+            document.getElementById(`p${player}-perm-count`).textContent = permanents.length;
+            
+            if (!permanents || permanents.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = permanents.map(card => `
+                <div class="permanent-card fade-in">
+                    <img src="${card.image_url || '/placeholder.png'}" alt="${card.name}">
+                    <div class="permanent-name">${card.name}</div>
+                </div>
+            `).join('');
+        }
+
+        function updateCommanderDamage(player, commanderDamage) {
+            const container = document.getElementById(`p${player}-commander-damage`);
+            const listElement = document.getElementById(`p${player}-commander-list`);
+            
+            if (!commanderDamage || Object.keys(commanderDamage).length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            listElement.innerHTML = Object.entries(commanderDamage).map(([name, dmg]) => {
+                const isLethal = dmg >= 21;
+                return `
+                    <div class="commander-damage-item ${isLethal ? 'lethal' : ''}">
+                        <span>${name}</span>
+                        <span>${dmg}/21</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updatePhase(phase) {
+            document.getElementById('phase-text').textContent = phaseNames[phase] || phase;
+        }
+
+        function updateActivePlayer(activePlayer) {
+            document.getElementById('player1-container').classList.toggle('active', activePlayer === 1);
+            document.getElementById('player2-container').classList.toggle('active', activePlayer === 2);
+        }
+
+        function updateFormat(format) {
+            const formatNames = {
+                'standard': 'Standard',
+                'modern': 'Modern',
+                'legacy': 'Legacy',
+                'vintage': 'Vintage',
+                'commander': 'Commander',
+                'brawl': 'Brawl',
+                'pauper': 'Pauper'
+            };
+
+            document.getElementById('format-badge').textContent = formatNames[format] || format;
+
+            // Show/hide commander damage based on format
+            const isCommander = format === 'commander';
+            document.getElementById('p1-commander-damage').style.display = isCommander ? 'block' : 'none';
+            document.getElementById('p2-commander-damage').style.display = isCommander ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>

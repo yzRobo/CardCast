@@ -67,7 +67,6 @@ function initOBSConnection() {
     
     // Listen for OBS status updates
     socket.on('obs-status', (data) => {
-        console.log('OBS status update:', data);
         updateOBSStatus(data.connected);
     });
     
@@ -799,67 +798,6 @@ function togglePokemonMatch() {
 function togglePrizeOverlay() {
     pokemonMatchState.showPrizes = !pokemonMatchState.showPrizes;
     socket.emit('toggle-prizes', { show: pokemonMatchState.showPrizes });
-}
-
-// Deck List Functions
-function parseDeckList(deckText) {
-    const lines = deckText.trim().split('\n');
-    const deck = {
-        pokemon: [],
-        trainers: [],
-        energy: []
-    };
-    
-    let currentSection = null;
-    
-    lines.forEach(line => {
-        line = line.trim();
-        if (!line) return;
-        
-        // Check for section headers
-        if (line.toLowerCase().includes('pokémon:') || line.toLowerCase().includes('pokemon:')) {
-            currentSection = 'pokemon';
-            return;
-        } else if (line.toLowerCase().includes('trainer:')) {
-            currentSection = 'trainers';
-            return;
-        } else if (line.toLowerCase().includes('energy:')) {
-            currentSection = 'energy';
-            return;
-        }
-        
-        // Skip lines that are just numbers (like "Total Cards: 60")
-        if (line.match(/^(Total Cards:|Pokémon:|Trainer:|Energy:)/i)) {
-            return;
-        }
-        
-        // Parse card lines - handle both formats
-        // Format 1: "3 Ralts SVI 84"
-        // Format 2: "3 Basic {P} Energy SVE 13"
-        const match = line.match(/^(\d+)\s+(.+?)\s+([A-Z]{2,}[A-Z0-9]*)\s+(\d+)$/);
-        if (match) {
-            const [_, quantity, name, setCode, number] = match;
-            const cleanName = name.replace(/\{.\}/g, '').replace(/Basic\s+Energy/g, 'Energy').trim();
-            
-            const card = {
-                quantity: parseInt(quantity),
-                name: cleanName,
-                setCode: setCode,
-                number: number,
-                fullName: `${cleanName} ${setCode} ${number}`
-            };
-            
-            if (currentSection === 'pokemon') {
-                deck.pokemon.push(card);
-            } else if (currentSection === 'trainers') {
-                deck.trainers.push(card);
-            } else if (currentSection === 'energy') {
-                deck.energy.push(card);
-            }
-        }
-    });
-    
-    return deck;
 }
 
 async function importDeck() {
