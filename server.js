@@ -1,4 +1,4 @@
-// server.js - CardCast Main Server (Updated with Coming Soon functionality)
+// server.js - CardCast Main Server (Updated with Coming Soon functionality + MTG Support)
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -110,7 +110,7 @@ app.get('/api/games', (req, res) => {
     const games = Object.keys(config.games)
         .filter(key => config.games[key].enabled)
         .map(key => {
-            // Only Pokemon is available, all others are coming soon
+            // Only Pokemon and Magic are available, all others are coming soon
             const isComingSoon = !AVAILABLE_GAMES.includes(key);
             
             if (isComingSoon) {
@@ -126,7 +126,7 @@ app.get('/api/games', (req, res) => {
                     lastUpdate: null
                 };
             } else {
-                // For Pokemon, return actual data
+                // For available games, return actual data
                 const hasData = db.hasGameData(key);
                 const stats = db.getGameStats().find(g => g.id === key);
                 
@@ -478,6 +478,10 @@ app.get('/mtg-match-control', (req, res) => {
     res.sendFile(path.join(__dirname, 'mtg-match-control.html'));
 });
 
+app.get('/mtg-match', (req, res) => {
+    res.sendFile(path.join(__dirname, 'overlays', 'mtg-match.html'));
+});
+
 // Track overlay connections
 let overlayClients = new Set();
 let mainClients = new Set();
@@ -486,7 +490,8 @@ let overlayStates = {
     'pokemon-match': false,
     'prizes': false,
     'decklist': false,
-    'main': false
+    'main': false,
+    'mtg-match': false
 };
 
 // Socket.io events
@@ -522,6 +527,8 @@ io.on('connection', (socket) => {
             socket.emit('prizes-state', state);
         } else if (type === 'decklist') {
             socket.emit('decklist-state', state);
+        } else if (type === 'mtg-match') {
+            socket.emit('state-update', { mtgMatch: state.mtgMatch });
         }
     });
     
@@ -572,6 +579,8 @@ io.on('connection', (socket) => {
                 player2: state.pokemonMatch.player2,
                 stadium: state.pokemonMatch.stadium
             });
+        } else if (type === 'mtg-match') {
+            socket.emit('state-update', { mtgMatch: state.mtgMatch });
         }
     });
     
@@ -804,6 +813,21 @@ io.on('connection', (socket) => {
         overlayServer.updateMTGPlayerName(data.player, data.name);
     });
 
+    socket.on('mtg-player-record-update', (data) => {
+        console.log('MTG player record update:', data);
+        overlayServer.updateMTGPlayerRecord(data.player, data.record);
+    });
+
+    socket.on('mtg-games-won-update', (data) => {
+        console.log('MTG games won update:', data);
+        overlayServer.updateMTGGamesWon(data.player, data.gamesWon);
+    });
+
+    socket.on('mtg-turn-action', (data) => {
+        console.log('MTG turn action:', data);
+        overlayServer.setMTGTurnAction(data.player, data.action, data.value);
+    });
+
     socket.on('mtg-player-switch', () => {
         console.log('MTG player switch');
         overlayServer.switchMTGActivePlayer();
@@ -838,6 +862,7 @@ io.on('connection', (socket) => {
             
             // Notify control panels
             io.emit('overlay-disconnected', 'pokemon-match');
+            io.emit('overlay-disconnected', 'mtg-match');
             
             // If no more overlays are connected, notify main clients
             if (overlayClients.size === 0) {
@@ -852,16 +877,22 @@ const PORT = config.port || 3888;
 server.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════╗
-║          CardCast v1.0.0              ║
+║          CardCast v1.0.1              ║
 ║     TCG Streaming Overlay Tool        ║
 ╚═══════════════════════════════════════╝
 
 Server running on http://localhost:${PORT}
+
 OBS Overlays:
   - Main: http://localhost:${PORT}/overlay
   - Prizes: http://localhost:${PORT}/prizes  
   - Decklist: http://localhost:${PORT}/decklist
   - Pokemon Match: http://localhost:${PORT}/pokemon-match
+  - MTG Match: http://localhost:${PORT}/mtg-match
+
+Control Panels:
+  - Pokemon: http://localhost:${PORT}/pokemon-match-control
+  - MTG: http://localhost:${PORT}/mtg-match-control
 
 Currently Available:
   ✓ Pokemon TCG (20,000+ cards)

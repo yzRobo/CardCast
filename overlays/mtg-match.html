@@ -149,6 +149,7 @@
             background: rgba(139, 0, 0, 0.3);
             border-radius: 8px;
             padding: 10px;
+            display: none;
         }
 
         .commander-damage-title {
@@ -197,13 +198,14 @@
         /* Timer */
         .timer-display {
             position: absolute;
-            top: 50px;
+            top: 120px;
             left: 50%;
             transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.85);
             padding: 10px 30px;
             border-radius: 10px;
             border: 2px solid rgba(255, 255, 255, 0.2);
+            display: none;
         }
 
         .timer-text {
@@ -228,6 +230,49 @@
             color: #ffffff;
             text-transform: uppercase;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Turn Actions Indicators */
+        .turn-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .action-indicator {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .action-indicator.active {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.2);
+        }
+
+        .action-label {
+            font-size: 12px;
+            color: #a0a0a0;
+            text-transform: uppercase;
+        }
+
+        .action-indicator.active .action-label {
+            color: #10b981;
+        }
+
+        .action-icon {
+            font-size: 16px;
+            opacity: 0.3;
+        }
+
+        .action-indicator.active .action-icon {
+            opacity: 1;
         }
 
         /* Animations */
@@ -282,6 +327,11 @@
     <!-- Format Badge -->
     <div id="format-badge" class="format-badge">Standard</div>
 
+    <!-- Timer Display -->
+    <div id="timer-display" class="timer-display">
+        <div class="timer-text" id="timer-text">00:00</div>
+    </div>
+
     <!-- Player 1 -->
     <div id="player1-container" class="player-container slide-in-left">
         <div class="player-name" id="p1-name">Player 1</div>
@@ -299,7 +349,19 @@
             </div>
         </div>
 
-        <div id="p1-commander-damage" class="commander-damage" style="display: none;">
+        <!-- Turn Actions -->
+        <div class="turn-actions" id="p1-turn-actions">
+            <div class="action-indicator" id="p1-land-action">
+                <span class="action-label">Land</span>
+                <span class="action-icon">🌲</span>
+            </div>
+            <div class="action-indicator" id="p1-spell-action">
+                <span class="action-label">Spell</span>
+                <span class="action-icon">✨</span>
+            </div>
+        </div>
+
+        <div id="p1-commander-damage" class="commander-damage">
             <div class="commander-damage-title">⚔️ Commander Damage</div>
             <div id="p1-commander-list"></div>
         </div>
@@ -324,7 +386,19 @@
             </div>
         </div>
 
-        <div id="p2-commander-damage" class="commander-damage" style="display: none;">
+        <!-- Turn Actions -->
+        <div class="turn-actions" id="p2-turn-actions">
+            <div class="action-indicator" id="p2-land-action">
+                <span class="action-label">Land</span>
+                <span class="action-icon">🌲</span>
+            </div>
+            <div class="action-indicator" id="p2-spell-action">
+                <span class="action-label">Spell</span>
+                <span class="action-icon">✨</span>
+            </div>
+        </div>
+
+        <div id="p2-commander-damage" class="commander-damage">
             <div class="commander-damage-title">⚔️ Commander Damage</div>
             <div id="p2-commander-list"></div>
         </div>
@@ -363,10 +437,12 @@
             socket.on('connect', () => {
                 console.log('Connected to server');
                 updateConnectionStatus(true);
-                // Register as MTG overlay
-                socket.emit('register-overlay', { type: 'mtg-match' });
+                // Register as MTG overlay - FIXED: Use string not object
+                socket.emit('register-overlay', 'mtg-match');
                 // Request current state
-                socket.emit('request-state');
+                setTimeout(() => {
+                    socket.emit('request-state', 'mtg-match');
+                }, 500);
             });
 
             socket.on('disconnect', () => {
@@ -384,45 +460,64 @@
 
             // Listen for individual update events
             socket.on('mtg-life-update', (data) => {
-                updateLife(data.player, data.life);
+                if (currentState) {
+                    currentState[`player${data.player}`].life = data.life;
+                    updateLife(data.player, data.life);
+                }
             });
 
             socket.on('mtg-lands-update', (data) => {
-                updateLands(data.player, data.count);
+                if (currentState) {
+                    currentState[`player${data.player}`].lands = data.lands;
+                    updateLands(data.player, data.lands);
+                }
             });
 
             socket.on('mtg-commander-damage-update', (data) => {
                 if (currentState) {
+                    currentState[`player${data.player}`].commanderDamage[data.commanderName] = data.damage;
                     updateCommanderDamage(data.player, currentState[`player${data.player}`].commanderDamage);
                 }
             });
 
             socket.on('mtg-permanent-added', (data) => {
                 if (currentState) {
-                    updateFeaturedPermanents(data.player, currentState[`player${data.player}`].featuredPermanents);
+                    currentState[`player${data.player}`].featuredPermanents = data.featuredPermanents;
+                    updateFeaturedPermanents(data.player, data.featuredPermanents);
                 }
             });
 
             socket.on('mtg-permanent-removed', (data) => {
                 if (currentState) {
-                    updateFeaturedPermanents(data.player, currentState[`player${data.player}`].featuredPermanents);
+                    currentState[`player${data.player}`].featuredPermanents = data.featuredPermanents;
+                    updateFeaturedPermanents(data.player, data.featuredPermanents);
                 }
             });
 
             socket.on('mtg-permanents-cleared', (data) => {
+                if (currentState) {
+                    currentState[`player${data.player}`].featuredPermanents = [];
+                }
                 updateFeaturedPermanents(data.player, []);
             });
 
             socket.on('mtg-phase-update', (data) => {
+                if (currentState) {
+                    currentState.currentPhase = data.phase;
+                }
                 updatePhase(data.phase);
             });
 
             socket.on('mtg-player-name-update', (data) => {
+                if (currentState) {
+                    currentState[`player${data.player}`].name = data.name;
+                }
                 document.getElementById(`p${data.player}-name`).textContent = data.name;
             });
 
             socket.on('mtg-player-record-update', (data) => {
                 if (currentState) {
+                    currentState[`player${data.player}`].record = data.record;
                     const player = currentState[`player${data.player}`];
                     document.getElementById(`p${data.player}-record`).textContent = 
                         `${data.record} | Games Won: ${player.gamesWon}`;
@@ -431,17 +526,34 @@
 
             socket.on('mtg-games-won-update', (data) => {
                 if (currentState) {
+                    currentState[`player${data.player}`].gamesWon = data.gamesWon;
                     const player = currentState[`player${data.player}`];
                     document.getElementById(`p${data.player}-record`).textContent = 
                         `${player.record} | Games Won: ${data.gamesWon}`;
                 }
             });
 
+            socket.on('mtg-turn-actions-update', (data) => {
+                if (currentState) {
+                    currentState[`player${data.player}`].turnActions = data.actions;
+                    updateTurnActions(data.player, data.actions);
+                }
+            });
+
             socket.on('mtg-player-switch', (data) => {
+                if (currentState) {
+                    currentState.activePlayer = data.activePlayer;
+                }
                 updateActivePlayer(data.activePlayer || 1);
             });
 
             socket.on('mtg-format-update', (data) => {
+                if (currentState) {
+                    currentState.format = data.format;
+                    // Update life displays with new thresholds
+                    updateLife(1, currentState.player1.life);
+                    updateLife(2, currentState.player2.life);
+                }
                 updateFormat(data.format);
             });
 
@@ -449,6 +561,13 @@
                 // Reload to reset all UI
                 location.reload();
             });
+
+            // ADDED: Periodic re-registration like Pokemon
+            setInterval(() => {
+                if (socket.connected) {
+                    socket.emit('register-overlay', 'mtg-match');
+                }
+            }, 5000);
         }
 
         function updateConnectionStatus(connected) {
@@ -458,7 +577,7 @@
         }
 
         function updateOverlay(state) {
-            // Update format
+            // Update format first (affects life thresholds)
             updateFormat(state.format);
 
             // Update both players
@@ -470,6 +589,7 @@
                 updateLife(p, player.life);
                 updateLands(p, player.lands);
                 updateFeaturedPermanents(p, player.featuredPermanents);
+                updateTurnActions(p, player.turnActions);
                 
                 if (state.format === 'commander') {
                     updateCommanderDamage(p, player.commanderDamage);
@@ -481,17 +601,38 @@
 
             // Update active player
             updateActivePlayer(state.activePlayer);
+
+            // Update timer if exists
+            if (state.timer !== undefined) {
+                updateTimer(state.timer);
+            }
         }
 
         function updateLife(player, life) {
             const lifeElement = document.getElementById(`p${player}-life`);
             lifeElement.textContent = life;
             
-            // Update color based on life total
+            // FIXED: Format-aware life thresholds
+            // Get starting life for current format
+            let startingLife = 20; // Default
+            if (currentState) {
+                if (currentState.format === 'commander') {
+                    startingLife = 40;
+                } else if (currentState.format === 'brawl') {
+                    startingLife = 25;
+                } else {
+                    startingLife = 20;
+                }
+            }
+            
+            // Calculate percentage of starting life
+            const lifePercent = (life / startingLife) * 100;
+            
+            // Update color based on percentage, not fixed values
             lifeElement.className = 'life-display';
-            if (life <= 5) {
+            if (lifePercent <= 15) {  // 15% or less = critical (6 life in Standard, 6 in Commander)
                 lifeElement.classList.add('life-critical');
-            } else if (life <= 10) {
+            } else if (lifePercent <= 30) {  // 30% or less = warning (6 life in Standard, 12 in Commander)
                 lifeElement.classList.add('life-warning');
             } else {
                 lifeElement.classList.add('life-healthy');
@@ -544,6 +685,23 @@
             }).join('');
         }
 
+        function updateTurnActions(player, actions) {
+            const landAction = document.getElementById(`p${player}-land-action`);
+            const spellAction = document.getElementById(`p${player}-spell-action`);
+            
+            if (actions.landPlayed) {
+                landAction.classList.add('active');
+            } else {
+                landAction.classList.remove('active');
+            }
+            
+            if (actions.spellCast) {
+                spellAction.classList.add('active');
+            } else {
+                spellAction.classList.remove('active');
+            }
+        }
+
         function updatePhase(phase) {
             document.getElementById('phase-text').textContent = phaseNames[phase] || phase;
         }
@@ -561,7 +719,8 @@
                 'vintage': 'Vintage',
                 'commander': 'Commander',
                 'brawl': 'Brawl',
-                'pauper': 'Pauper'
+                'pauper': 'Pauper',
+                'pioneer': 'Pioneer'
             };
 
             document.getElementById('format-badge').textContent = formatNames[format] || format;
@@ -570,6 +729,20 @@
             const isCommander = format === 'commander';
             document.getElementById('p1-commander-damage').style.display = isCommander ? 'block' : 'none';
             document.getElementById('p2-commander-damage').style.display = isCommander ? 'block' : 'none';
+        }
+
+        function updateTimer(seconds) {
+            const timerDisplay = document.getElementById('timer-display');
+            const timerText = document.getElementById('timer-text');
+            
+            if (seconds > 0) {
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                timerText.textContent = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+                timerDisplay.style.display = 'block';
+            } else {
+                timerDisplay.style.display = 'none';
+            }
         }
     </script>
 </body>
