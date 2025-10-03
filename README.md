@@ -1,4 +1,4 @@
-# CardCast
+<img width="4100" height="1688" alt="CardCastBanner" src="https://github.com/user-attachments/assets/56f138e0-e738-434c-ad39-24fedcdfa6b2" />
 
 A straightforward streaming overlay tool for Trading Card Game content creators. Display card images and information in real-time through OBS browser sources, with all data stored locally for offline use. No Plug-ins needed!
 
@@ -244,4 +244,4 @@ See [LICENSE](LICENSE) file for full details.
 
 ---
 
-**CardCast v1.0.0** - Built with love for the TCG streaming community
+**CardCast v1.0.1** - Built with love for the TCG streaming community
