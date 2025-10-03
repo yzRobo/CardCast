@@ -54,6 +54,40 @@ class OverlayServer {
             matchFormat: 'Best of 3',
             stadium: ''
         };
+
+        // MTG Match State
+        this.mtgMatch = {
+            player1: {
+                name: 'Player 1',
+                record: '0-0-0',
+                gamesWon: 0,
+                life: 20,
+                commanderDamage: {},
+                lands: 0,
+                featuredPermanents: [],
+                turnActions: {
+                    landPlayed: false,
+                    spellCast: false
+                }
+            },
+            player2: {
+                name: 'Player 2',
+                record: '0-0-0',
+                gamesWon: 0,
+                life: 20,
+                commanderDamage: {},
+                lands: 0,
+                featuredPermanents: [],
+                turnActions: {
+                    landPlayed: false,
+                    spellCast: false
+                }
+            },
+            activePlayer: 1,
+            currentPhase: 'main1',
+            timer: 0,
+            format: 'standard'
+        };
     }
     
     updateCard(cardData, position = 'left') {
@@ -99,12 +133,10 @@ class OverlayServer {
     takePrize(player, index) {
         const playerKey = `player${player}`;
         
-        // Update regular prize cards
         if (this.prizeCards[playerKey] && !this.prizeCards[playerKey].taken.includes(index)) {
             this.prizeCards[playerKey].taken.push(index);
         }
         
-        // Update Pokemon match prizes
         if (this.pokemonMatch[playerKey]) {
             if (!this.pokemonMatch[playerKey].prizesTaken.includes(index)) {
                 this.pokemonMatch[playerKey].prizesTaken.push(index);
@@ -136,6 +168,264 @@ class OverlayServer {
             timestamp: Date.now()
         });
     }
+
+    // ============ MTG MATCH METHODS ============
+    
+    resetMTGMatch() {
+        const p1Name = this.mtgMatch.player1.name;
+        const p2Name = this.mtgMatch.player2.name;
+        
+        this.mtgMatch = {
+            player1: {
+                name: p1Name,
+                record: '0-0-0',
+                gamesWon: 0,
+                life: this.mtgMatch.format === 'commander' ? 40 : 20,
+                commanderDamage: {},
+                lands: 0,
+                featuredPermanents: [],
+                turnActions: { landPlayed: false, spellCast: false }
+            },
+            player2: {
+                name: p2Name,
+                record: '0-0-0',
+                gamesWon: 0,
+                life: this.mtgMatch.format === 'commander' ? 40 : 20,
+                commanderDamage: {},
+                lands: 0,
+                featuredPermanents: [],
+                turnActions: { landPlayed: false, spellCast: false }
+            },
+            activePlayer: 1,
+            currentPhase: 'main1',
+            timer: 0,
+            format: this.mtgMatch.format
+        };
+        
+        this.io.emit('mtg-match-reset', {
+            timestamp: Date.now()
+        });
+        
+        console.log('MTG match reset');
+    }
+    
+    // MTG Life Total Management
+    updateMTGLife(player, life) {
+        if (player !== 1 && player !== 2) return;
+        
+        this.mtgMatch[`player${player}`].life = life;
+        
+        this.io.emit('mtg-life-update', {
+            player: player,
+            life: life,
+            timestamp: Date.now()
+        });
+        
+        console.log(`Player ${player} life updated to ${life}`);
+    }
+    
+    // MTG Commander Damage Management
+    updateCommanderDamage(player, commanderName, damage) {
+        if (player !== 1 && player !== 2) return;
+        
+        this.mtgMatch[`player${player}`].commanderDamage[commanderName] = damage;
+        
+        this.io.emit('mtg-commander-damage-update', {
+            player: player,
+            commanderName: commanderName,
+            damage: damage,
+            timestamp: Date.now()
+        });
+        
+        console.log(`Player ${player} took ${damage} commander damage from ${commanderName}`);
+    }
+    
+    // MTG Land Tracking
+    updateLands(player, count) {
+        if (player !== 1 && player !== 2) return;
+        
+        this.mtgMatch[`player${player}`].lands = count;
+        
+        this.io.emit('mtg-lands-update', {
+            player: player,
+            lands: count,
+            timestamp: Date.now()
+        });
+        
+        console.log(`Player ${player} lands updated to ${count}`);
+    }
+    
+    // MTG Featured Permanents Management
+    addFeaturedPermanent(player, card) {
+        if (player !== 1 && player !== 2) return;
+        
+        const playerKey = `player${player}`;
+        
+        // Max 6 featured permanents
+        if (this.mtgMatch[playerKey].featuredPermanents.length >= 6) {
+            console.log(`Player ${player} already has 6 featured permanents`);
+            return;
+        }
+        
+        this.mtgMatch[playerKey].featuredPermanents.push(card);
+        
+        this.io.emit('mtg-permanent-added', {
+            player: player,
+            card: card,
+            featuredPermanents: this.mtgMatch[playerKey].featuredPermanents,
+            timestamp: Date.now()
+        });
+        
+        console.log(`Added ${card.name} to Player ${player}'s featured permanents`);
+    }
+    
+    removeFeaturedPermanent(player, index) {
+        if (player !== 1 && player !== 2) return;
+        
+        const playerKey = `player${player}`;
+        
+        if (index >= 0 && index < this.mtgMatch[playerKey].featuredPermanents.length) {
+            const removed = this.mtgMatch[playerKey].featuredPermanents.splice(index, 1)[0];
+            
+            this.io.emit('mtg-permanent-removed', {
+                player: player,
+                index: index,
+                card: removed,
+                featuredPermanents: this.mtgMatch[playerKey].featuredPermanents,
+                timestamp: Date.now()
+            });
+            
+            console.log(`Removed ${removed.name} from Player ${player}'s featured permanents`);
+        }
+    }
+    
+    clearFeaturedPermanents(player) {
+        if (player !== 1 && player !== 2) return;
+        
+        const playerKey = `player${player}`;
+        this.mtgMatch[playerKey].featuredPermanents = [];
+        
+        this.io.emit('mtg-permanents-cleared', {
+            player: player,
+            timestamp: Date.now()
+        });
+        
+        console.log(`Cleared all featured permanents for Player ${player}`);
+    }
+    
+    // MTG Phase Tracking
+    updatePhase(phase) {
+        this.mtgMatch.currentPhase = phase;
+        
+        this.io.emit('mtg-phase-update', {
+            phase: phase,
+            timestamp: Date.now()
+        });
+        
+        console.log(`Phase changed to ${phase}`);
+    }
+    
+    // MTG Player Management
+    updateMTGPlayerName(player, name) {
+        if (player !== 1 && player !== 2) return;
+        
+        this.mtgMatch[`player${player}`].name = name;
+        
+        this.io.emit('mtg-player-name-update', {
+            player: player,
+            name: name,
+            timestamp: Date.now()
+        });
+    }
+    
+    updateMTGPlayerRecord(player, record) {
+        if (player !== 1 && player !== 2) return;
+        
+        this.mtgMatch[`player${player}`].record = record;
+        
+        this.io.emit('mtg-record-update', {
+            player: player,
+            record: record,
+            timestamp: Date.now()
+        });
+    }
+    
+    updateMTGGamesWon(player, gamesWon) {
+        if (player !== 1 && player !== 2) return;
+        
+        this.mtgMatch[`player${player}`].gamesWon = gamesWon;
+        
+        this.io.emit('mtg-games-won-update', {
+            player: player,
+            gamesWon: gamesWon,
+            timestamp: Date.now()
+        });
+    }
+    
+    // MTG Turn Actions
+    setMTGTurnAction(player, action, value) {
+        if (player !== 1 && player !== 2) return;
+        
+        const playerKey = `player${player}`;
+        this.mtgMatch[playerKey].turnActions[action] = value;
+        
+        this.io.emit('mtg-turn-actions-update', {
+            player: player,
+            actions: this.mtgMatch[playerKey].turnActions,
+            timestamp: Date.now()
+        });
+    }
+    
+    resetMTGTurnActions(player) {
+        if (player !== 1 && player !== 2) return;
+        
+        const playerKey = `player${player}`;
+        this.mtgMatch[playerKey].turnActions = {
+            landPlayed: false,
+            spellCast: false
+        };
+        
+        this.io.emit('mtg-turn-actions-update', {
+            player: player,
+            actions: this.mtgMatch[playerKey].turnActions,
+            timestamp: Date.now()
+        });
+    }
+    
+    // MTG Match Control
+    switchMTGActivePlayer() {
+        this.mtgMatch.activePlayer = this.mtgMatch.activePlayer === 1 ? 2 : 1;
+        
+        this.io.emit('mtg-player-switch', {
+            activePlayer: this.mtgMatch.activePlayer,
+            timestamp: Date.now()
+        });
+        
+        console.log(`Active player switched to Player ${this.mtgMatch.activePlayer}`);
+    }
+    
+    updateMTGFormat(format) {
+        const oldFormat = this.mtgMatch.format;
+        this.mtgMatch.format = format;
+        
+        // Adjust life totals if format changed
+        if (format === 'commander' && oldFormat !== 'commander') {
+            this.mtgMatch.player1.life = 40;
+            this.mtgMatch.player2.life = 40;
+        } else if (format !== 'commander' && oldFormat === 'commander') {
+            this.mtgMatch.player1.life = 20;
+            this.mtgMatch.player2.life = 20;
+        }
+        
+        this.io.emit('mtg-format-update', {
+            format: format,
+            timestamp: Date.now()
+        });
+        
+        console.log(`Format changed to ${format}`);
+    }
+    
+    // ============ END MTG METHODS ============
     
     updateDecklist(deckData) {
         if (deckData.deck) {
@@ -154,7 +444,6 @@ class OverlayServer {
             this.decklist.categories[category] = [];
         }
         
-        // Check if card already exists and increment quantity
         const existingCard = this.decklist.categories[category].find(c => c.name === card.name);
         if (existingCard) {
             existingCard.quantity = (existingCard.quantity || 1) + 1;
@@ -168,7 +457,6 @@ class OverlayServer {
             timestamp: Date.now()
         });
         
-        // Also emit full update for sync
         this.updateDecklist({ deck: this.decklist, show: true });
     }
     
@@ -209,9 +497,7 @@ class OverlayServer {
         });
     }
     
-    // NEW METHODS FOR POKEMON MATCH FEATURES
-    
-    // Stadium management
+    // Pokemon Match Methods
     updateStadium(stadium) {
         this.pokemonMatch.stadium = stadium;
         this.io.emit('stadium-update', {
@@ -220,7 +506,6 @@ class OverlayServer {
         });
     }
     
-    // Player record management
     updatePlayerRecord(player, record) {
         const playerKey = `player${player}`;
         if (this.pokemonMatch[playerKey]) {
@@ -233,7 +518,6 @@ class OverlayServer {
         });
     }
     
-    // Match score management
     updateMatchScore(player, score) {
         const playerKey = `player${player}`;
         if (this.pokemonMatch[playerKey]) {
@@ -246,7 +530,6 @@ class OverlayServer {
         });
     }
     
-    // Turn actions management
     updateTurnActions(player, actions) {
         const playerKey = `player${player}`;
         if (this.pokemonMatch[playerKey]) {
@@ -267,7 +550,6 @@ class OverlayServer {
         });
     }
     
-    // Bench size management
     updateBenchSize(player, size) {
         const playerKey = `player${player}`;
         if (this.pokemonMatch[playerKey]) {
@@ -280,7 +562,6 @@ class OverlayServer {
         });
     }
     
-    // Update Pokemon match state
     updatePokemonMatch(data) {
         if (data.player1) {
             this.pokemonMatch.player1 = { ...this.pokemonMatch.player1, ...data.player1 };
@@ -295,7 +576,6 @@ class OverlayServer {
         this.io.emit('pokemon-match-update', data);
     }
     
-    // Active Pokemon management
     updateActivePokemon(player, pokemon) {
         const playerKey = `player${player}`;
         if (this.pokemonMatch[playerKey]) {
@@ -308,7 +588,6 @@ class OverlayServer {
         });
     }
     
-    // Bench management
     updateBench(player, bench) {
         const playerKey = `player${player}`;
         if (this.pokemonMatch[playerKey]) {
@@ -328,11 +607,11 @@ class OverlayServer {
             decklist: this.decklist,
             settings: this.overlaySettings,
             gameSettings: this.gameSettings,
-            pokemonMatch: this.pokemonMatch  // Include Pokemon match state
+            pokemonMatch: this.pokemonMatch,
+            mtgMatch: this.mtgMatch
         };
     }
     
-    // Handle different game-specific overlay features
     setupGameOverlay(game) {
         const gameConfigs = {
             pokemon: {
@@ -405,9 +684,7 @@ class OverlayServer {
         
         this.gameSettings = gameConfigs[game] || {};
         
-        // Update decklist categories for the game
         if (this.gameSettings.categories) {
-            // Initialize empty categories
             const newCategories = {};
             this.gameSettings.categories.forEach(cat => {
                 newCategories[cat] = this.decklist.categories[cat] || [];
@@ -424,7 +701,6 @@ class OverlayServer {
         return this.gameSettings;
     }
     
-    // Handle match state
     updateMatchState(state) {
         this.io.emit('match-state', {
             state: state,
@@ -432,7 +708,6 @@ class OverlayServer {
         });
     }
     
-    // Player names
     updatePlayerNames(player1, player2) {
         this.pokemonMatch.player1.name = player1;
         this.pokemonMatch.player2.name = player2;
@@ -444,7 +719,6 @@ class OverlayServer {
         });
     }
     
-    // Score tracking
     updateScore(player1Score, player2Score) {
         this.io.emit('score-update', {
             player1: player1Score,
@@ -453,8 +727,7 @@ class OverlayServer {
         });
     }
     
-    // Timer functionality
-    startTimer(duration = 50 * 60) { // 50 minutes default
+    startTimer(duration = 50 * 60) {
         this.io.emit('timer-start', {
             duration: duration,
             timestamp: Date.now()

@@ -398,6 +398,10 @@
                             <button onclick="window.open('/pokemon-match-control', '_blank')" class="btn btn-sm btn-primary w-full" id="pokemonMatchBtn" style="display: none;">
                                 ⚡ Pokemon Match Control
                             </button>
+
+                            <button onclick="window.open('/mtg-match-control', '_blank')" class="btn btn-sm btn-warning w-full" id="mtgMatchBtn" style="display: none;">
+                                🔥 MTG Match Control
+                            </button>
                             
                             <p class="text-xs text-center opacity-40" id="noGameSelected">
                                 Select a game to access match controls
@@ -470,18 +474,7 @@
                 <div class="card bg-base-200">
                     <div class="card-body p-4">
                         <h2 class="text-sm font-semibold opacity-60 uppercase tracking-wider">OBS Browser Sources</h2>
-                        
-                        <div class="space-y-2 mt-3">
-                            <div class="bg-base-300 p-2 rounded-lg">
-                                <div class="flex justify-between items-center">
-                                    <div class="min-w-0">
-                                        <p class="text-xs opacity-60">Main Overlay</p>
-                                        <p class="text-xs font-mono truncate" id="obsMainUrl">http://localhost:3888/overlay</p>
-                                    </div>
-                                    <button class="btn btn-ghost btn-xs copy-btn" data-copy="obsMainUrl">Copy</button>
-                                </div>
-                            </div>
-                            
+                                                    
                             <div class="bg-base-300 p-2 rounded-lg">
                                 <div class="flex justify-between items-center">
                                     <div class="min-w-0">
@@ -495,22 +488,10 @@
                             <div class="bg-base-300 p-2 rounded-lg">
                                 <div class="flex justify-between items-center">
                                     <div class="min-w-0">
-                                        <p class="text-xs opacity-60">Prize Cards</p>
-                                        <p class="text-xs font-mono truncate" id="obsPrizesUrl">http://localhost:3888/prizes</p>
+                                        <p class="text-xs opacity-60">MTG Match</p>
+                                        <p class="text-xs font-mono truncate" id="obsPrizesUrl">http://localhost:3888/mtg-match</p>
                                     </div>
                                     <button class="btn btn-ghost btn-xs copy-btn" data-copy="obsPrizesUrl">Copy</button>
-                                </div>
-                            </div>
-                            
-                            <div class="bg-base-300 p-2 rounded-lg">
-                                <div class="flex justify-between items-center">
-                                    <div class="flex justify-between items-center w-full">
-                                        <div class="min-w-0">
-                                            <p class="text-xs opacity-60">Deck List</p>
-                                            <p class="text-xs font-mono truncate" id="obsDecklistUrl">http://localhost:3888/decklist</p>
-                                        </div>
-                                        <button class="btn btn-ghost btn-xs copy-btn" data-copy="obsDecklistUrl">Copy</button>
-                                    </div>
                                 </div>
                             </div>
                         </div>

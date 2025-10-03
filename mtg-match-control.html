@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTG Match Control - CardCast</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+        }
+        .control-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .life-display {
+            font-size: 4rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        .life-high { color: #10b981; }
+        .life-medium { color: #f59e0b; }
+        .life-low { color: #ef4444; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-3xl font-bold text-white">MTG Match Control</h1>
+                <p class="text-gray-400">Magic: The Gathering Match Overlay Manager</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="/" class="btn btn-ghost">← Back to Main</a>
+                <button onclick="window.open('/mtg-match', '_blank')" class="btn btn-primary">Open Overlay</button>
+            </div>
+        </div>
+
+        <!-- Format Selector -->
+        <div class="control-card rounded-lg p-4 mb-4">
+            <label class="label">
+                <span class="label-text text-lg font-semibold">Format</span>
+            </label>
+            <select id="formatSelect" class="select select-bordered w-full" onchange="updateFormat()">
+                <option value="standard">Standard (20 life)</option>
+                <option value="modern">Modern (20 life)</option>
+                <option value="commander">Commander (40 life)</option>
+                <option value="legacy">Legacy (20 life)</option>
+                <option value="vintage">Vintage (20 life)</option>
+                <option value="pioneer">Pioneer (20 life)</option>
+            </select>
+        </div>
+
+        <!-- Player Controls -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Player 1 -->
+            <div class="control-card rounded-lg p-6">
+                <h2 class="text-2xl font-bold text-blue-400 mb-4">Player 1</h2>
+                
+                <!-- Player Name -->
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Player Name</span></label>
+                    <input type="text" id="p1Name" class="input input-bordered" value="Player 1" onchange="updatePlayerNames()">
+                </div>
+
+                <!-- Life Total -->
+                <div class="mb-6">
+                    <label class="label"><span class="label-text text-lg font-semibold">Life Total</span></label>
+                    <div id="p1LifeDisplay" class="life-display life-high">20</div>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-error flex-1" onclick="adjustLife(1, -1)">-1</button>
+                        <button class="btn btn-warning flex-1" onclick="adjustLife(1, -5)">-5</button>
+                        <input type="number" id="p1LifeInput" class="input input-bordered w-20 text-center" value="20" onchange="setLife(1)">
+                        <button class="btn btn-success flex-1" onclick="adjustLife(1, 5)">+5</button>
+                        <button class="btn btn-success flex-1" onclick="adjustLife(1, 1)">+1</button>
+                    </div>
+                </div>
+
+                <!-- Land Counter -->
+                <div class="mb-4">
+                    <label class="label"><span class="label-text">Lands</span></label>
+                    <div class="flex gap-2">
+                        <button class="btn btn-sm" onclick="adjustLands(1, -1)">-</button>
+                        <input type="number" id="p1Lands" class="input input-bordered input-sm flex-1 text-center" value="0" onchange="setLands(1)">
+                        <button class="btn btn-sm" onclick="adjustLands(1, 1)">+</button>
+                    </div>
+                </div>
+
+                <!-- Commander Damage (only for Commander format) -->
+                <div id="p1CommanderDamage" class="hidden">
+                    <label class="label"><span class="label-text text-error">Commander Damage Taken</span></label>
+                    <div id="p1CommanderList" class="space-y-2">
+                        <button class="btn btn-sm btn-ghost" onclick="addCommander(1)">+ Add Commander</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Player 2 -->
+            <div class="control-card rounded-lg p-6">
+                <h2 class="text-2xl font-bold text-red-400 mb-4">Player 2</h2>
+                
+                <!-- Player Name -->
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">Player Name</span></label>
+                    <input type="text" id="p2Name" class="input input-bordered" value="Player 2" onchange="updatePlayerNames()">
+                </div>
+
+                <!-- Life Total -->
+                <div class="mb-6">
+                    <label class="label"><span class="label-text text-lg font-semibold">Life Total</span></label>
+                    <div id="p2LifeDisplay" class="life-display life-high">20</div>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-error flex-1" onclick="adjustLife(2, -1)">-1</button>
+                        <button class="btn btn-warning flex-1" onclick="adjustLife(2, -5)">-5</button>
+                        <input type="number" id="p2LifeInput" class="input input-bordered w-20 text-center" value="20" onchange="setLife(2)">
+                        <button class="btn btn-success flex-1" onclick="adjustLife(2, 5)">+5</button>
+                        <button class="btn btn-success flex-1" onclick="adjustLife(2, 1)">+1</button>
+                    </div>
+                </div>
+
+                <!-- Land Counter -->
+                <div class="mb-4">
+                    <label class="label"><span class="label-text">Lands</span></label>
+                    <div class="flex gap-2">
+                        <button class="btn btn-sm" onclick="adjustLands(2, -1)">-</button>
+                        <input type="number" id="p2Lands" class="input input-bordered input-sm flex-1 text-center" value="0" onchange="setLands(2)">
+                        <button class="btn btn-sm" onclick="adjustLands(2, 1)">+</button>
+                    </div>
+                </div>
+
+                <!-- Commander Damage -->
+                <div id="p2CommanderDamage" class="hidden">
+                    <label class="label"><span class="label-text text-error">Commander Damage Taken</span></label>
+                    <div id="p2CommanderList" class="space-y-2">
+                        <button class="btn btn-sm btn-ghost" onclick="addCommander(2)">+ Add Commander</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Match Controls -->
+        <div class="control-card rounded-lg p-6">
+            <h2 class="text-xl font-bold mb-4">Match Controls</h2>
+            <div class="flex gap-4 flex-wrap">
+                <button class="btn btn-primary" onclick="switchActivePlayer()">Switch Turn</button>
+                <button class="btn btn-error" onclick="resetMatch()">Reset Match</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentFormat = 'standard';
+        let commanderDamage = {
+            player1: {},
+            player2: {}
+        };
+
+        // Initialize
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            socket.emit('register-control', 'mtg-match');
+        });
+
+        function updateFormat() {
+            const format = document.getElementById('formatSelect').value;
+            currentFormat = format;
+            
+            // Update life totals based on format
+            const startingLife = format === 'commander' ? 40 : 20;
+            document.getElementById('p1LifeInput').value = startingLife;
+            document.getElementById('p2LifeInput').value = startingLife;
+            updateLifeDisplay(1, startingLife);
+            updateLifeDisplay(2, startingLife);
+            
+            // Show/hide commander damage
+            const showCommander = format === 'commander';
+            document.getElementById('p1CommanderDamage').classList.toggle('hidden', !showCommander);
+            document.getElementById('p2CommanderDamage').classList.toggle('hidden', !showCommander);
+            
+            socket.emit('mtg-format-update', { format: format });
+            socket.emit('mtg-life-update', { player: 1, life: startingLife });
+            socket.emit('mtg-life-update', { player: 2, life: startingLife });
+        }
+
+        function updatePlayerNames() {
+            const p1 = document.getElementById('p1Name').value;
+            const p2 = document.getElementById('p2Name').value;
+            socket.emit('mtg-player-name-update', { player: 1, name: p1 });
+            socket.emit('mtg-player-name-update', { player: 2, name: p2 });
+        }
+
+        function adjustLife(player, amount) {
+            const input = document.getElementById(`p${player}LifeInput`);
+            const newLife = parseInt(input.value) + amount;
+            input.value = newLife;
+            setLife(player);
+        }
+
+        function setLife(player) {
+            const life = parseInt(document.getElementById(`p${player}LifeInput`).value);
+            updateLifeDisplay(player, life);
+            socket.emit('mtg-life-update', { player: player, life: life });
+        }
+
+        function updateLifeDisplay(player, life) {
+            const display = document.getElementById(`p${player}LifeDisplay`);
+            display.textContent = life;
+            
+            // Color coding
+            display.classList.remove('life-high', 'life-medium', 'life-low');
+            const threshold = currentFormat === 'commander' ? 40 : 20;
+            if (life > threshold * 0.5) {
+                display.classList.add('life-high');
+            } else if (life > threshold * 0.25) {
+                display.classList.add('life-medium');
+            } else {
+                display.classList.add('life-low');
+            }
+        }
+
+        function adjustLands(player, amount) {
+            const input = document.getElementById(`p${player}Lands`);
+            const newLands = Math.max(0, parseInt(input.value) + amount);
+            input.value = newLands;
+            setLands(player);
+        }
+
+        function setLands(player) {
+            const lands = parseInt(document.getElementById(`p${player}Lands`).value);
+            socket.emit('mtg-lands-update', { player: player, lands: lands });
+        }
+
+        function addCommander(player) {
+            const name = prompt('Enter commander name:');
+            if (!name) return;
+            
+            commanderDamage[`player${player}`][name] = 0;
+            renderCommanderDamage(player);
+        }
+
+        function renderCommanderDamage(player) {
+            const list = document.getElementById(`p${player}CommanderList`);
+            const commanders = commanderDamage[`player${player}`];
+            
+            list.innerHTML = Object.keys(commanders).map(name => `
+                <div class="flex gap-2 items-center">
+                    <span class="flex-1">${name}:</span>
+                    <button class="btn btn-xs" onclick="adjustCommanderDamage(${player}, '${name}', -1)">-</button>
+                    <span class="font-bold w-8 text-center ${commanders[name] >= 21 ? 'text-error' : ''}">${commanders[name]}</span>
+                    <button class="btn btn-xs" onclick="adjustCommanderDamage(${player}, '${name}', 1)">+</button>
+                </div>
+            `).join('') + '<button class="btn btn-sm btn-ghost mt-2" onclick="addCommander(' + player + ')">+ Add Commander</button>';
+        }
+
+        function adjustCommanderDamage(player, commanderName, amount) {
+            const current = commanderDamage[`player${player}`][commanderName] || 0;
+            const newDamage = Math.max(0, current + amount);
+            commanderDamage[`player${player}`][commanderName] = newDamage;
+            
+            renderCommanderDamage(player);
+            socket.emit('mtg-commander-damage-update', { 
+                player: player, 
+                commanderName: commanderName, 
+                damage: newDamage 
+            });
+            
+            if (newDamage >= 21) {
+                alert(`Warning: Player ${player} has taken 21+ commander damage from ${commanderName}!`);
+            }
+        }
+
+        function switchActivePlayer() {
+            socket.emit('mtg-player-switch');
+        }
+
+        function resetMatch() {
+            if (!confirm('Reset the match? This will clear all data.')) return;
+            
+            socket.emit('mtg-match-reset');
+            
+            // Reset UI
+            updateFormat();
+            document.getElementById('p1Lands').value = 0;
+            document.getElementById('p2Lands').value = 0;
+            commanderDamage = { player1: {}, player2: {} };
+            renderCommanderDamage(1);
+            renderCommanderDamage(2);
+        }
+    </script>
+</body>
+</html>

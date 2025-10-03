@@ -149,14 +149,14 @@ async function loadGames() {
 
 // Create game element - UPDATED FOR COMING SOON
 function createGameElement(game) {
-    console.log('Creating element for:', game.id, 'isPokemon:', game.id === 'pokemon', 'full game object:', game);
+    console.log('Creating element for:', game.id, 'available:', game.available, 'comingSoon:', game.comingSoon);
     
     const gameItem = document.createElement('div');
     gameItem.className = 'game-item';
     gameItem.dataset.game = game.id;
     
-    // Only Pokemon is available
-    const isPokemon = game.id === 'pokemon';
+    // Check if game is available based on API data
+    const isAvailable = game.available && !game.comingSoon;
     const hasData = game.hasData && game.cardCount > 0;
     const cardCountFormatted = game.cardCount >= 1000 
         ? `${(game.cardCount / 1000).toFixed(1)}k` 
@@ -173,25 +173,25 @@ function createGameElement(game) {
         starwars: 'bg-gradient-to-br from-gray-500 to-slate-600'
     };
     
-    // Add opacity for non-Pokemon games
-    if (!isPokemon) {
+    // Add opacity for unavailable games
+    if (!isAvailable) {
         gameItem.style.opacity = '0.6';
         gameItem.style.cursor = 'not-allowed';
     }
     
-    // Determine button HTML based on game
+    // Determine button HTML based on availability
     let buttonHTML = '';
-    if (!isPokemon) {
-        // Not Pokemon - always show Coming Soon
+    if (!isAvailable) {
+        // Not available - show Coming Soon
         buttonHTML = '<div class="badge badge-neutral badge-sm">Coming Soon</div>';
     } else if (hasData) {
-        // Pokemon with data - show Update and Delete
+        // Available with data - show Update and Delete
         buttonHTML = `
             <button class="btn btn-xs btn-primary" onclick="event.stopPropagation(); updateGameData('${game.id}')">Update</button>
             <button class="btn btn-xs btn-error btn-outline" onclick="event.stopPropagation(); deleteGameData('${game.id}')">×</button>
         `;
     } else {
-        // Pokemon without data - show Download
+        // Available without data - show Download
         buttonHTML = `<button class="btn btn-xs btn-secondary" onclick="event.stopPropagation(); downloadGameData('${game.id}')">Download</button>`;
     }
     
@@ -207,7 +207,7 @@ function createGameElement(game) {
             <div class="flex-1">
                 <div class="font-semibold text-base-content">${game.name}</div>
                 <div class="text-xs opacity-60">
-                    ${!isPokemon ? 'Coming Soon' : (hasData ? `${cardCountFormatted} cards` : 'No data')}
+                    ${!isAvailable ? 'Coming Soon' : (hasData ? `${cardCountFormatted} cards` : 'No data')}
                 </div>
             </div>
         </div>
@@ -217,7 +217,7 @@ function createGameElement(game) {
     `;
     
     // Set click handler
-    if (isPokemon) {
+    if (isAvailable) {
         gameItem.onclick = () => selectGame(game.id, hasData);
     } else {
         gameItem.onclick = (e) => {
@@ -232,8 +232,10 @@ function createGameElement(game) {
 
 // Select a game - UPDATED FOR COMING SOON
 function selectGame(gameId, hasData) {
-    // Only allow selecting Pokemon
-    if (gameId !== 'pokemon') {
+    // Get the game object to check if it's available
+    const games = Array.from(document.querySelectorAll('.game-item'));
+    const gameElement = games.find(el => el.dataset.game === gameId);
+    if (gameElement && gameElement.style.opacity === '0.6') {
         showToast(`${gameId.charAt(0).toUpperCase() + gameId.slice(1)} support is coming soon!`);
         return;
     }
@@ -250,6 +252,15 @@ function selectGame(gameId, hasData) {
     if (pokemonControls) {
         pokemonControls.style.display = gameId === 'pokemon' ? 'block' : 'none';
     }
+
+    // Show/hide match control buttons
+    const pokemonBtn = document.getElementById('pokemonMatchBtn');
+    const mtgBtn = document.getElementById('mtgMatchBtn');
+    const noGameMsg = document.getElementById('noGameSelected');
+    
+    if (pokemonBtn) pokemonBtn.style.display = gameId === 'pokemon' ? 'block' : 'none';
+    if (mtgBtn) mtgBtn.style.display = gameId === 'magic' ? 'block' : 'none';
+    if (noGameMsg) noGameMsg.style.display = (gameId === 'pokemon' || gameId === 'magic') ? 'none' : 'block';
     
     // Enable/disable search
     const searchInput = document.getElementById('searchInput');
@@ -268,12 +279,7 @@ function selectGame(gameId, hasData) {
 
 // Download game data - UPDATED FOR COMING SOON
 async function downloadGameData(gameId) {
-    // Only allow download for Pokemon
-    if (gameId !== 'pokemon') {
-        showToast(`${gameId.charAt(0).toUpperCase() + gameId.slice(1)} support is coming soon!`);
-        return;
-    }
-    
+
     const setCount = document.querySelector('input[name="sets"]:checked')?.value || '1';
     showDownloadProgress(true);
     
@@ -295,13 +301,7 @@ async function downloadGameData(gameId) {
 }
 
 // Update game data - UPDATED FOR COMING SOON
-async function updateGameData(gameId) {
-    // Only allow update for Pokemon
-    if (gameId !== 'pokemon') {
-        showToast(`${gameId.charAt(0).toUpperCase() + gameId.slice(1)} support is coming soon!`);
-        return;
-    }
-    
+async function updateGameData(gameId) {    
     const setCount = document.querySelector('input[name="sets"]:checked')?.value || '3';
     showDownloadProgress(true);
     
@@ -323,13 +323,7 @@ async function updateGameData(gameId) {
 }
 
 // Delete game data - UPDATED FOR COMING SOON
-async function deleteGameData(gameId) {
-    // Only allow delete for Pokemon
-    if (gameId !== 'pokemon') {
-        showToast(`${gameId.charAt(0).toUpperCase() + gameId.slice(1)} support is coming soon!`);
-        return;
-    }
-    
+async function deleteGameData(gameId) {    
     if (!confirm(`Delete all data for ${gameId}?\n\nThis action cannot be undone.`)) {
         return;
     }
@@ -360,13 +354,7 @@ async function handleSearch(event) {
         clearSearchResults();
         return;
     }
-    
-    // Only allow search for Pokemon
-    if (currentGame !== 'pokemon') {
-        showToast(`${currentGame.charAt(0).toUpperCase() + currentGame.slice(1)} support is coming soon!`);
-        return;
-    }
-    
+        
     try {
         const response = await fetch(`/api/search/${currentGame}?q=${encodeURIComponent(query)}`);
         searchResults = await response.json();
@@ -516,12 +504,7 @@ function setActivePokemon(playerNum) {
         alert('Please select a Pokemon card first');
         return;
     }
-    
-    if (currentGame !== 'pokemon') {
-        alert('Please select a Pokemon card');
-        return;
-    }
-    
+        
     const pokemon = {
         id: selectedCard.id,
         name: selectedCard.name,
@@ -542,11 +525,6 @@ function setActivePokemon(playerNum) {
 function addToBench(playerNum) {
     if (!selectedCard) {
         alert('Please select a Pokemon card first');
-        return;
-    }
-    
-    if (currentGame !== 'pokemon') {
-        alert('Please select a Pokemon card');
         return;
     }
     

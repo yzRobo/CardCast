@@ -463,184 +463,174 @@ class TCGApi {
         
         return cards;
     }
+
+    async testMTGConnection() {
+        try {
+            console.log('Testing MTG API connection...');
+            
+            // Fetch a small sample from a known set
+            const response = await axios.get('https://api.magicthegathering.io/v1/cards', {
+                params: {
+                    set: 'M21', // Core Set 2021
+                    pageSize: 5
+                }
+            });
+            
+            console.log('✓ API Response Status:', response.status);
+            console.log('✓ Rate Limit Remaining:', response.headers['ratelimit-remaining']);
+            console.log('✓ Total Cards in Set:', response.headers['total-count']);
+            console.log('✓ Cards in Response:', response.data.cards.length);
+            console.log('\n--- Sample Card Structure ---');
+            console.log(JSON.stringify(response.data.cards[0], null, 2));
+            
+            return { 
+                success: true, 
+                sampleCard: response.data.cards[0],
+                rateLimit: response.headers['ratelimit-remaining'],
+                totalCards: response.headers['total-count']
+            };
+        } catch (error) {
+            console.error('✗ MTG API Connection Error:', error.message);
+            if (error.response) {
+                console.error('✗ Status:', error.response.status);
+                console.error('✗ Data:', error.response.data);
+            }
+            return { success: false, error: error.message };
+        }
+    }
+
+    async downloadMTGCards(incremental = false, setCount = 'all', progressCallback) {
+        console.log(`Starting MTG download (${incremental ? 'incremental' : 'full'}, ${setCount} sets)...`);
         
-    async fetchMagicCards(progressCallback, incremental = false, setCount = 'all') {
         const cards = [];
         const cardMap = new Map();
         
         try {
-            // First, fetch recent sets
-            progressCallback({ 
-                status: 'fetching', 
-                percent: 5, 
-                message: 'Fetching available Magic sets...'
+            progressCallback({ status: 'fetching', percent: 5, message: 'Fetching MTG sets from Scryfall...' });
+            
+            // Fetch all sets from Scryfall
+            const setsResponse = await axios.get('https://api.scryfall.com/sets', {
+                timeout: 30000,
+                headers: { 'User-Agent': 'CardCast/1.0.0' }
             });
             
-            let allSets = [];
-            try {
-                const setsResponse = await axios.get('https://api.scryfall.com/sets', {
-                    timeout: 30000,
-                    headers: {
-                        'User-Agent': 'CardCast/1.0.0'
-                    }
-                });
-                
-                if (setsResponse.data && setsResponse.data.data) {
-                    // Filter for main sets only, sorted by release date
-                    allSets = setsResponse.data.data
-                        .filter(set => set.set_type === 'core' || set.set_type === 'expansion')
-                        .sort((a, b) => new Date(b.released_at) - new Date(a.released_at));
-                    console.log(`Found ${allSets.length} Magic sets`);
-                }
-            } catch (setsError) {
-                console.error('Error fetching Magic sets:', setsError.message);
-                // Fall back to recent set codes
-                allSets = [
-                    { code: 'dsk', name: 'Duskmourn' },
-                    { code: 'blb', name: 'Bloomburrow' },
-                    { code: 'otj', name: 'Outlaws of Thunder Junction' },
-                    { code: 'mkm', name: 'Murders at Karlov Manor' },
-                    { code: 'lci', name: 'The Lost Caverns of Ixalan' }
-                ];
+            if (!setsResponse.data || !setsResponse.data.data) {
+                throw new Error('No sets data received from Scryfall API');
             }
             
-            // Determine which sets to fetch
+            // Filter for main sets and sort by release date (most recent first)
+            let allSets = setsResponse.data.data
+                .filter(set => 
+                    set.set_type === 'core' || 
+                    set.set_type === 'expansion' || 
+                    set.set_type === 'masters' ||
+                    set.set_type === 'draft_innovation'
+                )
+                .sort((a, b) => new Date(b.released_at) - new Date(a.released_at));
+            
+            console.log(`Found ${allSets.length} MTG sets`);
+            
+            // Determine which sets to download
             let setsToFetch = [];
             
             if (incremental) {
-                // For incremental updates, get sets we don't already have
                 const downloadedSets = this.getDownloadedSets('magic');
                 console.log(`Already have ${downloadedSets.size} sets in database`);
                 
-                // Filter out sets we already have
-                const availableSets = allSets.filter(set => !downloadedSets.has(set.code));
-                console.log(`Found ${availableSets.length} sets not yet downloaded`);
+                const newSets = allSets.filter(set => !downloadedSets.has(set.code));
+                console.log(`Found ${newSets.length} new sets`);
                 
-                if (availableSets.length === 0) {
-                    console.log('No new sets available for incremental update');
+                if (newSets.length === 0) {
+                    console.log('No new sets for incremental update');
                     return [];
                 }
                 
                 if (setCount === 'all') {
-                    // For Magic, limit to last 20 sets for "all" to be reasonable
-                    setsToFetch = availableSets.slice(0, 20);
+                    setsToFetch = newSets.slice(0, 10); // Limit to 10 newest
                 } else {
                     const count = parseInt(setCount) || 3;
-                    setsToFetch = availableSets.slice(0, count);
+                    setsToFetch = newSets.slice(0, count);
                 }
             } else {
-                // For full download
+                // Full download
                 if (setCount === 'all') {
-                    // For Magic, limit to last 20 sets for "all" to be reasonable
-                    setsToFetch = allSets.slice(0, 20);
+                    setsToFetch = allSets.slice(0, 10); // Limit to 10 newest
                 } else {
                     const count = parseInt(setCount) || 3;
                     setsToFetch = allSets.slice(0, count);
                 }
             }
             
-            console.log(`Will fetch ${setsToFetch.length} Magic sets`);
+            console.log(`Will fetch ${setsToFetch.length} sets: ${setsToFetch.map(s => s.code).join(', ')}`);
             
-            // Fetch cards from selected sets
+            // Fetch cards from each set
             for (let i = 0; i < setsToFetch.length; i++) {
                 const set = setsToFetch[i];
+                const percent = 10 + (i / setsToFetch.length) * 60;
+                
                 progressCallback({ 
                     status: 'downloading', 
-                    percent: 10 + (i / setsToFetch.length) * 60, 
+                    percent: Math.floor(percent), 
                     message: `Fetching ${set.name} (${i + 1}/${setsToFetch.length})...`
                 });
                 
                 try {
-                    let hasMore = true;
-                    let page = 1;
-                    let searchUrl = 'https://api.scryfall.com/cards/search';
+                    // Scryfall uses search endpoint with pagination
+                    let searchUrl = `https://api.scryfall.com/cards/search?q=set:${set.code}&unique=prints&order=set`;
                     
-                    while (hasMore && page <= 5) {
-                        const response = await axios.get(searchUrl, {
-                            params: {
-                                q: `set:${set.code}`,
-                                page: page,
-                                format: 'json',
-                                unique: 'cards'
-                            },
+                    while (searchUrl) {
+                        const cardsResponse = await axios.get(searchUrl, {
                             timeout: 30000,
-                            headers: {
-                                'User-Agent': 'CardCast/1.0.0'
-                            }
+                            headers: { 'User-Agent': 'CardCast/1.0.0' }
                         });
                         
-                        if (response.data && response.data.data) {
-                            console.log(`${set.name} page ${page}: Got ${response.data.data.length} cards`);
+                        if (cardsResponse.data && cardsResponse.data.data) {
+                            const setCards = cardsResponse.data.data;
+                            console.log(`${set.name}: Got ${setCards.length} cards`);
                             
-                            response.data.data.forEach(card => {
+                            // Parse and add cards
+                            setCards.forEach(card => {
                                 if (!cardMap.has(card.id)) {
-                                    const cardData = {
-                                        id: `magic_${card.id}`,
-                                        game: 'magic',
-                                        name: card.name,
-                                        set_name: card.set_name || set.name,
-                                        set_code: card.set || set.code,
-                                        set_abbreviation: card.set?.toUpperCase() || set.code?.toUpperCase(),
-                                        card_number: card.collector_number || '',
-                                        image_url: card.image_uris?.normal || card.image_uris?.small || card.card_faces?.[0]?.image_uris?.normal || '',
-                                        rarity: card.rarity || 'common',
-                                        card_type: card.type_line || '',
-                                        card_text: card.oracle_text || card.card_faces?.[0]?.oracle_text || '',
-                                        // Store Magic-specific attributes
-                                        mana_cost: card.mana_cost || card.card_faces?.[0]?.mana_cost || '',
-                                        cmc: card.cmc || 0,
-                                        power: card.power || null,
-                                        toughness: card.toughness || null,
-                                        loyalty: card.loyalty || null,
-                                        colors: card.colors?.join(',') || '',
-                                        color_identity: card.color_identity?.join(',') || '',
-                                        type_line: card.type_line || '',
-                                        oracle_text: card.oracle_text || '',
-                                        flavor_text: card.flavor_text || '',
-                                        attributes: {
-                                            manaCost: card.mana_cost || card.card_faces?.[0]?.mana_cost || '',
-                                            cmc: card.cmc || 0,
-                                            power: card.power || null,
-                                            toughness: card.toughness || null,
-                                            colors: card.colors || card.color_identity || []
-                                        }
-                                    };
-                                    cardMap.set(card.id, cardData);
+                                    const parsedCard = this.parseMagicCard(card);
+                                    cardMap.set(card.id, parsedCard);
                                 }
                             });
                             
-                            hasMore = response.data.has_more || false;
-                            if (response.data.next_page) {
-                                searchUrl = response.data.next_page;
-                                page++;
-                            } else {
-                                hasMore = false;
-                            }
+                            // Check for next page
+                            searchUrl = cardsResponse.data.has_more ? cardsResponse.data.next_page : null;
                         } else {
-                            hasMore = false;
+                            searchUrl = null;
                         }
                         
+                        // Scryfall rate limit: 10 requests/second, so wait 100ms
                         await this.delay(100);
                     }
+                    
+                    console.log(`Completed ${set.name}: ${cardMap.size} total cards so far`);
+                    
                 } catch (setError) {
-                    console.error(`Error fetching Magic set ${set.code}:`, setError.message);
+                    console.error(`Error fetching set ${set.code}:`, setError.message);
+                    // Continue with other sets
                 }
                 
+                // Wait between sets
                 await this.delay(200);
             }
             
             // Convert map to array
             cards.push(...cardMap.values());
-            console.log(`Total unique Magic cards fetched: ${cards.length}`);
+            console.log(`Total MTG cards fetched: ${cards.length}`);
+            
+            return cards;
             
         } catch (error) {
-            console.error('Error fetching Magic cards:', error.message);
-            if (cards.length === 0 && !incremental) {
-                throw error;
-            }
+            console.error('Error downloading MTG cards:', error.message);
+            throw error;
         }
+    }
         
-        return cards;
+    async fetchMagicCards(progressCallback, incremental = false, setCount = 'all') {
+        return await this.downloadMTGCards(incremental, setCount, progressCallback);
     }
     
     async fetchYugiohCards(progressCallback, incremental = false, setCount = 'all') {
@@ -983,7 +973,82 @@ class TCGApi {
     }
     
     parseMagicCard(data) {
-        return data;
+        try {
+            // Scryfall provides comprehensive data
+            const searchText = [
+                data.name || '',
+                data.type_line || '',
+                data.oracle_text || '',
+            ].join(' ').toLowerCase();
+    
+            // Handle double-faced cards (they have card_faces array)
+            const frontFace = data.card_faces ? data.card_faces[0] : data;
+            const imageUrl = data.image_uris?.normal || 
+                            frontFace.image_uris?.normal || 
+                            data.image_uris?.large ||
+                            frontFace.image_uris?.large ||
+                            null;
+    
+            const card = {
+                id: `magic_${data.id}`,
+                game: 'magic',
+                product_id: data.id || null,
+                name: data.name || 'Unknown Card',
+                
+                // MTG-specific: mana cost and CMC
+                mana_cost: data.mana_cost || frontFace.mana_cost || null,
+                cmc: data.cmc || 0,
+                
+                // Card type information
+                card_type: data.type_line || '',
+                type_line: data.type_line || '',
+                
+                // Power/Toughness for creatures, Loyalty for planeswalkers
+                power: data.power || null,
+                toughness: data.toughness || null,
+                loyalty: data.loyalty || null,
+                
+                // Set information
+                rarity: data.rarity || 'common',
+                set_code: data.set || '',
+                set_name: data.set_name || '',
+                set_abbreviation: (data.set || '').toUpperCase(),
+                card_number: data.collector_number || '',
+                
+                // Image - Scryfall always provides images
+                image_url: imageUrl,
+                
+                // Text
+                card_text: data.oracle_text || frontFace.oracle_text || null,
+                oracle_text: data.oracle_text || frontFace.oracle_text || null,
+                flavor_text: data.flavor_text || null,
+                artist: data.artist || null,
+                
+                // Colors
+                colors: data.colors ? data.colors.join(',') : '',
+                color_identity: data.color_identity ? data.color_identity.join(',') : '',
+                
+                // Store additional data
+                attributes: {
+                    colors: data.colors || [],
+                    colorIdentity: data.color_identity || [],
+                    legalities: data.legalities || {},
+                    layout: data.layout || 'normal',
+                    manaCost: data.mana_cost || frontFace.mana_cost || null,
+                    cmc: data.cmc || 0,
+                    power: data.power || null,
+                    toughness: data.toughness || null,
+                    loyalty: data.loyalty || null,
+                    keywords: data.keywords || [],
+                    prices: data.prices || {}
+                }
+            };
+    
+            return card;
+        } catch (error) {
+            console.error('Error parsing MTG card:', data.name || 'unknown', error);
+            throw error;
+        }
     }
     
     parseYugiohCard(data) {

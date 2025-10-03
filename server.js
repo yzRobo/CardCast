@@ -11,6 +11,8 @@ const Database = require('./src/database');
 const TCGCSVApi = require('./src/tcg-api');
 const OverlayServer = require('./src/overlay-server');
 
+const AVAILABLE_GAMES = ['pokemon', 'magic'];
+
 // Initialize Express app
 const app = express();
 const server = http.createServer(app);
@@ -109,7 +111,7 @@ app.get('/api/games', (req, res) => {
         .filter(key => config.games[key].enabled)
         .map(key => {
             // Only Pokemon is available, all others are coming soon
-            const isComingSoon = key !== 'pokemon';
+            const isComingSoon = !AVAILABLE_GAMES.includes(key);
             
             if (isComingSoon) {
                 // For coming soon games, return minimal data
@@ -188,12 +190,17 @@ app.get('/api/pokemon/sets', (req, res) => {
     }
 });
 
+// Magic Temp Testing
+//---------------------------------------------------------------------------
+
+//---------------------------------------------------------------------------
+
 // Delete game data endpoint - UPDATED FOR COMING SOON
 app.delete('/api/games/:game/data', (req, res) => {
     const game = req.params.game;
     
-    // Only allow delete for Pokemon
-    if (game !== 'pokemon') {
+    // Only allow delete for set available games
+    if (!AVAILABLE_GAMES.includes(game)) {
         return res.status(400).json({ 
             error: `${getGameName(game)} support is coming soon!`,
             comingSoon: true 
@@ -297,8 +304,8 @@ app.post('/api/download/:game', async (req, res) => {
     const incremental = req.body.incremental || false;
     const setCount = req.body.setCount || 'all';
     
-    // Only allow download for Pokemon
-    if (game !== 'pokemon') {
+    // Only allow download for set available games
+    if (!AVAILABLE_GAMES.includes(game)) {
         return res.status(400).json({ 
             error: `${getGameName(game)} support is coming soon!`,
             comingSoon: true 
@@ -358,8 +365,8 @@ app.get('/api/search/:game', (req, res) => {
     const { game } = req.params;
     const { q } = req.query;
     
-    // Only allow search for Pokemon
-    if (game !== 'pokemon') {
+    // Only allow search for set available games
+    if (!AVAILABLE_GAMES.includes(game)) {
         return res.status(400).json({ 
             error: `${getGameName(game)} support is coming soon!`,
             comingSoon: true 
@@ -391,8 +398,8 @@ app.get('/api/search/:game', (req, res) => {
 app.get('/api/card/:game/:id', (req, res) => {
     const { game, id } = req.params;
     
-    // Only allow for Pokemon
-    if (game !== 'pokemon') {
+    // Only allow for set available games
+    if (!AVAILABLE_GAMES.includes(game)) {
         return res.status(400).json({ 
             error: `${getGameName(game)} support is coming soon!`,
             comingSoon: true 
@@ -420,8 +427,8 @@ app.get('/api/card/:game/:id', (req, res) => {
 app.get('/api/stats/:game', (req, res) => {
     const { game } = req.params;
     
-    // Only allow stats for Pokemon
-    if (game !== 'pokemon') {
+    // Only allow stats for set available games
+    if (!AVAILABLE_GAMES.includes(game)) {
         return res.status(400).json({ 
             error: `${getGameName(game)} support is coming soon!`,
             comingSoon: true 
@@ -459,24 +466,16 @@ app.get('/api/stats/:game', (req, res) => {
 });
 
 // Overlay endpoints
-app.get('/overlay', (req, res) => {
-    res.sendFile(path.join(__dirname, 'overlays', 'main.html'));
-});
-
-app.get('/prizes', (req, res) => {
-    res.sendFile(path.join(__dirname, 'overlays', 'prizes.html'));
-});
-
-app.get('/decklist', (req, res) => {
-    res.sendFile(path.join(__dirname, 'overlays', 'decklist.html'));
-});
-
 app.get('/pokemon-match', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'pokemon-match.html'));
 });
 
 app.get('/pokemon-match-control', (req, res) => {
     res.sendFile(path.join(__dirname, 'pokemon-match-control.html'));
+});
+
+app.get('/mtg-match-control', (req, res) => {
+    res.sendFile(path.join(__dirname, 'mtg-match-control.html'));
 });
 
 // Track overlay connections
@@ -594,8 +593,8 @@ io.on('connection', (socket) => {
     socket.on('search', async (data) => {
         const { game, query } = data;
         
-        // Only allow search for Pokemon
-        if (game !== 'pokemon') {
+        // Only allow search for set available games
+        if (!AVAILABLE_GAMES.includes(game)) {
             socket.emit('search-error', {
                 error: `${getGameName(game)} support is coming soon!`,
                 comingSoon: true
@@ -763,6 +762,62 @@ io.on('connection', (socket) => {
         overlayServer.clearDecklist();
         io.emit('decklist-clear');
     });
+
+    // MTG Match events
+    socket.on('mtg-life-update', (data) => {
+        console.log('MTG life update:', data);
+        overlayServer.updateMTGLife(data.player, data.life);
+    });
+
+    socket.on('mtg-commander-damage-update', (data) => {
+        console.log('MTG commander damage update:', data);
+        overlayServer.updateCommanderDamage(data.player, data.commanderName, data.damage);
+    });
+
+    socket.on('mtg-lands-update', (data) => {
+        console.log('MTG lands update:', data);
+        overlayServer.updateLands(data.player, data.lands);
+    });
+
+    socket.on('mtg-permanent-add', (data) => {
+        console.log('MTG add featured permanent:', data);
+        overlayServer.addFeaturedPermanent(data.player, data.card);
+    });
+
+    socket.on('mtg-permanent-remove', (data) => {
+        console.log('MTG remove featured permanent:', data);
+        overlayServer.removeFeaturedPermanent(data.player, data.index);
+    });
+
+    socket.on('mtg-permanents-clear', (data) => {
+        console.log('MTG clear featured permanents:', data);
+        overlayServer.clearFeaturedPermanents(data.player);
+    });
+
+    socket.on('mtg-phase-update', (data) => {
+        console.log('MTG phase update:', data);
+        overlayServer.updatePhase(data.phase);
+    });
+
+    socket.on('mtg-player-name-update', (data) => {
+        console.log('MTG player name update:', data);
+        overlayServer.updateMTGPlayerName(data.player, data.name);
+    });
+
+    socket.on('mtg-player-switch', () => {
+        console.log('MTG player switch');
+        overlayServer.switchMTGActivePlayer();
+    });
+
+    socket.on('mtg-format-update', (data) => {
+        console.log('MTG format update:', data);
+        overlayServer.updateMTGFormat(data.format);
+    });
+
+    socket.on('mtg-match-reset', () => {
+        console.log('MTG match reset');
+        overlayServer.resetMTGMatch();
+    });
     
     // Handle disconnect
     socket.on('disconnect', () => {
@@ -810,9 +865,9 @@ OBS Overlays:
 
 Currently Available:
   ✓ Pokemon TCG (20,000+ cards)
+  ✓ Magic: The Gathering
 
 Coming Soon:
-  ○ Magic: The Gathering
   ○ Yu-Gi-Oh!
   ○ Disney Lorcana
   ○ One Piece Card Game
