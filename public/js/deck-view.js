@@ -58,7 +58,7 @@ async function renderMTGDeckView(deck) {
     if (isEditMode) {
         deckHTML += `
             <div class="edit-mode-indicator">
-                <span>✏️</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 <span>Edit Mode - Drag cards to reorder or move between sections</span>
             </div>
         `;
@@ -115,7 +115,7 @@ async function renderPokemonDeckView(deck) {
     if (isEditMode) {
         deckHTML += `
             <div class="edit-mode-indicator">
-                <span>✏️</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 <span>Edit Mode - Drag cards to reorder or move between sections</span>
             </div>
         `;
@@ -187,11 +187,11 @@ function buildDeckHeader(deck, totalCards) {
                 }
                 <div class="deck-stats">
                     <div class="deck-stat">
-                        <span>📦</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
                         <span>${totalCards} cards</span>
                     </div>
-                    <div class="deck-stat">
-                        <span>🎮</span>
+                    <div class="deck-stat capitalize">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><rect width="20" height="12" x="2" y="6" rx="2"/></svg>
                         <span>${game.charAt(0).toUpperCase() + game.slice(1)}</span>
                     </div>
                 </div>

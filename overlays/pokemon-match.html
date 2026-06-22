@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=1920, height=1080">
     <title>CardCast - Pokemon Match Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -15,7 +18,7 @@
             width: 1920px;
             height: 1080px;
             background: transparent;
-            font-family: 'Segoe UI', -apple-system, sans-serif;
+            font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
             overflow: hidden;
             position: relative;
         }
@@ -96,7 +99,7 @@
             border-radius: 12px;
             padding: 15px;
             margin-bottom: 12px;
-            border: 2px solid #3b82f6;
+            border: 2px solid #6366f1;
             backdrop-filter: blur(10px);
         }
         
@@ -154,7 +157,7 @@
         .stat-value {
             font-size: 24px;
             font-weight: bold;
-            color: #3b82f6;
+            color: #6366f1;
             display: block;
         }
         
@@ -259,6 +262,47 @@
             background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
             box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
         }
+
+        /* Attached Tools / Items */
+        .tool-attachments {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            right: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            z-index: 2;
+        }
+
+        .tool-chip {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(30,27,75,0.92) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.9);
+            border-radius: 6px;
+            padding: 2px 7px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            max-width: 100%;
+        }
+
+        .tool-chip img {
+            width: 18px;
+            height: 25px;
+            object-fit: cover;
+            border-radius: 3px;
+        }
+
+        .tool-chip span {
+            color: #e0e7ff;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 130px;
+        }
         
         .no-active {
             height: 100%;
@@ -360,7 +404,7 @@
             width: 52px;
             height: 73px;
             background: linear-gradient(135deg, #3b4cca 0%, #1a237e 100%);
-            border: 2px solid #667eea;
+            border: 2px solid #6366f1;
             border-radius: 6px;
             display: flex;
             align-items: center;
@@ -659,6 +703,7 @@
             },
             currentTurn: 1,
             timer: { minutes: 50, seconds: 0 },
+            timerDuration: { minutes: 50, seconds: 0 },
             timerInterval: null,
             gameNumber: 1,
             matchFormat: 'Best of 3',
@@ -817,19 +862,39 @@
             pauseTimer();
         });
         
-        socket.on('timer-reset', () => {
+        socket.on('timer-reset', (data) => {
             console.log('Timer reset received');
-            
+
             // Clear any existing timer interval
             if (matchState.timerInterval) {
                 clearInterval(matchState.timerInterval);
                 matchState.timerInterval = null;
             }
-            
-            // Reset timer values
-            matchState.timer = { minutes: 50, seconds: 0 };
-            
+
+            // Prefer the duration sent with the reset (keeps newly-loaded overlays in sync)
+            if (data && typeof data.minutes === 'number') {
+                matchState.timerDuration = { minutes: data.minutes, seconds: data.seconds || 0 };
+            }
+
+            // Reset timer values to the configured duration
+            const duration = matchState.timerDuration || { minutes: 50, seconds: 0 };
+            matchState.timer = { minutes: duration.minutes, seconds: duration.seconds };
+
             // Update display but DON'T start the timer
+            updateMatchInfo();
+        });
+
+        socket.on('timer-set', (data) => {
+            console.log('Timer set received:', data);
+
+            // Stop any running timer so the new duration is shown
+            if (matchState.timerInterval) {
+                clearInterval(matchState.timerInterval);
+                matchState.timerInterval = null;
+            }
+
+            matchState.timerDuration = { minutes: data.minutes, seconds: data.seconds };
+            matchState.timer = { minutes: data.minutes, seconds: data.seconds };
             updateMatchInfo();
         });
         
@@ -838,13 +903,16 @@
             
             // Preserve visibility
             const wasVisible = matchState.visible;
-            
+
+            // Preserve the configured timer length across match resets
+            const timerDuration = matchState.timerDuration || { minutes: 50, seconds: 0 };
+
             // Clear any running timer
             if (matchState.timerInterval) {
                 clearInterval(matchState.timerInterval);
                 matchState.timerInterval = null;
             }
-            
+
             // Full reset
             matchState = {
                 player1: {
@@ -870,7 +938,8 @@
                     turnActions: { energy: false, supporter: false, retreat: false }
                 },
                 currentTurn: 1,
-                timer: { minutes: 50, seconds: 0 },
+                timer: { minutes: timerDuration.minutes, seconds: timerDuration.seconds },
+                timerDuration: timerDuration,
                 timerInterval: null,
                 gameNumber: 1,
                 matchFormat: 'Best of 3',
@@ -1035,10 +1104,23 @@
                 let hpClass = '';
                 if (hpPercent <= 20) hpClass = 'critical';
                 else if (hpPercent <= 50) hpClass = 'low';
-                
+
+                const tools = player.active.tools || [];
+                const toolsHTML = tools.length ? `
+                    <div class="tool-attachments">
+                        ${tools.map(tool => `
+                            <div class="tool-chip">
+                                ${tool.image ? `<img src="${tool.image}" alt="${tool.name}">` : ''}
+                                <span>${tool.name}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : '';
+
                 activeDiv.innerHTML = `
                     <div class="active-card">
                         <img src="${player.active.image}" alt="${player.active.name}">
+                        ${toolsHTML}
                         <div class="hp-overlay">
                             <div class="hp-text">${player.active.currentHp}/${player.active.maxHp} HP</div>
                             <div class="hp-bar">

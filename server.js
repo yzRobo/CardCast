@@ -685,6 +685,11 @@ io.on('connection', (socket) => {
         console.log('Timer reset');
         io.emit('timer-reset');
     });
+
+    socket.on('timer-set', (data) => {
+        console.log('Timer set:', data);
+        io.emit('timer-set', data);
+    });
     
     socket.on('match-reset', () => {
         console.log('Match reset');
@@ -774,72 +779,58 @@ io.on('connection', (socket) => {
 
     // MTG Match events
     socket.on('mtg-life-update', (data) => {
-        console.log('MTG life update:', data);
         overlayServer.updateMTGLife(data.player, data.life);
     });
 
     socket.on('mtg-commander-damage-update', (data) => {
-        console.log('MTG commander damage update:', data);
         overlayServer.updateCommanderDamage(data.player, data.commanderName, data.damage);
     });
 
     socket.on('mtg-lands-update', (data) => {
-        console.log('MTG lands update:', data);
         overlayServer.updateLands(data.player, data.lands);
     });
 
     socket.on('mtg-permanent-add', (data) => {
-        console.log('MTG add featured permanent:', data);
         overlayServer.addFeaturedPermanent(data.player, data.card);
     });
 
     socket.on('mtg-permanent-remove', (data) => {
-        console.log('MTG remove featured permanent:', data);
         overlayServer.removeFeaturedPermanent(data.player, data.index);
     });
 
     socket.on('mtg-permanents-clear', (data) => {
-        console.log('MTG clear featured permanents:', data);
         overlayServer.clearFeaturedPermanents(data.player);
     });
 
     socket.on('mtg-phase-update', (data) => {
-        console.log('MTG phase update:', data);
         overlayServer.updatePhase(data.phase);
     });
 
     socket.on('mtg-player-name-update', (data) => {
-        console.log('MTG player name update:', data);
         overlayServer.updateMTGPlayerName(data.player, data.name);
     });
 
     socket.on('mtg-player-record-update', (data) => {
-        console.log('MTG player record update:', data);
         overlayServer.updateMTGPlayerRecord(data.player, data.record);
     });
 
     socket.on('mtg-games-won-update', (data) => {
-        console.log('MTG games won update:', data);
         overlayServer.updateMTGGamesWon(data.player, data.gamesWon);
     });
 
     socket.on('mtg-turn-action', (data) => {
-        console.log('MTG turn action:', data);
         overlayServer.setMTGTurnAction(data.player, data.action, data.value);
     });
 
     socket.on('mtg-player-switch', () => {
-        console.log('MTG player switch');
         overlayServer.switchMTGActivePlayer();
     });
 
     socket.on('mtg-format-update', (data) => {
-        console.log('MTG format update:', data);
         overlayServer.updateMTGFormat(data.format);
     });
 
     socket.on('mtg-match-reset', () => {
-        console.log('MTG match reset');
         overlayServer.resetMTGMatch();
     });
     

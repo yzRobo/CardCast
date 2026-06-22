@@ -3,12 +3,17 @@ module.exports = {
   content: [
     "./index.html",
     "./pokemon-match-control.html",
+    "./mtg-match-control.html",
     "./public/**/*.{html,js}",
     "./overlays/**/*.html",
     "./src/**/*.js"
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+      },
       animation: {
         'float': 'float 6s ease-in-out infinite',
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
@@ -80,11 +85,11 @@ module.exports = {
           "neutral": "#1e293b",           // Slate
           "neutral-focus": "#334155",     // Lighter slate for hover
           "neutral-content": "#f1f5f9",   // Light text on neutral
-          
-          "base-100": "#0a0e1a",          // Deepest dark background
-          "base-200": "#131824",          // Rich dark blue
-          "base-300": "#1e2436",          // Subtle blue tint
-          "base-content": "#e2e8f0",      // Light gray text
+
+          "base-100": "#0b0f17",          // Deepest dark background
+          "base-200": "#121826",          // Card surface
+          "base-300": "#1b2334",          // Raised surface / borders
+          "base-content": "#dfe5ef",      // Light gray text
           
           "info": "#60a5fa",              // Bright blue
           "info-content": "#ffffff",      // White text on info
@@ -98,13 +103,13 @@ module.exports = {
           "error": "#f87171",             // Light red
           "error-content": "#ffffff",     // White text on error
           
-          "--rounded-box": "1rem",
-          "--rounded-btn": "0.75rem",
-          "--rounded-badge": "1.9rem",
-          "--animation-btn": "0.25s",
+          "--rounded-box": "0.875rem",
+          "--rounded-btn": "0.5rem",
+          "--rounded-badge": "0.5rem",
+          "--animation-btn": "0.2s",
           "--animation-input": "0.2s",
-          "--btn-text-case": "uppercase",
-          "--btn-focus-scale": "0.95",
+          "--btn-text-case": "none",
+          "--btn-focus-scale": "0.97",
           "--border-btn": "1px",
           "--tab-border": "1px",
           "--tab-radius": "0.5rem",

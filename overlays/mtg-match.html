@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MTG Match Overlay - CardCast</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
     <style>
         * {
@@ -17,7 +20,7 @@
             height: 1080px;
             overflow: hidden;
             background: transparent;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         /* Player Containers */
@@ -32,7 +35,7 @@
         }
 
         .player-container.active {
-            border-color: #3b82f6;
+            border-color: #6366f1;
             box-shadow: 0 0 30px rgba(59, 130, 246, 0.6);
         }
 
@@ -222,7 +225,7 @@
             top: 50px;
             left: 50%;
             transform: translateX(-50%);
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
             padding: 8px 20px;
             border-radius: 20px;
             font-size: 18px;
@@ -609,38 +612,36 @@
         }
 
         function updateLife(player, life) {
-            const lifeElement = document.getElementById(`p${player}-life`);
-            lifeElement.textContent = life;
+            life = parseInt(life);
+            socket.emit('mtg-life-update', { player, life });
             
-            // FIXED: Format-aware life thresholds
-            // Get starting life for current format
-            let startingLife = 20; // Default
-            if (currentState) {
-                if (currentState.format === 'commander') {
-                    startingLife = 40;
-                } else if (currentState.format === 'brawl') {
-                    startingLife = 25;
-                } else {
-                    startingLife = 20;
-                }
+            const input = document.getElementById(`p${player}-life`);
+            input.className = 'input input-bordered text-3xl text-center flex-1';
+            
+            // Get starting life based on current format
+            const format = document.getElementById('format-selector').value;
+            let startingLife = 20;
+            if (format === 'commander') {
+                startingLife = 40;
+            } else if (format === 'brawl') {
+                startingLife = 25;
             }
             
             // Calculate percentage of starting life
             const lifePercent = (life / startingLife) * 100;
             
-            // Update color based on percentage, not fixed values
-            lifeElement.className = 'life-display';
-            if (lifePercent <= 15) {  // 15% or less = critical (6 life in Standard, 6 in Commander)
-                lifeElement.classList.add('life-critical');
-            } else if (lifePercent <= 30) {  // 30% or less = warning (6 life in Standard, 12 in Commander)
-                lifeElement.classList.add('life-warning');
+            // Apply color classes based on percentage
+            if (lifePercent <= 15) {
+                input.classList.add('life-critical');
+            } else if (lifePercent <= 30) {
+                input.classList.add('life-warning');
             } else {
-                lifeElement.classList.add('life-healthy');
+                input.classList.add('life-healthy');
             }
 
             // Add flash animation
-            lifeElement.classList.add('fade-in');
-            setTimeout(() => lifeElement.classList.remove('fade-in'), 500);
+            input.classList.add('fade-in');
+            setTimeout(() => input.classList.remove('fade-in'), 500);
         }
 
         function updateLands(player, count) {

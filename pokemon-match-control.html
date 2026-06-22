@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CardCast - Pokemon Match Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link href="/css/style.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -58,7 +61,7 @@
             align-items: center;
             gap: 0.75rem;
             padding: 0.5rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
             border-radius: 0.5rem;
             min-height: 3.5rem;
         }
@@ -210,14 +213,27 @@
     <div class="orb orb-3"></div>
 
     <!-- Header -->
-    <div class="navbar glass-card border-b-0 fixed top-0 z-50">
-        <div class="flex-1">
-            <h1 class="text-xl font-bold">CardCast - Pokemon Match Control</h1>
-            <a href="/" class="btn btn-ghost btn-sm ml-4">← Back to Main</a>
+    <div class="navbar glass-card border-b border-white/5 px-4 sm:px-6 fixed top-0 z-50 min-h-[3.75rem] gap-2">
+        <div class="navbar-start gap-2 sm:gap-3">
+            <a href="/" class="btn btn-ghost btn-sm gap-1.5 px-2" title="Back to Dashboard">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                <span class="hidden sm:inline">Dashboard</span>
+            </a>
+            <div class="h-6 w-px bg-white/10"></div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shadow" style="background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                </div>
+                <div class="leading-tight">
+                    <div class="font-bold text-base">Pokémon Match Control</div>
+                    <div class="text-[10px] uppercase tracking-[0.18em] text-base-content/40 font-medium">CardCast</div>
+                </div>
+            </div>
         </div>
-        <div class="flex-none">
-            <div class="badge badge-lg" id="overlayStatus">
-                <span class="badge badge-error">Overlay Not Connected</span>
+        <div class="navbar-end">
+            <div class="badge badge-error gap-2 py-3 font-medium" id="overlayStatus">
+                <div class="w-2 h-2 rounded-full bg-current"></div>
+                <span>Overlay Not Connected</span>
             </div>
         </div>
     </div>
@@ -536,9 +552,31 @@
                     <div class="flex flex-wrap items-center gap-4">
                         <div class="text-5xl font-mono font-bold text-primary bg-base-200 px-6 py-3 rounded-lg" id="timerDisplay">50:00</div>
                         <div class="flex gap-2">
-                            <button class="btn btn-success" onclick="startTimer()">▶ Start</button>
-                            <button class="btn btn-warning" onclick="pauseTimer()">⏸ Pause</button>
-                            <button class="btn btn-neutral" onclick="resetTimer()">↺ Reset</button>
+                            <button class="btn btn-success gap-1.5" onclick="startTimer()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>Start</button>
+                            <button class="btn btn-warning gap-1.5" onclick="pauseTimer()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>Pause</button>
+                            <button class="btn btn-neutral gap-1.5" onclick="resetTimer()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Reset</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-end gap-3 mt-4">
+                        <div class="form-control">
+                            <label class="label py-0">
+                                <span class="label-text text-xs">Minutes</span>
+                            </label>
+                            <input type="number" id="timerMinutes" class="input input-bordered input-sm w-20" value="50" min="0" max="999">
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0">
+                                <span class="label-text text-xs">Seconds</span>
+                            </label>
+                            <input type="number" id="timerSeconds" class="input input-bordered input-sm w-20" value="0" min="0" max="59">
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="setTimer()">Set Timer</button>
+                        <div class="flex gap-1">
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(25)">25 min (BO1)</button>
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(50)">50 min (BO3)</button>
                         </div>
                     </div>
                 </div>
@@ -566,7 +604,8 @@
                 <div class="pt-4">
                     <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Match Reset</h3>
                     <div class="flex items-center gap-4">
-                        <button class="btn btn-error" onclick="resetMatch()">🔄 Reset Entire Match</button>
+                        <button class="btn btn-error gap-1.5" onclick="resetMatch()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Reset Entire Match</button>
                         <span class="text-xs text-error opacity-70 italic">This will clear all Pokemon, prizes, and timer</span>
                     </div>
                 </div>
@@ -579,8 +618,10 @@
         <div class="card w-full max-w-5xl bg-base-100">
             <div class="card-body">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="card-title">Select Pokemon</h2>
-                    <button class="btn btn-circle btn-ghost" onclick="closeSearch()">✕</button>
+                    <h2 class="card-title" id="searchTitle">Select Pokemon</h2>
+                    <button class="btn btn-circle btn-ghost btn-sm" onclick="closeSearch()" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
                 </div>
                 
                 <!-- Search mode indicator -->
@@ -643,13 +684,15 @@
             },
             currentTurn: 1,
             timer: { minutes: 50, seconds: 0 },
+            timerDuration: { minutes: 50, seconds: 0 },
             timerInterval: null,
             gameNumber: 1,
             matchFormat: 'Best of 3',
             stadium: null
         };
-        
+
         let currentSelection = null;
+        let searchMode = 'pokemon'; // 'pokemon' or 'tool'
         let draggedPokemon = null;
         let draggedFrom = null;
         let stadiumSearchTimeout = null;
@@ -1371,16 +1414,16 @@
         
         function updateOverlayStatus(connected) {
             const status = document.getElementById('overlayStatus');
-            if (connected) {
-                status.innerHTML = '<span class="badge badge-success">Overlay Connected</span>';
-            } else {
-                status.innerHTML = '<span class="badge badge-error">Overlay Not Connected</span>';
-            }
+            status.className = 'badge gap-2 py-3 font-medium ' + (connected ? 'badge-success' : 'badge-error');
+            status.innerHTML = '<div class="w-2 h-2 rounded-full bg-current"></div><span>' +
+                (connected ? 'Overlay Connected' : 'Overlay Not Connected') + '</span>';
         }
         
         // UPDATED: Select Pokemon with deck card population
         function selectPokemonFor(player, slot, benchIndex = null) {
+            searchMode = 'pokemon';
             currentSelection = { player, slot, benchIndex };
+            document.getElementById('searchTitle').textContent = 'Select Pokemon';
             document.getElementById('searchOverlay').classList.add('active');
             document.getElementById('pokemonSearch').value = ''; // Clear search input
             document.getElementById('pokemonSearch').focus();
@@ -1395,10 +1438,60 @@
             populateDeckCards();
         }
         
+        // Open the search overlay to attach a Tool/Item to a player's Active Pokemon
+        function attachToolFor(playerNum) {
+            const playerKey = `player${playerNum}`;
+            if (!matchState[playerKey].active) {
+                alert('Select an Active Pokemon first before attaching a Tool or Item.');
+                return;
+            }
+
+            searchMode = 'tool';
+            currentSelection = { player: playerKey, slot: 'tool', benchIndex: null };
+            document.getElementById('searchTitle').textContent = 'Attach Tool / Item';
+            document.getElementById('searchOverlay').classList.add('active');
+
+            const input = document.getElementById('pokemonSearch');
+            input.value = '';
+            input.focus();
+            document.getElementById('searchResults').innerHTML =
+                '<div class="col-span-full text-center text-base-content/50">Search for a Tool, Item, or Trainer card to attach...</div>';
+        }
+
+        // Remove a Tool/Item from a player's Active Pokemon
+        function removeTool(playerNum, toolIndex) {
+            const active = matchState[`player${playerNum}`].active;
+            if (!active || !active.tools) return;
+
+            active.tools.splice(toolIndex, 1);
+            updateActiveDisplay(playerNum);
+            socket.emit('active-pokemon', { player: playerNum, pokemon: active });
+            saveMatchState();
+        }
+
         // UPDATED: Search Pokemon with better deck filtering
         async function searchPokemon(event) {
             const query = event.target.value.trim();
-            
+
+            // Tool/Item attach mode: search non-Pokemon cards (Trainers, Items, Tools)
+            if (searchMode === 'tool') {
+                if (query.length < 2) {
+                    document.getElementById('searchResults').innerHTML =
+                        '<div class="col-span-full text-center text-base-content/50">Search for a Tool, Item, or Trainer card to attach...</div>';
+                    return;
+                }
+                try {
+                    const response = await fetch(`/api/search/pokemon?q=${encodeURIComponent(query)}`);
+                    let results = await response.json();
+                    // Tools / Items / Trainers are the non-Pokemon cards (no HP)
+                    results = results.filter(card => !isPokemonCard(card));
+                    displaySearchResults(results);
+                } catch (error) {
+                    console.error('Tool search error:', error);
+                }
+                return;
+            }
+
             // If query is empty and we have a deck, show all deck cards
             if (query.length === 0) {
                 populateDeckCards();
@@ -1459,15 +1552,18 @@
             const container = document.getElementById('searchResults');
             
             if (results.length === 0) {
-                const searchAllCards = document.getElementById('searchAllCards').checked;
-                const playerNum = currentSelection.player === 'player1' ? 1 : 2;
-                const hasDeck = playerDeckCards[`player${playerNum}`].length > 0;
-                
                 let message = 'No Pokemon cards found';
-                if (hasDeck && !searchAllCards) {
-                    message = 'No Pokemon cards found in deck. Try enabling "Search all cards" to search outside the deck.';
+                if (searchMode === 'tool') {
+                    message = 'No Tool, Item, or Trainer cards found';
+                } else {
+                    const searchAllCards = document.getElementById('searchAllCards').checked;
+                    const playerNum = currentSelection.player === 'player1' ? 1 : 2;
+                    const hasDeck = playerDeckCards[`player${playerNum}`].length > 0;
+                    if (hasDeck && !searchAllCards) {
+                        message = 'No Pokemon cards found in deck. Try enabling "Search all cards" to search outside the deck.';
+                    }
                 }
-                
+
                 container.innerHTML = `<div class="col-span-full text-center text-base-content/50">${message}</div>`;
                 return;
             }
@@ -1483,22 +1579,27 @@
             }
             
             container.innerHTML = uniqueCards.map(card => `
-                <div class="card bg-base-200 cursor-pointer hover:shadow-lg transition-shadow" 
+                <div class="card bg-base-200 cursor-pointer hover:shadow-lg transition-shadow"
                      onclick="selectPokemon('${card.id}')">
                     <figure class="px-2 pt-2">
-                        <img src="${card.display_image || card.local_image || card.image_url}" 
+                        <img src="${card.display_image || card.local_image || card.image_url}"
                              class="rounded-lg pokemon-card-aspect object-cover w-full"
                              onerror="this.src='/images/card-back.png'">
                     </figure>
                     <div class="card-body p-2">
                         <p class="text-xs font-semibold">${card.name}</p>
-                        <p class="text-xs opacity-70">HP: ${card.hp || '?'}</p>
+                        <p class="text-xs opacity-70">${searchMode === 'tool' ? (card.set_name || card.set || '') : 'HP: ' + (card.hp || '?')}</p>
                     </div>
                 </div>
             `).join('');
         }
         
         async function selectPokemon(cardId) {
+            // In tool-attach mode, this attaches a Tool/Item instead of placing a Pokemon
+            if (searchMode === 'tool') {
+                return attachToolCard(cardId);
+            }
+
             try {
                 // Try all endpoints to find the card
                 let response = await fetch(`/api/card/pokemon/${cardId}`);
@@ -1508,9 +1609,9 @@
                 if (!response.ok) {
                     response = await fetch(`/api/card/energy/${cardId}`);
                 }
-                
+
                 const card = await response.json();
-                
+
                 const pokemon = {
                     id: card.id,
                     name: card.name,
@@ -1540,14 +1641,63 @@
                 console.error('Error selecting Pokemon:', error);
             }
         }
+
+        // Fetch a card and attach it as a Tool/Item to the current player's Active Pokemon
+        async function attachToolCard(cardId) {
+            try {
+                let response = await fetch(`/api/card/pokemon/${cardId}`);
+                if (!response.ok) {
+                    response = await fetch(`/api/card/trainer/${cardId}`);
+                }
+                if (!response.ok) {
+                    response = await fetch(`/api/card/energy/${cardId}`);
+                }
+
+                const card = await response.json();
+
+                const tool = {
+                    id: card.id,
+                    name: card.name,
+                    image: card.display_image || card.local_image || card.image_url
+                };
+
+                const playerNum = currentSelection.player === 'player1' ? 1 : 2;
+                const active = matchState[currentSelection.player].active;
+
+                if (!active) {
+                    closeSearch();
+                    return;
+                }
+
+                if (!active.tools) active.tools = [];
+                active.tools.push(tool);
+
+                updateActiveDisplay(playerNum);
+                socket.emit('active-pokemon', { player: playerNum, pokemon: active });
+
+                closeSearch();
+                saveMatchState();
+            } catch (error) {
+                console.error('Error attaching tool:', error);
+            }
+        }
         
         function updateActiveDisplay(playerNum) {
             const player = matchState[`player${playerNum}`];
             const container = document.getElementById(`player${playerNum}Active`);
             
             if (player.active) {
+                const tools = player.active.tools || [];
+                const toolsHTML = tools.map((tool, idx) => `
+                    <div class="badge badge-outline badge-accent gap-1 items-center py-3">
+                        ${tool.image ? `<img src="${tool.image}" class="w-4 h-5 object-cover rounded-sm">` : ''}
+                        <span class="text-xs">${tool.name}</span>
+                        <button class="text-error font-bold" onclick="removeTool(${playerNum}, ${idx})">×</button>
+                    </div>
+                `).join('');
+
                 container.innerHTML = `
-                    <div class="draggable" draggable="true" 
+                    <div class="draggable" draggable="true"
                          onDragStart="handleDragStart(event, ${playerNum}, 'active')"
                          onDragEnd="handleDragEnd(event)">
                         <img src="${player.active.image}" class="w-20 h-28 object-cover rounded cursor-move">
@@ -1555,8 +1705,12 @@
                     <div class="flex-1">
                         <div class="font-bold">${player.active.name}</div>
                         <div class="text-sm opacity-70">HP: ${player.active.currentHp}/${player.active.maxHp}</div>
-                        <div class="text-xs text-info mt-1">🔄 Drag to swap positions</div>
-                        <button class="btn btn-error btn-xs mt-2" onclick="removeActive(${playerNum})">Remove</button>
+                        <div class="text-xs text-info mt-1 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 8 4 4-4 4"/><path d="M2 12h20"/><path d="m6 16-4-4 4-4"/></svg>Drag to swap positions</div>
+                        <div class="flex flex-wrap gap-1 mt-2">${toolsHTML}</div>
+                        <div class="flex gap-2 mt-2">
+                            <button class="btn btn-error btn-xs" onclick="removeActive(${playerNum})">Remove</button>
+                            <button class="btn btn-accent btn-xs" onclick="attachToolFor(${playerNum})">+ Attach Tool/Item</button>
+                        </div>
                     </div>
                 `;
                 
@@ -1571,7 +1725,7 @@
                         <button class="btn btn-primary btn-sm" onclick="selectPokemonFor('player${playerNum}', 'active')">
                             Select Pokemon
                         </button>
-                        <div class="text-xs text-info mt-2">💡 Drop Pokemon here from bench</div>
+                        <div class="text-xs text-info mt-2 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>Drop Pokemon here from bench</div>
                     </div>
                 `;
             }
@@ -1587,9 +1741,9 @@
                 const pokemon = player.bench[i];
                 if (pokemon) {
                     benchHTML += `
-                        <div class="bench-drop-zone relative group" 
-                             data-player="${playerNum}" 
-                             data-slot="bench" 
+                        <div class="bench-drop-zone relative group"
+                             data-player="${playerNum}"
+                             data-slot="bench"
                              data-benchIndex="${i}">
                             <div class="draggable" draggable="true"
                                  onDragStart="handleDragStart(event, ${playerNum}, 'bench', ${i})"
@@ -1598,6 +1752,14 @@
                             </div>
                             <button class="btn btn-circle btn-xs btn-error absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                     onclick="removeBench(${playerNum}, ${i})">×</button>
+                            <div class="mt-1 flex items-center justify-center gap-1">
+                                <button class="btn btn-xs btn-square" onclick="adjustBenchHp(${playerNum}, ${i}, -10)">−</button>
+                                <input type="number" class="input input-bordered input-xs w-12 text-center px-1"
+                                       value="${pokemon.currentHp}" min="0" max="${pokemon.maxHp}"
+                                       onchange="setBenchHp(${playerNum}, ${i}, this.value)">
+                                <button class="btn btn-xs btn-square" onclick="adjustBenchHp(${playerNum}, ${i}, 10)">+</button>
+                            </div>
+                            <div class="text-[10px] text-center opacity-60">/ ${pokemon.maxHp} HP</div>
                         </div>
                     `;
                 } else {
@@ -1640,10 +1802,46 @@
         function removeBench(playerNum, index) {
             matchState[`player${playerNum}`].bench[index] = null;
             updateBenchDisplay(playerNum);
-            socket.emit('bench-update', { 
-                player: playerNum, 
-                bench: matchState[`player${playerNum}`].bench.slice(0, matchState[`player${playerNum}`].benchSize).filter(p => p !== null)
+            emitBenchUpdate(playerNum);
+            saveMatchState();
+        }
+
+        // Send the current bench (compacted) to the overlay
+        function emitBenchUpdate(playerNum) {
+            const player = matchState[`player${playerNum}`];
+            socket.emit('bench-update', {
+                player: playerNum,
+                bench: player.bench.slice(0, player.benchSize).filter(p => p !== null)
             });
+        }
+
+        // Adjust a benched Pokemon's HP by a fixed amount (no need to drag it to active)
+        function adjustBenchHp(playerNum, index, delta) {
+            const pokemon = matchState[`player${playerNum}`].bench[index];
+            if (!pokemon) return;
+
+            let hp = (parseInt(pokemon.currentHp) || 0) + delta;
+            if (hp < 0) hp = 0;
+            if (hp > pokemon.maxHp) hp = pokemon.maxHp;
+            pokemon.currentHp = hp;
+
+            updateBenchDisplay(playerNum);
+            emitBenchUpdate(playerNum);
+            saveMatchState();
+        }
+
+        // Set a benched Pokemon's HP to an exact value
+        function setBenchHp(playerNum, index, value) {
+            const pokemon = matchState[`player${playerNum}`].bench[index];
+            if (!pokemon) return;
+
+            let hp = parseInt(value);
+            if (isNaN(hp) || hp < 0) hp = 0;
+            if (hp > pokemon.maxHp) hp = pokemon.maxHp;
+            pokemon.currentHp = hp;
+
+            updateBenchDisplay(playerNum);
+            emitBenchUpdate(playerNum);
             saveMatchState();
         }
         
@@ -1757,16 +1955,45 @@
         function resetTimer() {
             // Pause first
             pauseTimer();
-            
-            // Then reset values
-            matchState.timer = { minutes: 50, seconds: 0 };
+
+            // Then reset values to the configured duration
+            const duration = matchState.timerDuration || { minutes: 50, seconds: 0 };
+            matchState.timer = { minutes: duration.minutes, seconds: duration.seconds };
             updateTimerDisplay();
-            
-            // Send reset but DON'T start
-            socket.emit('timer-reset');
+
+            // Send reset (with duration so overlays stay in sync) but DON'T start
+            socket.emit('timer-reset', duration);
             saveMatchState();
         }
-        
+
+        // Set a custom timer duration (e.g. 25 min for a Best of 1 game)
+        function setTimer() {
+            let minutes = parseInt(document.getElementById('timerMinutes').value);
+            let seconds = parseInt(document.getElementById('timerSeconds').value);
+
+            if (isNaN(minutes) || minutes < 0) minutes = 0;
+            if (isNaN(seconds) || seconds < 0) seconds = 0;
+            if (seconds > 59) seconds = 59;
+
+            // Stop a running timer so the new duration is what shows
+            pauseTimer();
+
+            matchState.timerDuration = { minutes, seconds };
+            matchState.timer = { minutes, seconds };
+            updateTimerDisplay();
+
+            // Tell the overlay the new duration
+            socket.emit('timer-set', { minutes, seconds });
+            saveMatchState();
+        }
+
+        // Quick presets for common formats
+        function setTimerPreset(minutes) {
+            document.getElementById('timerMinutes').value = minutes;
+            document.getElementById('timerSeconds').value = 0;
+            setTimer();
+        }
+
         function updateTimerDisplay() {
             const minutes = String(matchState.timer.minutes).padStart(2, '0');
             const seconds = String(matchState.timer.seconds).padStart(2, '0');
@@ -1809,7 +2036,10 @@
             // Preserve player names
             const player1Name = matchState.player1.name;
             const player2Name = matchState.player2.name;
-            
+
+            // Preserve the configured timer length across match resets
+            const timerDuration = matchState.timerDuration || { minutes: 50, seconds: 0 };
+
             // Reset match state
             matchState = {
                 player1: {
@@ -1837,13 +2067,14 @@
                     deckName: matchState.player2.deckName
                 },
                 currentTurn: 1,
-                timer: { minutes: 50, seconds: 0 },
+                timer: { minutes: timerDuration.minutes, seconds: timerDuration.seconds },
+                timerDuration: timerDuration,
                 timerInterval: null,
                 gameNumber: 1,
                 matchFormat: 'Best of 3',
                 stadium: null
             };
-            
+
             // Reset UI
             updateActiveDisplay(1);
             updateActiveDisplay(2);
@@ -1887,7 +2118,7 @@
             updateTurnDisplay();
             
             // Send reset events in correct order
-            socket.emit('timer-reset');
+            socket.emit('timer-reset', matchState.timerDuration);
             socket.emit('match-reset');
             
             // Send complete updated data
@@ -1930,7 +2161,9 @@
             document.getElementById('pokemonSearch').value = '';
             document.getElementById('searchResults').innerHTML = '';
             document.getElementById('searchModeIndicator').classList.add('hidden');
+            document.getElementById('searchTitle').textContent = 'Select Pokemon';
             currentSelection = null;
+            searchMode = 'pokemon';
         }
         
         function saveMatchState() {
@@ -2019,7 +2252,14 @@
                         document.querySelector(`#player2Prizes > div:nth-child(${i + 1})`).classList.add('prize-card-taken');
                     }
                 });
-                
+
+                // Restore configured timer duration (default 50:00 for older saved states)
+                if (!matchState.timerDuration) {
+                    matchState.timerDuration = { minutes: matchState.timer?.minutes ?? 50, seconds: matchState.timer?.seconds ?? 0 };
+                }
+                document.getElementById('timerMinutes').value = matchState.timerDuration.minutes;
+                document.getElementById('timerSeconds').value = matchState.timerDuration.seconds;
+
                 updateTimerDisplay();
                 updateTurnDisplay();
                 
@@ -2047,17 +2287,23 @@
         // Make functions available globally
         window.selectPokemonFor = selectPokemonFor;
         window.selectPokemon = selectPokemon;
+        window.attachToolFor = attachToolFor;
+        window.removeTool = removeTool;
         window.selectStadiumCard = selectStadiumCard;
         window.setManualStadium = setManualStadium;
         window.removeActive = removeActive;
         window.removeBench = removeBench;
         window.updateActiveHp = updateActiveHp;
+        window.adjustBenchHp = adjustBenchHp;
+        window.setBenchHp = setBenchHp;
         window.togglePrize = togglePrize;
         window.updatePlayerNames = updatePlayerNames;
         window.switchTurn = switchTurn;
         window.startTimer = startTimer;
         window.pauseTimer = pauseTimer;
         window.resetTimer = resetTimer;
+        window.setTimer = setTimer;
+        window.setTimerPreset = setTimerPreset;
         window.updateMatchSettings = updateMatchSettings;
         window.showPokemonOverlay = showPokemonOverlay;
         window.hidePokemonOverlay = hidePokemonOverlay;
