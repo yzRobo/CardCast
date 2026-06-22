@@ -261,10 +261,8 @@ REQUIREMENTS
 OBS BROWSER SOURCES
 -------------------
 Add these URLs as browser sources in OBS:
-- Main Overlay: http://localhost:3888/overlay
-- Prize Cards: http://localhost:3888/prizes
-- Deck List: http://localhost:3888/decklist
 - Pokemon Match: http://localhost:3888/pokemon-match
+- MTG Match: http://localhost:3888/mtg-match
 
 Settings: 1920x1080, 30 FPS
 

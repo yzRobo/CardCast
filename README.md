@@ -5,7 +5,7 @@ A straightforward streaming overlay tool for Trading Card Game content creators.
 ## Currently Supported Games
 
 - **Pokemon TCG** - Fully functional with 20,000+ cards
-- Magic: The Gathering *(Coming Soon)*
+- **Magic: The Gathering** - Match control and overlay (new in v1.1.0)
 - Yu-Gi-Oh! *(Coming Soon)*
 - Disney Lorcana *(Coming Soon)*
 - One Piece Card Game *(Coming Soon)*
@@ -18,7 +18,8 @@ A straightforward streaming overlay tool for Trading Card Game content creators.
 - **Instant Card Search** - Fast fuzzy search with smart filtering
 - **Offline Mode** - All data stored locally after initial download
 - **OBS Integration** - Professional overlays for streaming
-- **Pokemon Match Tracker** - Dual player display with prize cards
+- **Pokemon Match Tracker** - Dual player display with prize cards, attachable Tools/Items, and an editable timer
+- **MTG Match Tracker** - Life totals, phases, format presets, and a match overlay
 - **Deck Builder** - Import and manage deck lists
 - **Dark Theme** - Modern glassmorphic interface
 - **Auto-Updates** - Keep card data current with one click
@@ -64,10 +65,8 @@ npm run build
 
 | Overlay | URL | Description |
 |---------|-----|-------------|
-| Main Display | `http://localhost:3888/overlay` | Dual card display with VS indicator |
-| Prize Cards | `http://localhost:3888/prizes` | Pokemon prize tracker (6 cards) |
-| Deck List | `http://localhost:3888/decklist` | Full deck display |
-| Pokemon Match | `http://localhost:3888/pokemon-match` | Complete match overlay |
+| Pokemon Match | `http://localhost:3888/pokemon-match` | Complete Pokemon match overlay |
+| MTG Match | `http://localhost:3888/mtg-match` | Complete Magic: The Gathering match overlay |
 
 ## Pokemon Features
 
@@ -79,11 +78,11 @@ npm run build
 
 ### Pokemon Match Overlay
 - Player name displays
-- Active Pokemon slots
-- Bench Pokemon (up to 5)
+- Active Pokemon with attachable Tools/Items
+- Bench Pokemon (up to 5) with editable HP
 - Prize card tracker
 - Turn indicator
-- Match timer
+- Editable match timer with BO1 (25 min) and BO3 (50 min) presets
 
 ### Deck Import
 Supports multiple formats:
@@ -153,7 +152,7 @@ Edit `config.json` to customize:
 ## Development
 
 ### Requirements
-- Node.js 16+ (LTS recommended)
+- Node.js 22+ (LTS recommended)
 - Windows 10/11 (primary platform)
 - 4GB RAM minimum
 - 5GB free disk space (for card image storage)
@@ -219,7 +218,7 @@ See [LICENSE](LICENSE) file for full details.
 - [x] Portable distribution
 
 ### Coming Soon
-- [ ] Magic: The Gathering support
+- [x] Magic: The Gathering match control and overlay
 - [ ] Yu-Gi-Oh! integration
 - [ ] Disney Lorcana cards
 - [ ] Tournament mode
@@ -244,4 +243,4 @@ See [LICENSE](LICENSE) file for full details.
 
 ---
 
-**CardCast v1.0.1** - Built with love for the TCG streaming community
+**CardCast v1.1.0** - Built for the TCG streaming community
