@@ -48,7 +48,8 @@ console.log('Copying project files...');
 const mainFiles = [
     'server.js',
     'index.html',
-    'pokemon-match-control.html',  // ADD THIS FILE
+    'pokemon-match-control.html',
+    'mtg-match-control.html',
     'package.json'
 ];
 
@@ -139,7 +140,10 @@ emptyDirs.forEach(dir => {
 // IMPORTANT: Ensure node_modules is NOT included
 console.log('✗ Excluding node_modules (will be installed fresh on each machine)');
 
-// Create the WORKING portable Node.js launcher that uses Node 16
+// Create the portable Node.js launcher. Bundles a Node 22 LTS runtime and
+// installs dependencies straight from package.json (so the distribution always
+// matches the project's pinned versions, including better-sqlite3 12.x).
+const NODE_VERSION = '22.12.0';
 const portableBatchContent = `@echo off
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
@@ -156,12 +160,12 @@ if not exist "node-portable\\node.exe" (
     echo Setting up CardCast for first time use...
     echo This is a one-time setup that takes about 2-3 minutes.
     echo.
-    
+
     mkdir node-portable 2>nul
-    
+
     echo Downloading Node.js runtime...
-    powershell -Command "Invoke-WebRequest -Uri 'https://nodejs.org/dist/v16.20.2/node-v16.20.2-win-x64.zip' -OutFile '%TEMP%\\node.zip'"
-    
+    powershell -Command "Invoke-WebRequest -Uri 'https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-win-x64.zip' -OutFile '%TEMP%\\node.zip'"
+
     if not exist "%TEMP%\\node.zip" (
         echo.
         echo ERROR: Failed to download Node.js. Please check your internet connection.
@@ -169,15 +173,15 @@ if not exist "node-portable\\node.exe" (
         pause
         exit /b 1
     )
-    
+
     echo Extracting files...
     powershell -Command "Expand-Archive -Path '%TEMP%\\node.zip' -DestinationPath '%TEMP%' -Force"
-    
-    xcopy /E /I /Q /Y "%TEMP%\\node-v16.20.2-win-x64\\*" "node-portable\\" >nul
-    
+
+    xcopy /E /I /Q /Y "%TEMP%\\node-v${NODE_VERSION}-win-x64\\*" "node-portable\\" >nul
+
     del "%TEMP%\\node.zip" 2>nul
-    rmdir /s /q "%TEMP%\\node-v16.20.2-win-x64" 2>nul
-    
+    rmdir /s /q "%TEMP%\\node-v${NODE_VERSION}-win-x64" 2>nul
+
     echo Runtime installed successfully!
     echo.
 )
@@ -187,14 +191,14 @@ if not exist "node_modules\\" (
     echo Installing CardCast components...
     echo This only happens on first run...
     echo.
-    
+
     :: CRITICAL: Set PATH to use ONLY our portable Node.js
     set "PATH=%~dp0node-portable;%~dp0node-portable\\node_modules\\npm\\bin"
     set "NODE_PATH=%~dp0node-portable\\node_modules"
-    
-    :: Use better-sqlite3 v7 which has proper Node 16 support
-    call "%~dp0node-portable\\npm.cmd" install axios@0.27.2 better-sqlite3@7.6.2 cheerio@1.0.0-rc.10 express@4.18.2 socket.io@4.5.4 --loglevel=error
-    
+
+    :: Install runtime deps from package.json (better-sqlite3 fetches its prebuilt binary for Node 22)
+    call "%~dp0node-portable\\npm.cmd" install --omit=dev --no-audit --no-fund --loglevel=error
+
     if !errorlevel! neq 0 (
         echo.
         echo ERROR: Failed to install components.
@@ -313,38 +317,32 @@ Report issues at: https://github.com/yzRobo/CardCast
 
 VERSION
 -------
-CardCast v1.0.0 - Portable Edition
-Built with Node.js 16 for maximum compatibility`;
+CardCast - Portable Edition
+Bundles a Node.js 22 LTS runtime`;
 
 fs.writeFileSync(path.join(distDir, 'README.txt'), readmeContent);
 console.log('✓ Created README.txt');
 
-// Create a COMPATIBLE package.json for Node 16
+// Create a slimmed production package.json derived from the project's package.json
+// (runtime dependencies only) so the distribution always matches the pinned versions.
+const projectPkg = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
 const prodPackageJson = {
-    name: "cardcast",
-    version: "1.0.0",
-    description: "Streaming overlay tool for TCG content creators",
+    name: projectPkg.name,
+    version: projectPkg.version,
+    description: projectPkg.description,
     main: "server.js",
     scripts: {
         start: "node server.js"
     },
-    dependencies: {
-        "axios": "0.27.2",
-        "better-sqlite3": "8.0.1",  // Version 8.0.1 has Node 16 prebuilts
-        "cheerio": "1.0.0-rc.10",
-        "express": "4.18.2",
-        "socket.io": "4.5.4"
-    },
-    engines: {
-        node: ">=16.0.0"
-    }
+    dependencies: projectPkg.dependencies,
+    engines: projectPkg.engines
 };
 
 fs.writeFileSync(
     path.join(distDir, 'package.json'),
     JSON.stringify(prodPackageJson, null, 2)
 );
-console.log('✓ Created production package.json (Node 16 compatible)');
+console.log('✓ Created production package.json (runtime deps from package.json)');
 
 console.log('\n========================================');
 console.log('✅ Portable build complete!');
@@ -354,9 +352,9 @@ console.log('1. Test it: Go to dist-portable and run CardCast.bat');
 console.log('2. Distribute: ZIP the entire dist-portable folder');
 console.log('3. Users: Extract ZIP and run CardCast.bat');
 console.log('\nKey improvements in this build:');
-console.log('- Uses Node 16 for better-sqlite3 compatibility');
-console.log('- Includes pokemon-match-control.html');
-console.log('- Compatible package versions');
+console.log(`- Bundles Node ${NODE_VERSION} LTS (better-sqlite3 12.x compatible)`);
+console.log('- Installs dependencies from package.json (always in sync)');
+console.log('- Includes pokemon-match-control.html and mtg-match-control.html');
 console.log('- Auto-downloads and sets up everything');
 console.log('- No admin rights required');
 console.log('========================================');
