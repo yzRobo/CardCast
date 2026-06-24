@@ -1,9 +1,7 @@
 // tailwind.config.js
 module.exports = {
   content: [
-    "./index.html",
-    "./pokemon-match-control.html",
-    "./mtg-match-control.html",
+    "./*.html",
     "./public/**/*.{html,js}",
     "./overlays/**/*.html",
     "./src/**/*.js"
@@ -103,8 +101,8 @@ module.exports = {
           "error": "#f87171",             // Light red
           "error-content": "#ffffff",     // White text on error
           
-          "--rounded-box": "0.875rem",
-          "--rounded-btn": "0.5rem",
+          "--rounded-box": "1rem",
+          "--rounded-btn": "0.625rem",
           "--rounded-badge": "0.5rem",
           "--animation-btn": "0.2s",
           "--animation-input": "0.2s",

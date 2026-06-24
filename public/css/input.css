@@ -1,12 +1,40 @@
-/* public/css/input.css - Complete CardCast Modern Theme */
+/* public/css/input.css - CardCast premium theme (refined indigo -> violet brand).
+   Polish comes from MATERIAL + DEPTH: layered surfaces with gradients and inset
+   highlights, sunken inputs vs raised buttons, refined borders, soft layered
+   shadows, and tasteful accent glow - not flat dark rectangles. One accent, used
+   on primary actions + active state. No floating orbs, neon, rainbow, or 3D tilt. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================
-   BASE TYPOGRAPHY
-   ============================================ */
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  --cc-border: rgba(255, 255, 255, 0.08);
+  --cc-border-strong: rgba(255, 255, 255, 0.15);
+  --cc-accent: #818cf8;
+  --cc-accent-2: #a855f7;
+  --cc-text: #eef2f9;
+  --cc-text-muted: rgba(238, 242, 249, 0.58);
+  --cc-text-faint: rgba(238, 242, 249, 0.40);
 
+  /* Surfaces */
+  --cc-panel: linear-gradient(180deg, #1a2234 0%, #141a28 100%);
+  --cc-panel-raised: linear-gradient(180deg, #1f2740 0%, #19203200 100%), #1a2133;
+  --cc-sunken: rgba(0, 0, 0, 0.24);
+
+  /* Effects */
+  --cc-inset-hi: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --cc-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 20px 46px -22px rgba(0, 0, 0, 0.85);
+  --cc-shadow-pop: 0 2px 6px rgba(0, 0, 0, 0.35), 0 12px 28px -10px rgba(0, 0, 0, 0.6);
+  --cc-ring: 0 0 0 3px rgba(129, 140, 248, 0.2);
+  --cc-accent-grad: linear-gradient(135deg, #6366f1 0%, #8b5cf6 55%, #a855f7 100%);
+}
+
+/* ============================================================
+   BASE TYPOGRAPHY
+   ============================================================ */
 @layer base {
   html {
     font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -18,562 +46,357 @@
   body {
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     letter-spacing: -0.011em;
+    color: var(--cc-text);
   }
 
-  h1, h2, h3, h4 {
-    letter-spacing: -0.02em;
-  }
+  h1, h2, h3, h4 { letter-spacing: -0.02em; }
 
-  .font-mono,
-  code,
-  kbd,
-  pre {
+  .font-mono, code, kbd, pre {
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
+
+  ::selection { background: rgba(129, 140, 248, 0.34); color: #fff; }
 }
 
-/* ============================================
-   MODERN COMPONENT STYLES WITH FIXES
-   ============================================ */
-
+/* ============================================================
+   COMPONENTS
+   ============================================================ */
 @layer components {
-  /* Glassmorphic Cards with Better Contrast */
-  .glass-card {
-    @apply bg-base-200/95 border border-white/10 shadow-xl;
-    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
-    backdrop-filter: blur(10px);
-  }
-  
-  /* Game selector tiles (two-row layout: identity on top, actions below) */
-  .game-item {
-    @apply flex flex-col gap-2.5 p-3 rounded-lg transition-colors cursor-pointer border;
-    background: rgba(30, 41, 59, 0.55);
-    border-color: rgba(255, 255, 255, 0.06);
-  }
-
-  .game-item:hover {
-    @apply bg-base-300/70 border-primary/40;
-  }
-
-  .game-item.active {
-    @apply border-primary;
-    background: linear-gradient(135deg, rgba(129, 140, 248, 0.16) 0%, rgba(129, 140, 248, 0.05) 100%);
-  }
-  
-  /* Fix Game Icon positioning */
-  .game-icon {
-    @apply w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white shadow-lg;
-    flex-shrink: 0;
-  }
-  
-  /* Neon Glow Effects (subtle, focus-only accents) */
-  .neon-glow {
-    box-shadow:
-      0 0 0 1px rgba(129, 140, 248, 0.25),
-      0 0 18px rgba(129, 140, 248, 0.18);
-  }
-
-  .neon-glow-sm {
-    box-shadow:
-      0 0 0 1px rgba(129, 140, 248, 0.2),
-      0 0 10px rgba(129, 140, 248, 0.12);
-  }
-
-  /* Gradient Buttons */
-  .btn-gradient {
-    @apply relative overflow-hidden font-semibold;
-    background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
-    transition: all 0.2s ease;
-  }
-
-  .btn-gradient:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.3);
-  }
-  
-  .btn-gradient::before {
-    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
-    content: '';
-    background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
-  }
-  
-  .btn-gradient:hover::before {
-    @apply opacity-100;
-  }
-  
-  .btn-gradient span {
-    @apply relative z-10;
-  }
-  
-  /* Animated Card Hover */
-  .card-hover {
-    @apply transition-all duration-300 ease-out;
-    transform-style: preserve-3d;
-  }
-  
-  .card-hover:hover {
-    transform: translateY(-8px);
-    box-shadow: 
-      0 20px 40px rgba(129, 140, 248, 0.3),
-      0 10px 20px rgba(0, 0, 0, 0.4);
-  }
-  
-  /* Shimmer Loading Effect */
-  .shimmer {
-    @apply relative overflow-hidden;
-  }
-  
-  .shimmer::after {
-    @apply absolute inset-0;
-    content: '';
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.05),
-      transparent
-    );
-    animation: shimmer 2s infinite;
-  }
-  
-  /* Modern Input */
-  .input-modern {
-    @apply bg-base-300/50 border-2 border-base-300/50 rounded-xl px-4 py-3;
-    @apply focus:border-primary focus:bg-base-300/70;
-    @apply transition-all duration-200;
-    backdrop-filter: blur(10px);
-  }
-  
-  .input-modern:focus {
-    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.1);
-  }
-  
-  /* Card Result with 3D Effect */
-  .card-result {
-    @apply cursor-pointer transition-all;
-  }
-  
-  .card-result:hover {
-    transform: scale(1.05);
-    z-index: 10;
-  }
-  
-  .card-result-3d {
-    @apply relative transition-all duration-300 cursor-pointer;
-    transform-style: preserve-3d;
-    transform: perspective(1000px) rotateY(0deg);
-  }
-  
-  .card-result-3d:hover {
-    transform: perspective(1000px) rotateY(5deg) scale(1.05);
-    z-index: 10;
-  }
-  
-  /* Card Thumbnail */
-  .card-thumbnail {
-    @apply aspect-[63/88] rounded-lg overflow-hidden bg-base-300 shadow-lg;
-  }
-  
-  /* Gradient Text */
-  .gradient-text {
-    background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  
+  /* Brand wordmark - restrained indigo -> violet */
+  .gradient-text,
   .gradient-text-cyan {
-    background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%);
+    background: linear-gradient(120deg, #a5b4fc 0%, #d8b4fe 100%);
     -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
-  
-  /* Modern Badge */
+
+  /* Panels - material depth: gradient surface + inset highlight + layered shadow */
+  .glass-card {
+    background: var(--cc-panel);
+    border: 1px solid var(--cc-border);
+    box-shadow: var(--cc-inset-hi), var(--cc-shadow-card);
+    border-radius: 1rem;
+  }
+
+  /* Sidebar game tiles */
+  .game-item {
+    @apply flex flex-col gap-2.5 p-3 rounded-xl cursor-pointer;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+    border: 1px solid var(--cc-border);
+    box-shadow: var(--cc-inset-hi);
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .game-item:hover {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+    border-color: var(--cc-border-strong);
+    transform: translateY(-1px);
+  }
+  .game-item.active {
+    border-color: rgba(129, 140, 248, 0.55);
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.18) 0%, rgba(168, 85, 247, 0.09) 100%);
+    box-shadow: var(--cc-inset-hi), 0 0 0 1px rgba(129, 140, 248, 0.25), 0 10px 26px -14px rgba(99, 102, 241, 0.7);
+  }
+
+  .game-icon {
+    @apply w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white;
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 10px -4px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Soft / secondary button - raised neutral material, accent on hover */
+  .btn-soft {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)) !important;
+    border: 1px solid var(--cc-border) !important;
+    color: rgba(238, 242, 249, 0.82) !important;
+    box-shadow: var(--cc-inset-hi) !important;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease !important;
+  }
+  .btn-soft:hover {
+    background: linear-gradient(180deg, rgba(129, 140, 248, 0.2), rgba(129, 140, 248, 0.09)) !important;
+    border-color: rgba(129, 140, 248, 0.5) !important;
+    color: #fff !important;
+    transform: translateY(-1px) !important;
+  }
+
+  /* Placeholder slot - polished material (replaces dashed wireframe) */
+  .slot {
+    @apply rounded-xl flex items-center justify-center;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.014));
+    border: 1px solid var(--cc-border);
+    box-shadow: var(--cc-inset-hi);
+    color: var(--cc-text-faint);
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .slot:hover {
+    border-color: rgba(129, 140, 248, 0.55);
+    background: linear-gradient(180deg, rgba(129, 140, 248, 0.12), rgba(129, 140, 248, 0.035));
+    box-shadow: var(--cc-inset-hi), 0 0 0 1px rgba(129, 140, 248, 0.2), 0 10px 26px -14px rgba(99, 102, 241, 0.55);
+    color: var(--cc-text-muted);
+  }
+
+  /* Section eyebrow label */
+  .section-label {
+    @apply text-[11px] uppercase font-semibold;
+    letter-spacing: 0.13em;
+    color: var(--cc-text-faint);
+  }
+
+  /* Subtle status pill */
+  .status-pill {
+    @apply inline-flex items-center gap-2 rounded-full text-xs font-medium px-3 py-1.5;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+    border: 1px solid var(--cc-border);
+    box-shadow: var(--cc-inset-hi);
+    color: var(--cc-text-muted);
+  }
+  .status-pill .status-indicator {
+    @apply w-2 h-2 rounded-full;
+    background-color: #f87171;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.16), 0 0 8px rgba(248, 113, 113, 0.45);
+  }
+  .status-pill.connected {
+    border-color: rgba(52, 211, 153, 0.35);
+    color: #a7f3d0;
+  }
+  .status-pill.connected .status-indicator {
+    background-color: #34d399;
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18), 0 0 8px rgba(52, 211, 153, 0.5);
+  }
+
+  /* De-flashed leftovers (kept for markup compatibility) */
+  .neon-glow, .neon-glow-sm { box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.18); }
+  .text-glow { text-shadow: none; }
+
   .badge-modern {
-    @apply px-3 py-1 rounded-full text-xs font-semibold;
-    background: linear-gradient(135deg, rgba(129, 140, 248, 0.2) 0%, rgba(192, 132, 252, 0.2) 100%);
+    @apply px-2.5 py-1 rounded-md text-xs font-medium;
+    background: rgba(129, 140, 248, 0.14);
     border: 1px solid rgba(129, 140, 248, 0.3);
-    backdrop-filter: blur(10px);
+    color: #c7d2fe;
   }
-  
-  /* Animated Border */
-  .animated-border {
-    @apply relative rounded-xl;
+
+  .animated-border { @apply rounded-xl; }
+  .animated-border::before { display: none; }
+
+  .btn-gradient {
+    @apply relative font-semibold text-white;
+    background: var(--cc-accent-grad);
+    border: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 8px -2px rgba(99, 102, 241, 0.5);
+    transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
   }
-  
-  .animated-border::before {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    background: linear-gradient(45deg, #f093fb, #f5576c, #4facfe, #00f2fe, #f093fb);
-    border-radius: inherit;
-    background-size: 400% 400%;
-    animation: gradient-border 15s ease infinite;
-    z-index: -1;
-    opacity: 0;
-    transition: opacity 0.3s;
+  .btn-gradient:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 22px -6px rgba(99, 102, 241, 0.65);
   }
-  
-  .animated-border:hover::before {
-    opacity: 1;
+  .btn-gradient::before { display: none; }
+
+  /* Hover lifts - subtle, no 3D rotation or colored ring */
+  .card-hover { @apply transition-all duration-200 ease-out; }
+  .card-hover:hover { transform: translateY(-3px); box-shadow: var(--cc-shadow-card); }
+
+  .card-result { @apply cursor-pointer transition-transform duration-150; }
+  .card-result:hover { transform: translateY(-3px); }
+  .card-result-3d { @apply relative transition-transform duration-150 cursor-pointer; }
+  .card-result-3d:hover { transform: translateY(-3px); }
+
+  .card-thumbnail {
+    @apply aspect-[63/88] rounded-lg overflow-hidden bg-base-300;
+    box-shadow: var(--cc-shadow-pop);
   }
-  
-  /* Modern Toast */
+
+  .shimmer { @apply relative overflow-hidden; }
+  .shimmer::after { content: none; }
+
+  .input-modern {
+    background: var(--cc-sunken);
+    border: 1px solid var(--cc-border);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.32);
+    @apply rounded-lg px-4 py-3 transition-all duration-150;
+  }
+  .input-modern:focus { border-color: rgba(129, 140, 248, 0.6); box-shadow: var(--cc-ring), inset 0 1px 2px rgba(0, 0, 0, 0.32); outline: none; }
+
   .toast-modern {
-    @apply fixed bottom-4 right-4 z-50;
-    @apply glass-card rounded-xl p-4 min-w-[300px];
-    @apply transform transition-all duration-300;
-    animation: slide-in 0.3s ease-out;
+    @apply fixed bottom-4 right-4 z-50 rounded-xl p-4 min-w-[300px];
+    background: var(--cc-panel);
+    border: 1px solid var(--cc-border-strong);
+    box-shadow: var(--cc-shadow-pop);
+    animation: slide-in 0.25s ease-out;
   }
-  
-  /* Pulse Animation for Active Elements */
-  .pulse-active {
-    @apply relative;
-  }
-  
-  .pulse-active::after {
-    @apply absolute inset-0 rounded-lg;
-    content: '';
-    animation: pulse-glow 2s ease-in-out infinite;
-  }
+
+  .pulse-active { @apply relative; }
+  .pulse-active::after { content: none; }
 }
 
-/* ============================================
-   SPACING FIXES FOR SIDEBAR
-   ============================================ */
+/* ============================================================
+   GAME TILE TEXT + SECTION HEADERS
+   ============================================================ */
+.game-item .game-title { @apply font-semibold text-sm; color: var(--cc-text); line-height: 1.2; }
+.game-item .game-subtitle { @apply text-xs; color: var(--cc-text-muted); line-height: 1.2; margin-top: 2px; }
 
-/* Game tile rows are laid out via utility classes in main.js */
-
-/* Game title and subtitle */
-.game-item .game-title {
-  @apply font-semibold text-sm text-base-content;
-  line-height: 1.2;
-}
-
-.game-item .game-subtitle {
-  @apply text-xs text-base-content/50;
-  line-height: 1.2;
-  margin-top: 2px;
-}
-
-/* Fix button spacing in game items */
-.game-item .btn-group {
-  @apply flex items-center gap-2;
-  flex-shrink: 0;
-}
-
-/* Fix small buttons */
-.game-item .btn-xs {
-  @apply px-2 py-1 min-w-fit;
-  font-size: 0.7rem;
-  height: auto;
-  line-height: 1.2;
-}
-
-/* Fix "Coming Soon" badge */
-.badge-coming-soon {
-  @apply badge badge-sm badge-neutral;
-  padding: 2px 8px;
-  white-space: nowrap;
-}
-
-/* Fix radio button spacing */
-.label {
-  @apply cursor-pointer flex items-center gap-2 py-2;
-  min-height: 32px;
-}
-
-.radio {
-  @apply w-4 h-4;
-  flex-shrink: 0;
-}
-
-/* Fix section headers */
 .card-body h2 {
-  @apply text-sm uppercase tracking-wider font-semibold mb-3;
+  @apply text-[11px] uppercase font-semibold mb-3;
+  letter-spacing: 0.13em;
+  color: var(--cc-text-faint);
   line-height: 1;
 }
 
-/* Ensure proper card padding */
-.card-body {
-  @apply p-4;
-}
+.card-body { @apply p-5; }
 
-/* Fix button positioning */
-#downloadButton, #updateButton {
-  @apply w-full mb-2;
-}
-
-/* Specific fixes for the game list structure */
-#gameList {
-  @apply space-y-2;
-}
-
-#gameList .game-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-#gameList .game-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
-}
-
-#gameList .game-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-#gameList .game-text > span:first-child {
+/* Refined section dividers (used as headers on the match control pages) */
+.divider {
+  color: var(--cc-text-faint);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
   font-weight: 600;
-  font-size: 0.875rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin-top: 0.9rem;
+  margin-bottom: 0.55rem;
+  gap: 0.75rem;
+}
+.divider::before,
+.divider::after {
+  background-color: var(--cc-border) !important;
+  height: 1px !important;
 }
 
-#gameList .game-text > span:last-child {
-  font-size: 0.75rem;
-  opacity: 0.6;
-  white-space: nowrap;
-}
+#downloadButton, #updateButton { @apply w-full mb-2; }
 
-#gameList .game-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
+/* Game list layout */
+#gameList { @apply space-y-2; }
+#gameList .game-item { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+#gameList .game-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+#gameList .game-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+#gameList .game-text > span:first-child { font-weight: 600; font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#gameList .game-text > span:last-child { font-size: 0.75rem; color: var(--cc-text-muted); white-space: nowrap; }
+#gameList .game-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
-#gameList .btn-update {
-  padding: 4px 8px;
-  font-size: 0.7rem;
-  height: 24px;
-  line-height: 1;
-  min-width: 50px;
-}
-
-#gameList .btn-close {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-}
-
-/* ============================================
-   AUTO-UPGRADE EXISTING ELEMENTS
-   ============================================ */
-
-/* Auto-upgrade all existing cards (calm surfaces, no jumpy hover) */
+/* ============================================================
+   AUTO-UPGRADE EXISTING ELEMENTS (material depth)
+   ============================================================ */
 .card:not(.no-upgrade) {
-  @apply bg-base-200 border border-white/5 transition-colors duration-200;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0) 60%),
-    var(--card-surface, #121826);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.18);
+  @apply transition-all duration-150;
+  background: var(--cc-panel);
+  border: 1px solid var(--cc-border);
+  box-shadow: var(--cc-inset-hi), var(--cc-shadow-card);
+  border-radius: 1rem;
 }
+.card:not(.no-upgrade):hover { border-color: var(--cc-border-strong); }
 
-.card:not(.no-upgrade):hover {
-  border-color: rgba(129, 140, 248, 0.22);
-}
-
-/* Auto-upgrade all primary buttons (solid, refined, no shouting caps) */
+/* Primary action - the one place the full accent + glow lives */
 .btn-primary:not(.no-upgrade) {
-  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%) !important;
+  background: var(--cc-accent-grad) !important;
   border: none !important;
-  transition: all 0.18s ease !important;
+  color: #fff !important;
   font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 8px -2px rgba(99, 102, 241, 0.5) !important;
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease !important;
 }
-
 .btn-primary:not(.no-upgrade):hover {
+  filter: brightness(1.08);
   transform: translateY(-1px) !important;
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35) !important;
-  filter: brightness(1.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 22px -6px rgba(99, 102, 241, 0.65) !important;
 }
 
-/* Auto-upgrade inputs */
-input.input-bordered:not(.no-upgrade) {
-  @apply bg-base-300/50 border-2 border-base-300/30 backdrop-blur-sm;
-  transition: all 0.2s;
+.btn-secondary:not(.no-upgrade) {
+  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 8px -2px rgba(139, 92, 246, 0.5) !important;
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease !important;
+}
+.btn-secondary:not(.no-upgrade):hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 22px -6px rgba(139, 92, 246, 0.6) !important;
 }
 
-input.input-bordered:not(.no-upgrade):focus {
-  @apply border-primary bg-base-300/70;
-  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.1);
+/* Ghost buttons get a calm hover */
+.btn-ghost:not(.no-upgrade):hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 
-/* Auto-upgrade navbar */
+/* Inputs are sunken (inner shadow) - the counterpoint to raised buttons */
+input.input-bordered:not(.no-upgrade),
+select.select-bordered:not(.no-upgrade),
+textarea.textarea-bordered:not(.no-upgrade) {
+  background: var(--cc-sunken);
+  border: 1px solid var(--cc-border);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input.input-bordered:not(.no-upgrade):focus,
+select.select-bordered:not(.no-upgrade):focus,
+textarea.textarea-bordered:not(.no-upgrade):focus {
+  border-color: rgba(129, 140, 248, 0.65);
+  box-shadow: var(--cc-ring), inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  outline: none;
+}
+
+/* Native <select> popup options - force dark so they are readable everywhere */
+select,
+select option,
+select optgroup {
+  background-color: #1b2333;
+  color: #eef2f9;
+}
+select option:checked,
+select option:hover {
+  background-color: #2a3550;
+  color: #ffffff;
+}
+
 .navbar:not(.no-upgrade) {
-  @apply backdrop-blur-xl bg-base-200/50 border-b border-white/10;
-  background: linear-gradient(135deg, rgba(19, 24, 36, 0.95) 0%, rgba(10, 14, 26, 0.95) 100%);
+  @apply backdrop-blur-xl;
+  background: linear-gradient(180deg, rgba(20, 26, 40, 0.86) 0%, rgba(11, 15, 23, 0.8) 100%);
+  border-bottom: 1px solid var(--cc-border);
+  box-shadow: var(--cc-inset-hi);
 }
 
-/* ============================================
-   BACKGROUND EFFECTS
-   ============================================ */
-
-/* Static depth background (subtle, no constant motion) */
+/* ============================================================
+   BACKGROUND - static, layered brand depth (no floating orbs)
+   ============================================================ */
 .animated-bg {
   position: fixed;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
+  inset: 0;
   z-index: -2;
   background:
-    radial-gradient(900px circle at 12% -8%, rgba(99, 102, 241, 0.12), transparent 45%),
-    radial-gradient(800px circle at 100% 0%, rgba(168, 85, 247, 0.08), transparent 40%),
-    linear-gradient(180deg, #0b0f17 0%, #0b0f17 100%);
+    radial-gradient(1200px circle at 6% -14%, rgba(99, 102, 241, 0.13), transparent 44%),
+    radial-gradient(1000px circle at 102% -6%, rgba(168, 85, 247, 0.10), transparent 42%),
+    radial-gradient(900px circle at 50% 116%, rgba(56, 189, 248, 0.05), transparent 46%),
+    #0a0e16;
 }
 
-/* Floating orbs — very subtle ambient color, slow drift */
-.orb {
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.1;
-  animation: float-orb 30s infinite ease-in-out;
-  pointer-events: none;
-  z-index: -1;
-}
+.orb { display: none !important; }
 
-.orb-1 {
-  width: 420px;
-  height: 420px;
-  background: radial-gradient(circle, #818cf8, transparent 70%);
-  top: -12%;
-  left: -8%;
-}
+/* ============================================================
+   MOTION - only subtle, purposeful keyframes
+   ============================================================ */
+@keyframes slide-in { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes scale-in { from { transform: scale(0.98); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-.orb-2 {
-  width: 320px;
-  height: 320px;
-  background: radial-gradient(circle, #c084fc, transparent 70%);
-  bottom: -12%;
-  right: -8%;
-  animation-delay: -8s;
-}
-
-.orb-3 {
-  width: 260px;
-  height: 260px;
-  background: radial-gradient(circle, #38bdf8, transparent 70%);
-  top: 55%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation-delay: -16s;
-}
-
-/* ============================================
-   ANIMATIONS
-   ============================================ */
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-20px); }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(129, 140, 248, 0.5); }
-  50% { box-shadow: 0 0 40px rgba(129, 140, 248, 0.8); }
-}
-
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-@keyframes gradient-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes gradient-border {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-@keyframes slide-in {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes float-orb {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(30px, -30px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.9); }
-}
-
-@keyframes scale-in {
-  from { transform: scale(0.9); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-/* ============================================
-   CUSTOM SCROLLBAR
-   ============================================ */
-
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 110, 140, 0.4);
+  background: rgba(125, 135, 165, 0.28);
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
+::-webkit-scrollbar-thumb:hover { background: rgba(129, 140, 248, 0.5); background-clip: padding-box; }
+* { scrollbar-width: thin; scrollbar-color: rgba(125, 135, 165, 0.28) transparent; }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(129, 140, 248, 0.6);
-  background-clip: padding-box;
-}
-
-/* Firefox */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(99, 110, 140, 0.4) transparent;
-}
-
-/* ============================================
-   UTILITY CLASSES
-   ============================================ */
-
+/* ============================================================
+   UTILITIES
+   ============================================================ */
 @layer utilities {
-  /* Performance optimization */
-  .hardware-accelerated {
-    transform: translateZ(0);
-    will-change: transform;
-  }
-  
-  /* Glow text effect */
-  .text-glow {
-    text-shadow: 0 0 20px currentColor;
-  }
-  
-  /* Float animation utility */
-  .float-animation {
-    animation: float 6s ease-in-out infinite;
-  }
-  
-  /* Reduce motion for accessibility */
+  .text-glow { text-shadow: none; }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
@@ -581,11 +404,8 @@ input.input-bordered:not(.no-upgrade):focus {
       transition-duration: 0.01ms !important;
     }
   }
-  
-  /* Make the layout more horizontal on larger screens */
+
   @media (min-width: 1536px) {
-    .container {
-      max-width: 100%;
-    }
+    .container { max-width: 100%; }
   }
 }

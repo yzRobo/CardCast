@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-06-24
+
+### Changed
+- Premium redesign of the admin/control interface. A refined indigo-to-violet design system with real material depth (layered gradient surfaces, inset highlights, soft shadows; sunken inputs vs raised buttons), the accent reserved for primary actions and active state, solid card slots in place of the old dashed wireframe placeholders across every match control page, refined section headers, consistent connection status pills, glossy game icons, larger corner radii, and calmer secondary buttons. Removed leftover decorative effects (floating background orbs, neon glows, rainbow borders, 3D card tilts). The OBS overlays are unchanged.
+- Native select dropdowns now render with a dark popup, so options stay readable on every browser and OS.
+
+### Fixed
+- The OBS/overlay connection indicator now turns green when connected (it was stuck red) on the dashboard and on every match control page.
+
 ## [2.0.1] - 2026-06-24
 
 ### Fixed

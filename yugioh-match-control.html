@@ -17,9 +17,6 @@
 </head>
 <body class="min-h-screen bg-gradient-to-br from-base-100 via-base-200 to-base-100">
     <div class="animated-bg"></div>
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
 
     <!-- Header -->
     <div class="navbar glass-card border-b border-white/5 px-4 sm:px-6 fixed top-0 z-50 min-h-[3.75rem] gap-2">
@@ -40,8 +37,8 @@
             </div>
         </div>
         <div class="navbar-end">
-            <div class="badge badge-error gap-2 py-3 font-medium" id="overlayStatus">
-                <div class="w-2 h-2 rounded-full bg-current"></div>
+            <div class="status-pill" id="overlayStatus">
+                <span class="status-indicator"></span>
                 <span>Overlay Not Connected</span>
             </div>
         </div>
@@ -338,8 +335,8 @@
                 const m = p.monsters[i];
                 if (!m) {
                     html += `
-                    <div class="border-2 border-dashed border-base-content/20 rounded-lg p-1 flex items-center justify-center yg-card-aspect">
-                        <button class="btn btn-primary btn-xs" onclick="openSearch(${n}, 'monster', ${i})">+ Mon</button>
+                    <div class="slot p-1 yg-card-aspect">
+                        <button class="btn btn-soft btn-xs" onclick="openSearch(${n}, 'monster', ${i})">+ Mon</button>
                     </div>`;
                     continue;
                 }
@@ -374,7 +371,7 @@
                 const c = p.spellsTraps[i];
                 if (!c) {
                     html += `
-                    <div class="border-2 border-dashed border-base-content/20 rounded-lg p-1 flex items-center justify-center yg-card-aspect">
+                    <div class="slot p-1 yg-card-aspect">
                         <button class="btn btn-secondary btn-xs" onclick="openSearch(${n}, 'spelltrap', ${i})">+ S/T</button>
                     </div>`;
                     continue;
@@ -663,8 +660,8 @@
 
         function updateOverlayStatus(connected) {
             const s = document.getElementById('overlayStatus');
-            s.className = 'badge gap-2 py-3 font-medium ' + (connected ? 'badge-success' : 'badge-error');
-            s.innerHTML = `<div class="w-2 h-2 rounded-full bg-current"></div><span>${connected ? 'Overlay Connected' : 'Overlay Not Connected'}</span>`;
+            s.className = 'status-pill' + (connected ? ' connected' : '');
+            s.innerHTML = `<span class="status-indicator"></span><span>${connected ? 'Overlay Connected' : 'Overlay Not Connected'}</span>`;
         }
 
         function load() {

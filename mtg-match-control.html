@@ -32,9 +32,6 @@
 </head>
 <body class="min-h-screen bg-gradient-to-br from-base-100 via-base-200 to-base-100">
     <div class="animated-bg"></div>
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
 
     <!-- Header -->
     <div class="navbar glass-card border-b border-white/5 px-4 sm:px-6 fixed top-0 z-50 min-h-[3.75rem] gap-2">
@@ -55,8 +52,8 @@
             </div>
         </div>
         <div class="navbar-end">
-            <div id="overlayStatus" class="badge badge-error gap-2 py-3 font-medium">
-                <div class="w-2 h-2 rounded-full bg-current"></div>
+            <div id="overlayStatus" class="status-pill">
+                <span class="status-indicator"></span>
                 <span>Overlay Not Connected</span>
             </div>
         </div>
@@ -416,8 +413,8 @@
 
         function setOverlayStatus(connected) {
             const el = document.getElementById('overlayStatus');
-            el.className = 'badge gap-2 py-3 font-medium ' + (connected ? 'badge-success' : 'badge-error');
-            el.innerHTML = '<div class="w-2 h-2 rounded-full bg-current"></div><span>' +
+            el.className = 'status-pill' + (connected ? ' connected' : '');
+            el.innerHTML = '<span class="status-indicator"></span><span>' +
                 (connected ? 'Overlay Connected' : 'Overlay Not Connected') + '</span>';
         }
 

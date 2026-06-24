@@ -19,9 +19,6 @@
 </head>
 <body class="min-h-screen bg-gradient-to-br from-base-100 via-base-200 to-base-100">
     <div class="animated-bg"></div>
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
 
     <!-- Header -->
     <div class="navbar glass-card border-b border-white/5 px-4 sm:px-6 fixed top-0 z-50 min-h-[3.75rem] gap-2">
@@ -42,8 +39,8 @@
             </div>
         </div>
         <div class="navbar-end">
-            <div class="badge badge-error gap-2 py-3 font-medium" id="overlayStatus">
-                <div class="w-2 h-2 rounded-full bg-current"></div>
+            <div class="status-pill" id="overlayStatus">
+                <span class="status-indicator"></span>
                 <span>Overlay Not Connected</span>
             </div>
         </div>
@@ -335,8 +332,8 @@
                 const u = p.units[i];
                 if (!u) {
                     html += `
-                    <div class="border-2 border-dashed border-base-content/20 rounded-lg p-2 flex flex-col items-center justify-center gd-card-aspect">
-                        <button class="btn btn-primary btn-xs" onclick="openSearch(${n}, 'unit', ${i})">+ Unit</button>
+                    <div class="slot p-2 gd-card-aspect">
+                        <button class="btn btn-soft btn-xs" onclick="openSearch(${n}, 'unit', ${i})">+ Unit</button>
                     </div>`;
                     continue;
                 }
@@ -375,7 +372,7 @@
             const b = state[`player${n}`].base;
             const el = document.getElementById(`p${n}Base`);
             if (!b) {
-                el.innerHTML = `<button class="btn btn-primary btn-sm" onclick="openSearch(${n}, 'base', 0)">+ Assign Base</button>`;
+                el.innerHTML = `<button class="btn btn-soft btn-sm" onclick="openSearch(${n}, 'base', 0)">+ Assign Base</button>`;
                 return;
             }
             el.innerHTML = `
@@ -651,8 +648,8 @@
 
         function updateOverlayStatus(connected) {
             const s = document.getElementById('overlayStatus');
-            s.className = 'badge gap-2 py-3 font-medium ' + (connected ? 'badge-success' : 'badge-error');
-            s.innerHTML = `<div class="w-2 h-2 rounded-full bg-current"></div><span>${connected ? 'Overlay Connected' : 'Overlay Not Connected'}</span>`;
+            s.className = 'status-pill' + (connected ? ' connected' : '');
+            s.innerHTML = `<span class="status-indicator"></span><span>${connected ? 'Overlay Connected' : 'Overlay Not Connected'}</span>`;
         }
 
         function load() {

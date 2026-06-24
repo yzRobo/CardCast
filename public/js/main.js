@@ -249,8 +249,8 @@ function createGameElement(game) {
     } else if (hasData) {
         // Available with data - show Update, Images and Delete
         buttonHTML = `
-            <button class="btn btn-xs btn-primary flex-1" onclick="event.stopPropagation(); updateGameData('${game.id}')">Update</button>
-            <button class="btn btn-xs btn-ghost border border-base-content/15 flex-1" onclick="event.stopPropagation(); prefetchImages('${game.id}')" title="Pre-download all card images so they are cached for offline / no-hitch use">Images</button>
+            <button class="btn btn-xs btn-soft flex-1" onclick="event.stopPropagation(); updateGameData('${game.id}')">Update</button>
+            <button class="btn btn-xs btn-soft flex-1" onclick="event.stopPropagation(); prefetchImages('${game.id}')" title="Pre-download all card images so they are cached for offline / no-hitch use">Images</button>
             <button class="btn btn-xs btn-square btn-ghost text-error/80 hover:text-error hover:bg-error/10" onclick="event.stopPropagation(); deleteGameData('${game.id}')" title="Delete downloaded data">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
