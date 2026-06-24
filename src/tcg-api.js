@@ -11,8 +11,12 @@ class TCGApi {
         this.baseUrl = 'https://tcgcsv.com';
         // Optional API keys (resolved by the caller: env > config.local.json > none).
         this.pokemonApiKey = options.pokemonApiKey || null;
-        this.cacheDir = path.join(__dirname, '..', 'cache');
-        this.imagesDir = path.join(__dirname, '..', 'cache', 'images');
+        // Image cache root. Mirrors server.js: under Electron (packaged) the app
+        // dir is read-only, so the cache lives in the OS userData dir passed via
+        // CARDCAST_DATA_ROOT. Unset for npm start / portable -> the in-project cache.
+        const dataRoot = process.env.CARDCAST_DATA_ROOT || path.join(__dirname, '..');
+        this.cacheDir = path.join(dataRoot, 'cache');
+        this.imagesDir = path.join(dataRoot, 'cache', 'images');
         
         // Ensure directories exist
         if (!fs.existsSync(this.cacheDir)) {

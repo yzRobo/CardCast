@@ -2,17 +2,20 @@
   "name": "cardcast",
   "version": "2.0.0",
   "description": "Streaming overlay tool for TCG content creators",
-  "main": "server.js",
-  "bin": "server.js",
+  "main": "electron-main.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "electron": "electron .",
+    "dist": "electron-builder --win",
+    "dist:dir": "electron-builder --win --dir",
+    "rebuild-node": "npm rebuild better-sqlite3",
     "build": "node scripts/build-portable.js",
     "build-portable": "node scripts/build-portable.js",
     "build-seed": "node scripts/build-seed-db.js",
     "test": "node scripts/test-setup.js",
     "setup": "npm install && node scripts/test-setup.js",
-    "clean": "rimraf node_modules dist data/*.db cache/*",
+    "clean": "rimraf node_modules dist dist-electron data/*.db cache/*",
     "reinstall": "npm run clean && npm install && npm run test",
     "build-css": "tailwindcss -i ./public/css/input.css -o ./public/css/style.css --watch",
     "build-css-prod": "tailwindcss -i ./public/css/input.css -o ./public/css/style.css --minify"
@@ -43,6 +46,8 @@
   "devDependencies": {
     "autoprefixer": "^10.4.21",
     "daisyui": "^4.12.10",
+    "electron": "^32.2.7",
+    "electron-builder": "^24.13.3",
     "nodemon": "^3.0.2",
     "playwright": "^1.61.1",
     "postcss": "^8.5.6",
@@ -51,5 +56,52 @@
   },
   "engines": {
     "node": ">=22.0.0"
+  },
+  "build": {
+    "appId": "com.yzrobo.cardcast",
+    "productName": "CardCast",
+    "asar": false,
+    "files": [
+      "**/*",
+      "!dist-portable/**",
+      "!dist-electron/**",
+      "!seed-build/**",
+      "!release-assets/**",
+      "!data/**",
+      "!cache/**",
+      "!scripts/**",
+      "!*.md",
+      "!.env*",
+      "!config.local.json",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "release-assets/cardcast-seed.db",
+        "to": "cardcast-seed.db"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "CardCast-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CardCast"
+    },
+    "directories": {
+      "output": "dist-electron"
+    }
   }
 }

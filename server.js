@@ -28,9 +28,17 @@ const io = socketIo(server, {
 // Load optional .env (gitignored) so API keys can be supplied via env vars.
 loadEnv();
 
+// Writable data root. Packaged under Electron the app files are read-only, so the
+// database, image cache, and config live in the OS userData directory, passed in
+// via CARDCAST_DATA_ROOT. For `npm start` and the portable build this is unset and
+// defaults to __dirname, preserving the original in-project layout. tcg-api.js reads
+// the same env var so the image cache it writes matches the /cache path served here.
+const DATA_ROOT = process.env.CARDCAST_DATA_ROOT || __dirname;
+fs.mkdirSync(path.join(DATA_ROOT, 'data'), { recursive: true });
+
 // Load config. Resolution priority: process.env > config.local.json > config.json.
-const configPath = path.join(__dirname, 'config.json');
-const localConfigPath = path.join(__dirname, 'config.local.json');
+const configPath = path.join(DATA_ROOT, 'config.json');
+const localConfigPath = path.join(DATA_ROOT, 'config.local.json');
 
 const defaultConfig = {
     port: 3888,
@@ -79,14 +87,14 @@ function saveConfig() {
 // Initialize components. db and tcgApi are assigned in bootstrap() once the
 // first-run seed install (if any) has finished; route handlers reference them
 // lazily, so they only run after the server starts listening.
-const dbPath = path.join(__dirname, 'data', 'cardcast.db');
+const dbPath = path.join(DATA_ROOT, 'data', 'cardcast.db');
 let db;
 let tcgApi;
 const overlayServer = new OverlayServer(io);
 
 // Middleware
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Lazy image resolution for cached card images. Three tiers:
 //   1. file already on disk  -> fall through to express.static below
@@ -101,7 +109,7 @@ const inFlightImageFetches = new Map();
 
 app.get('/cache/images/:game/:filename', async (req, res, next) => {
     const { game, filename } = req.params;
-    const diskPath = path.join(__dirname, 'cache', 'images', game, filename);
+    const diskPath = path.join(DATA_ROOT, 'cache', 'images', game, filename);
 
     // Tier 1: already cached.
     if (fs.existsSync(diskPath)) {
@@ -136,7 +144,7 @@ app.get('/cache/images/:game/:filename', async (req, res, next) => {
 });
 
 // Serve cached images
-app.use('/cache', express.static(path.join(__dirname, 'cache')));
+app.use('/cache', express.static(path.join(DATA_ROOT, 'cache')));
 
 // Routes
 app.get('/', (req, res) => {
@@ -174,7 +182,7 @@ function getGameName(gameId) {
 // Count cached image files on disk for a game (cache/images/<game>).
 function countCachedImages(game) {
     try {
-        const dir = path.join(__dirname, 'cache', 'images', game);
+        const dir = path.join(DATA_ROOT, 'cache', 'images', game);
         if (!fs.existsSync(dir)) return 0;
         return fs.readdirSync(dir).length;
     } catch (e) {
@@ -310,7 +318,7 @@ app.delete('/api/games/:game/data', (req, res) => {
         }
         
         // Clear cached images
-        const imagesDir = path.join(__dirname, 'cache', 'images', game);
+        const imagesDir = path.join(DATA_ROOT, 'cache', 'images', game);
         console.log(`Checking for images directory: ${imagesDir}`);
         
         if (fs.existsSync(imagesDir)) {
@@ -551,7 +559,7 @@ app.get('/api/stats/:game', (req, res) => {
     
     try {
         const stats = db.getGameStats().find(g => g.id === game);
-        const cacheDir = path.join(__dirname, 'cache', 'images', game);
+        const cacheDir = path.join(DATA_ROOT, 'cache', 'images', game);
         let imageCount = 0;
         let cacheSize = 0;
         
@@ -1445,9 +1453,17 @@ async function bootstrap() {
     // On a fresh install (no data/cardcast.db yet) try to fetch the metadata seed
     // so the user skips the live metadata-API downloads. Soft-fails to an empty DB
     // if the Release asset is unreachable; the live Download buttons still work.
-    const result = await ensureSeedDatabase({ dbPath });
+    const result = await ensureSeedDatabase({
+        dbPath,
+        // Under Electron the metadata seed ships inside the app; copy it into the
+        // writable data dir instead of downloading. CARDCAST_BUNDLED_SEED points at
+        // that bundled file (unset for npm start / portable, which download instead).
+        bundledSeedPath: process.env.CARDCAST_BUNDLED_SEED
+    });
     if (result.installed) {
-        console.log('Initialized from downloaded metadata seed database.');
+        console.log(result.reason === 'copied'
+            ? 'Initialized from the bundled metadata seed database.'
+            : 'Initialized from the downloaded metadata seed database.');
     }
 
     db = new Database(dbPath);
@@ -1498,24 +1514,27 @@ Coming Soon:
   ○ Flesh and Blood
   ○ Star Wars Unlimited
 
-Cache directory: ${path.join(__dirname, 'cache')}
-Database: ${path.join(__dirname, 'data', 'cardcast.db')}
+Cache directory: ${path.join(DATA_ROOT, 'cache')}
+Database: ${dbPath}
 
-Opening browser...
+${process.env.CARDCAST_ELECTRON ? 'Running inside the CardCast desktop app.' : 'Opening browser...'}
 `);
-    
-    // Auto-open browser
-    const url = `http://localhost:${PORT}`;
-    switch (process.platform) {
-        case 'win32':
-            exec(`start ${url}`);
-            break;
-        case 'darwin':
-            exec(`open ${url}`);
-            break;
-        case 'linux':
-            exec(`xdg-open ${url}`);
-            break;
+
+    // Auto-open the default browser, unless we are running inside the Electron
+    // desktop shell, which opens its own window pointed at this server.
+    if (!process.env.CARDCAST_ELECTRON) {
+        const url = `http://localhost:${PORT}`;
+        switch (process.platform) {
+            case 'win32':
+                exec(`start ${url}`);
+                break;
+            case 'darwin':
+                exec(`open ${url}`);
+                break;
+            case 'linux':
+                exec(`xdg-open ${url}`);
+                break;
+        }
     }
 });
 }).catch((error) => {

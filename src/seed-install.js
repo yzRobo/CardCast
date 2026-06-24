@@ -47,6 +47,26 @@ async function ensureSeedDatabase(options = {}) {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     const tmpPath = `${dbPath}.download`;
 
+    // No-fetch path: if a bundled seed file is provided and valid (the desktop app
+    // ships the seed inside its package), copy it into place instead of downloading.
+    const bundledSeedPath = options.bundledSeedPath;
+    if (bundledSeedPath && fs.existsSync(bundledSeedPath)) {
+        try {
+            if (!isSqliteFile(bundledSeedPath)) {
+                console.warn('Bundled seed is not a valid SQLite database; will try downloading.');
+            } else {
+                fs.copyFileSync(bundledSeedPath, tmpPath);
+                fs.renameSync(tmpPath, dbPath);
+                const sizeMb = (fs.statSync(dbPath).size / 1024 / 1024).toFixed(1);
+                console.log(`Metadata seed installed from bundle (${sizeMb} MB). Card images download on demand.`);
+                return { installed: true, reason: 'copied' };
+            }
+        } catch (error) {
+            if (fs.existsSync(tmpPath)) fs.rmSync(tmpPath, { force: true });
+            console.warn(`Could not copy bundled seed (${error.message}); will try downloading.`);
+        }
+    }
+
     try {
         console.log(`No database found. Downloading metadata seed from ${seedUrl} ...`);
         const response = await axios.get(seedUrl, {
@@ -75,7 +95,7 @@ async function ensureSeedDatabase(options = {}) {
         fs.renameSync(tmpPath, dbPath);
         const sizeMb = (fs.statSync(dbPath).size / 1024 / 1024).toFixed(1);
         console.log(`Metadata seed installed (${sizeMb} MB). Card images download on demand.`);
-        return { installed: true };
+        return { installed: true, reason: 'downloaded' };
     } catch (error) {
         if (fs.existsSync(tmpPath)) {
             fs.rmSync(tmpPath, { force: true });
