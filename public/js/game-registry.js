@@ -207,8 +207,9 @@ const GAME_REGISTRY = {
             categories: ['Characters', 'Actions', 'Items', 'Locations'],
             categorize: (card) => lorcanaCategoryFromType(card.card_type),
             // 60-card minimum, max 4 copies per full name, up to 2 inks per deck
-            // (ink identity from the shared colors, split on "/"). maxInks is a
-            // build-time warning, enforced in main.js deck stats, not here.
+            // (ink identity from the shared colors, split on "/"). maxInks is
+            // label-only metadata; the 2-ink limit is NOT yet enforced anywhere
+            // (lorcanaInks() is available for a future deck-stats validation).
             rules: { main: 60, copyLimit: 4, maxInks: 2 },
             // Core = current rotation (default competitive); Infinity = all sets.
             // Label-only by default; an opt-in legality filter can use banlist later.
@@ -286,6 +287,8 @@ function lorcanaCategoryFromType(cardType) {
 // Split a Lorcana ink (color) string into its component inks. Lorcast joins
 // dual-ink with "/" (e.g. "Amethyst/Sapphire"); splitting on "/" and whitespace
 // keeps the 2-ink deckbuilding constraint correct either way.
+// NOTE: not yet wired into deck validation (the 2-ink limit is label-only); kept
+// for a future deck-stats check and imported by the committed verify scripts.
 function lorcanaInks(colorString) {
     return String(colorString || '')
         .split(/[\/\s]+/)
@@ -319,6 +322,9 @@ function onePieceCategoryFromType(cardType) {
 // Split a One Piece color string into its component colors. optcgapi joins
 // multicolor with "/" (e.g. "Green/Red"); older data used a space. Splitting on
 // both keeps the leader-color identity rule correct either way.
+// NOTE: not yet wired into deck validation (the leader-color identity rule is
+// label-only); kept for a future deck-stats check and imported by the committed
+// verify scripts.
 function onePieceColors(colorString) {
     return String(colorString || '')
         .split(/[\/\s]+/)

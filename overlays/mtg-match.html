@@ -186,6 +186,9 @@
             background: rgba(0,0,0,0.6); color: #34d399; opacity: 0.5;
         }
         .connection-status.disconnected { color: #f87171; }
+
+        /* Show/Hide overlay toggle (mirrors the other game overlays) */
+        .ov-hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -348,7 +351,16 @@
                 if (mtg) mtg.timer = d.seconds;
                 renderTimer(d.seconds);
             });
-            socket.on('mtg-match-reset', () => location.reload());
+            socket.on('mtg-match-reset', () => {
+                // Soft reset in place (mirrors the other overlays): re-init the local
+                // state to a fresh board while keeping player names, then re-render.
+                // No page reload, so the OBS browser source never blanks.
+                mtg = freshState(mtg);
+                renderAll(mtg);
+            });
+
+            // Show/Hide overlay (parity with the other six game overlays)
+            socket.on('toggle-mtg-match', (d) => { d && d.show ? showOverlay() : hideOverlay(); });
 
             // Keep the control's overlay-status badge fresh
             setInterval(() => { if (socket.connected) socket.emit('register-overlay', 'mtg-match'); }, 5000);
@@ -358,6 +370,32 @@
             const el = document.getElementById('connection-status');
             el.textContent = connected ? 'Connected' : 'Disconnected';
             el.className = connected ? 'connection-status' : 'connection-status disconnected';
+        }
+
+        // Fresh board for a soft reset - keeps the existing player names.
+        function freshState(prev) {
+            const freshPlayer = (name) => ({
+                name, record: '0-0-0', gamesWon: 0, lands: 0,
+                life: 20, poison: 0, featuredPermanents: [],
+                turnActions: { landPlayed: false, spellCast: false }
+            });
+            return {
+                player1: freshPlayer((prev && prev.player1 && prev.player1.name) || 'Player 1'),
+                player2: freshPlayer((prev && prev.player2 && prev.player2.name) || 'Player 2'),
+                activePlayer: 1, currentPhase: 'main1',
+                matchFormat: (prev && prev.matchFormat) || 'Standard', timer: 0
+            };
+        }
+
+        function showOverlay() {
+            document.getElementById('p1-board').classList.remove('ov-hidden');
+            document.getElementById('p2-board').classList.remove('ov-hidden');
+            document.querySelector('.match-bar').classList.remove('ov-hidden');
+        }
+        function hideOverlay() {
+            document.getElementById('p1-board').classList.add('ov-hidden');
+            document.getElementById('p2-board').classList.add('ov-hidden');
+            document.querySelector('.match-bar').classList.add('ov-hidden');
         }
 
         function setText(id, value) {

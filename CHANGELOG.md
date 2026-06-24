@@ -7,15 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-24
+
 ### Added
-- Gundam Card Game support: card data download and search for boosters and starter decks, scraped from the official site (gundam-gcg.com), which has no public API
-- Magic: The Gathering match control and overlay
-- Card data download and search for Yu-Gi-Oh!, Disney Lorcana, Digimon Card Game, and One Piece Card Game (One Piece and Gundam include starter-deck cards)
+- Match overlays, dedicated control pages, and deck building for six new games: Magic: The Gathering (MTG-proper), Yu-Gi-Oh!, One Piece Card Game, Disney Lorcana, Digimon Card Game, and Gundam Card Game (One Piece and Gundam include starter-deck cards)
+- Main-page game switcher: a single game selector drives the whole interface, powered by a client-side GAME_REGISTRY so search, match controls, and deck building follow the active game
+- Generic decklist overlay: a single registry-driven overlay renders deck sections for every game from its registered categories, with no per-game branching
 - Metadata seed database: fresh installs fetch a prebuilt metadata-only database so they skip the live API/scrape downloads
 - Lazy, self-healing image cache: card images download on first view and are re-fetched from their source URL if missing
+- Shared cross-game color capture: multi-color identity is stored in a shared color column used across games
 
 ### Changed
 - Card data is pulled from each game's free public API, except Gundam which is read from the official card site (no public API for that game)
+- Magic refocused to MTG-proper (20 life, Commander removed)
 
 ## [1.0.1] - 2025-08-24
 

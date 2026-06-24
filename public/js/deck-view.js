@@ -318,7 +318,8 @@ window.saveDeckEdits = function() {
 window.adjustCardQuantity = function(category, index, delta) {
     const card = getDeckCategoryArray(editingDeck, category)[index];
     if (!card) return;
-    card.quantity = Math.max(1, Math.min(4, card.quantity + delta));
+    const limit = (GAME_REGISTRY[editingDeck.game]?.deck?.rules?.copyLimit) || 4;
+    card.quantity = Math.max(1, Math.min(limit, card.quantity + delta));
     renderDeckView();
 }
 
@@ -369,12 +370,13 @@ window.addCardToDeck = function(cardName, cardImage) {
     const arr = getDeckCategoryArray(editingDeck, category);
 
     const existingCard = arr.find(c => c.name === cardName);
+    const limit = (GAME_REGISTRY[editingDeck.game]?.deck?.rules?.copyLimit) || 4;
 
     if (existingCard) {
-        if (existingCard.quantity < 4) {
+        if (existingCard.quantity < limit) {
             existingCard.quantity++;
         } else {
-            alert('Maximum 4 copies of a card allowed');
+            alert(`Maximum ${limit} copies of a card allowed`);
             return;
         }
     } else {

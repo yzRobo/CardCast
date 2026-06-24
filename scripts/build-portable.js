@@ -44,12 +44,18 @@ function copyDir(src, dest, exclude = []) {
 // Copy all necessary files
 console.log('Copying project files...');
 
-// Copy main files - INCLUDING pokemon-match-control.html
+// Derive the per-game match-control pages from a glob of the project root so
+// every game's control page (and any future game's) lands in the portable
+// build. The server serves each <game>-match-control.html via res.sendFile
+// from the dist root, so they must be copied alongside server.js/index.html.
+const controlPages = fs.readdirSync(projectRoot)
+    .filter(name => name.endsWith('-match-control.html'));
+
+// Copy main files - INCLUDING every <game>-match-control.html
 const mainFiles = [
     'server.js',
     'index.html',
-    'pokemon-match-control.html',
-    'mtg-match-control.html',
+    ...controlPages,
     'package.json',
     // Documentation for optional API keys (examples only - never real secrets).
     '.env.example',
@@ -62,24 +68,6 @@ mainFiles.forEach(file => {
     if (fs.existsSync(srcPath)) {
         fs.copyFileSync(srcPath, destPath);
         console.log(`✓ Copied ${file}`);
-    } else if (file === 'pokemon-match-control.html') {
-        // Create a redirect file if it doesn't exist
-        const redirectContent = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Pokemon Match Control - CardCast</title>
-    <script>
-        // Redirect to the main interface with Pokemon Match tab
-        window.location.href = '/#pokemon-match';
-    </script>
-</head>
-<body>
-    <p>Redirecting to Pokemon Match Control...</p>
-</body>
-</html>`;
-        fs.writeFileSync(destPath, redirectContent);
-        console.log(`✓ Created ${file} (redirect)`);
     }
 });
 
@@ -90,21 +78,22 @@ if (fs.existsSync(configPath)) {
     fs.copyFileSync(configPath, configDestPath);
     console.log('✓ Copied config.json');
 } else {
-    // Create default config with correct settings
+    // Create default config matching the committed config.json (all 7 shipping
+    // games enabled; FaB and Star Wars remain disabled until they ship).
     const defaultConfig = {
         port: 3888,
         theme: 'dark',
         autoUpdate: true,
         games: {
-            pokemon: { enabled: true, available: true, dataPath: null },
-            magic: { enabled: false, available: false, dataPath: null },
-            yugioh: { enabled: false, available: false, dataPath: null },
-            lorcana: { enabled: false, available: false, dataPath: null },
-            onepiece: { enabled: false, available: false, dataPath: null },
-            digimon: { enabled: false, available: false, dataPath: null },
-            gundam: { enabled: false, available: false, dataPath: null },
-            fab: { enabled: false, available: false, dataPath: null },
-            starwars: { enabled: false, available: false, dataPath: null }
+            pokemon: { enabled: true, dataPath: null },
+            magic: { enabled: true, dataPath: null },
+            yugioh: { enabled: true, dataPath: null },
+            lorcana: { enabled: true, dataPath: null },
+            onepiece: { enabled: true, dataPath: null },
+            digimon: { enabled: true, dataPath: null },
+            gundam: { enabled: true, dataPath: null },
+            fab: { enabled: false, dataPath: null },
+            starwars: { enabled: false, dataPath: null }
         },
         obs: {
             mainOverlayPort: 3888,
@@ -253,7 +242,7 @@ QUICK START
 1. Double-click CardCast.bat
 2. Wait for automatic setup (first run only, 2-3 minutes)
 3. Browser opens automatically to http://localhost:3888
-4. Download Pokemon card data (20,000+ cards)
+4. Pick a game and download its card data
 5. Add OBS browser sources for overlays
 
 REQUIREMENTS
@@ -264,9 +253,23 @@ REQUIREMENTS
 
 OBS BROWSER SOURCES
 -------------------
-Add these URLs as browser sources in OBS:
-- Pokemon Match: http://localhost:3888/pokemon-match
-- MTG Match: http://localhost:3888/mtg-match
+Add these URLs as browser sources in OBS (one per game you stream):
+- Pokemon Match:   http://localhost:3888/pokemon-match
+- MTG Match:       http://localhost:3888/mtg-match
+- Yu-Gi-Oh! Match: http://localhost:3888/yugioh-match
+- One Piece Match: http://localhost:3888/onepiece-match
+- Lorcana Match:   http://localhost:3888/lorcana-match
+- Digimon Match:   http://localhost:3888/digimon-match
+- Gundam Match:    http://localhost:3888/gundam-match
+
+Each game has a matching control page you open in your browser:
+- http://localhost:3888/pokemon-match-control
+- http://localhost:3888/mtg-match-control
+- http://localhost:3888/yugioh-match-control
+- http://localhost:3888/onepiece-match-control
+- http://localhost:3888/lorcana-match-control
+- http://localhost:3888/digimon-match-control
+- http://localhost:3888/gundam-match-control
 
 Settings: 1920x1080, 30 FPS
 
@@ -275,7 +278,7 @@ FILES IN THIS PACKAGE
 CardCast.bat - Main launcher (use this!)
 server.js - Application server
 config.json - Settings (edit to change port)
-pokemon-match-control.html - Match control interface
+*-match-control.html - Per-game match control interfaces
 src/ - Source code
 public/ - Web interface
 overlays/ - OBS overlay files
@@ -287,9 +290,9 @@ FIRST TIME SETUP
 1. Run CardCast.bat
 2. Wait for automatic setup (installs Node.js and dependencies)
 3. Browser opens automatically
-4. Select Pokemon TCG
+4. Select a game (Pokemon, Magic, Yu-Gi-Oh!, One Piece, Lorcana, Digimon, or Gundam)
 5. Click "Download Card Data"
-6. Wait for download to complete (20,000+ cards)
+6. Wait for download to complete
 7. Cards are now searchable offline!
 
 TROUBLESHOOTING
@@ -356,7 +359,7 @@ console.log('3. Users: Extract ZIP and run CardCast.bat');
 console.log('\nKey improvements in this build:');
 console.log(`- Bundles Node ${NODE_VERSION} LTS (better-sqlite3 12.x compatible)`);
 console.log('- Installs dependencies from package.json (always in sync)');
-console.log('- Includes pokemon-match-control.html and mtg-match-control.html');
+console.log(`- Includes all ${controlPages.length} game match-control pages`);
 console.log('- Auto-downloads and sets up everything');
 console.log('- No admin rights required');
 console.log('========================================');

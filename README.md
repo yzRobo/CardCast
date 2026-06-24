@@ -4,21 +4,21 @@ A straightforward streaming overlay tool for Trading Card Game content creators.
 
 ## Currently Supported Games
 
-- **Pokemon TCG** - Fully functional with 20,000+ cards
-- **Magic: The Gathering** - Match control and overlay (new in v1.1.0)
-- **Yu-Gi-Oh!** - Card data download and search
-- **Disney Lorcana** - Card data download and search
-- **Digimon Card Game** - Card data download and search
-- **One Piece Card Game** - Card data download and search (booster sets and starter decks)
-- **Gundam Card Game** - Card data download and search (boosters and starter decks)
+- **Pokemon TCG** - Card search, match overlay, and deck building
+- **Magic: The Gathering** - Card search, match overlay, and deck building
+- **Yu-Gi-Oh!** - Card search, match overlay, and deck building
+- **Disney Lorcana** - Card search, match overlay, and deck building
+- **Digimon Card Game** - Card search, match overlay, and deck building
+- **One Piece Card Game** - Card search, match overlay, and deck building (booster sets and starter decks)
+- **Gundam Card Game** - Card search, match overlay, and deck building (boosters and starter decks)
 - Flesh and Blood *(Coming Soon)*
 - Star Wars Unlimited *(Coming Soon)*
 
 Card data is pulled live on demand from each game's public API (or, for the Gundam
 Card Game, the official card site, which has no public API) and cached locally
-(images included), so the project hosts no card data itself. Dedicated match
-overlays currently exist for Pokemon and Magic; the other games support card
-search and display today, with overlays planned.
+(images included), so the project hosts no card data itself. All seven games ship
+a dedicated match overlay, a control page, and deck building. Pick the active game
+from the main-page game switcher; the whole interface follows your choice.
 
 ## Features
 
@@ -74,6 +74,11 @@ npm run build
 |---------|-----|-------------|
 | Pokemon Match | `http://localhost:3888/pokemon-match` | Complete Pokemon match overlay |
 | MTG Match | `http://localhost:3888/mtg-match` | Complete Magic: The Gathering match overlay |
+| Yu-Gi-Oh! Match | `http://localhost:3888/yugioh-match` | Complete Yu-Gi-Oh! match overlay |
+| One Piece Match | `http://localhost:3888/onepiece-match` | Complete One Piece Card Game match overlay |
+| Lorcana Match | `http://localhost:3888/lorcana-match` | Complete Disney Lorcana match overlay |
+| Digimon Match | `http://localhost:3888/digimon-match` | Complete Digimon Card Game match overlay |
+| Gundam Match | `http://localhost:3888/gundam-match` | Complete Gundam Card Game match overlay |
 
 ## Pokemon Features
 
@@ -301,4 +306,4 @@ See [LICENSE](LICENSE) file for full details.
 
 ---
 
-**CardCast v1.1.0** - Built for the TCG streaming community
+**CardCast v2.0.0** - Built for the TCG streaming community

@@ -34,8 +34,9 @@ class CardDatabase {
         // Add source_image_url column (the remote CDN URL) if it doesn't exist
         this.addSourceImageUrlColumn();
 
-        // Add Gundam-specific columns if they don't exist (migration for existing DBs)
-        this.addGundamColumns();
+        // Add all game-specific columns if they don't exist (migration for existing
+        // DBs). Must run before prepareStatements(), which references these columns.
+        this.addGameColumns();
 
         // Initialize games
         this.initializeGames();
@@ -250,13 +251,79 @@ class CardDatabase {
         }
     }
 
-    // Add the Gundam Card Game columns to an existing cards table. CREATE TABLE
+    // Add every game-specific column to an existing cards table. CREATE TABLE
     // IF NOT EXISTS never alters a table that already exists, so installs created
-    // before Gundam support need each gd_* column added here, the same way
-    // set_abbreviation and source_image_url were introduced.
-    addGundamColumns() {
+    // before these games were supported keep their old schema and are missing
+    // these columns. prepareStatements() references them, and better-sqlite3
+    // validates column names at prepare() time, so a legacy DB would throw on
+    // boot without this migration. We diff the full set of game-specific columns
+    // (the columns added to CREATE TABLE after the legacy v1 schema) against
+    // PRAGMA table_info(cards) and ALTER in any that are missing. The common /
+    // Pokemon columns plus set_abbreviation and source_image_url are handled by
+    // the base CREATE TABLE and their own dedicated migrations.
+    addGameColumns() {
         try {
-            const gundamColumns = {
+            const gameColumns = {
+                // Magic: The Gathering
+                mana_cost: 'TEXT',
+                cmc: 'INTEGER',
+                power: 'TEXT',
+                toughness: 'TEXT',
+                loyalty: 'INTEGER',
+                colors: 'TEXT',
+                color_identity: 'TEXT',
+                type_line: 'TEXT',
+                oracle_text: 'TEXT',
+                flavor_text: 'TEXT',
+
+                // Yu-Gi-Oh
+                attack: 'INTEGER',
+                defense: 'INTEGER',
+                level: 'INTEGER',
+                rank: 'INTEGER',
+                link_value: 'INTEGER',
+                pendulum_scale: 'INTEGER',
+                attribute: 'TEXT',
+                monster_type: 'TEXT',
+
+                // Lorcana
+                ink_cost: 'INTEGER',
+                strength: 'INTEGER',
+                willpower: 'INTEGER',
+                lore_value: 'INTEGER',
+                inkable: 'BOOLEAN',
+
+                // One Piece
+                cost: 'INTEGER',
+                op_power: 'INTEGER',
+                counter: 'INTEGER',
+                life: 'INTEGER',
+                don_value: 'INTEGER',
+                trigger_text: 'TEXT',
+
+                // Digimon
+                play_cost: 'INTEGER',
+                digivolve_cost: 'INTEGER',
+                digivolve_color: 'TEXT',
+                dp: 'INTEGER',
+                digimon_level: 'INTEGER',
+                digimon_type: 'TEXT',
+                digimon_attribute: 'TEXT',
+
+                // Flesh and Blood
+                pitch_value: 'INTEGER',
+                fab_defense: 'INTEGER',
+                fab_attack: 'INTEGER',
+                resource_cost: 'INTEGER',
+
+                // Star Wars Unlimited
+                sw_cost: 'INTEGER',
+                sw_power: 'INTEGER',
+                sw_hp: 'INTEGER',
+                aspect: 'TEXT',
+                arena: 'TEXT',
+
+                // Gundam Card Game
                 gd_level: 'INTEGER',
                 gd_cost: 'INTEGER',
                 gd_color: 'TEXT',
@@ -272,14 +339,14 @@ class CardDatabase {
             const existing = new Set(
                 this.db.prepare('PRAGMA table_info(cards)').all().map(col => col.name)
             );
-            for (const [name, type] of Object.entries(gundamColumns)) {
+            for (const [name, type] of Object.entries(gameColumns)) {
                 if (!existing.has(name)) {
                     console.log(`Adding ${name} column to cards table...`);
                     this.db.prepare(`ALTER TABLE cards ADD COLUMN ${name} ${type}`).run();
                 }
             }
         } catch (error) {
-            console.error('Error adding Gundam columns:', error);
+            console.error('Error adding game-specific columns:', error);
         }
     }
 
@@ -584,6 +651,11 @@ class CardDatabase {
     
     insertCard(cardData) {
         try {
+            // Bind numeric/boolean game stats without collapsing a legitimate 0 or
+            // false to NULL. The `value || null` idiom turns 0 (and inkable=false)
+            // into NULL, which the overlays then treat as "stat absent". keep0 only
+            // nulls genuinely-missing values (undefined / '') and preserves 0/false.
+            const keep0 = v => (v === undefined || v === null || v === '' ? null : v);
             const searchText = `${cardData.name} ${cardData.set_name} ${cardData.card_number} ${cardData.card_text}`.toLowerCase();
             
             // Check if card already exists
@@ -612,7 +684,7 @@ class CardDatabase {
                 searchText,
                 
                 // Pokemon fields
-                cardData.hp || null,
+                keep0(cardData.hp),
                 cardData.stage || null,
                 cardData.evolves_from || null,
                 cardData.weakness || null,
@@ -635,10 +707,10 @@ class CardDatabase {
                 
                 // Magic fields
                 cardData.mana_cost || null,
-                cardData.cmc || null,
+                keep0(cardData.cmc),
                 cardData.power || null,
                 cardData.toughness || null,
-                cardData.loyalty || null,
+                keep0(cardData.loyalty),
                 cardData.colors || null,
                 cardData.color_identity || null,
                 cardData.type_line || null,
@@ -646,61 +718,61 @@ class CardDatabase {
                 cardData.flavor_text || null,
                 
                 // Yu-Gi-Oh fields
-                cardData.attack || null,
-                cardData.defense || null,
-                cardData.level || null,
-                cardData.rank || null,
-                cardData.link_value || null,
-                cardData.pendulum_scale || null,
+                keep0(cardData.attack),
+                keep0(cardData.defense),
+                keep0(cardData.level),
+                keep0(cardData.rank),
+                keep0(cardData.link_value),
+                keep0(cardData.pendulum_scale),
                 cardData.attribute || null,
                 cardData.monster_type || null,
                 
                 // Lorcana fields
-                cardData.ink_cost || null,
-                cardData.strength || null,
-                cardData.willpower || null,
-                cardData.lore_value || null,
-                cardData.inkable || null,
+                keep0(cardData.ink_cost),
+                keep0(cardData.strength),
+                keep0(cardData.willpower),
+                keep0(cardData.lore_value),
+                keep0(cardData.inkable),
                 
                 // One Piece fields
-                cardData.cost || null,
-                cardData.op_power || null,
-                cardData.counter || null,
-                cardData.life || null,
-                cardData.don_value || null,
+                keep0(cardData.cost),
+                keep0(cardData.op_power),
+                keep0(cardData.counter),
+                keep0(cardData.life),
+                keep0(cardData.don_value),
                 cardData.trigger_text || null,
                 
                 // Digimon fields
-                cardData.play_cost || null,
-                cardData.digivolve_cost || null,
+                keep0(cardData.play_cost),
+                keep0(cardData.digivolve_cost),
                 cardData.digivolve_color || null,
-                cardData.dp || null,
-                cardData.digimon_level || null,
+                keep0(cardData.dp),
+                keep0(cardData.digimon_level),
                 cardData.digimon_type || null,
                 cardData.digimon_attribute || null,
                 
                 // Flesh and Blood fields
-                cardData.pitch_value || null,
-                cardData.fab_defense || null,
-                cardData.fab_attack || null,
-                cardData.resource_cost || null,
+                keep0(cardData.pitch_value),
+                keep0(cardData.fab_defense),
+                keep0(cardData.fab_attack),
+                keep0(cardData.resource_cost),
                 
                 // Star Wars Unlimited fields
-                cardData.sw_cost || null,
-                cardData.sw_power || null,
-                cardData.sw_hp || null,
+                keep0(cardData.sw_cost),
+                keep0(cardData.sw_power),
+                keep0(cardData.sw_hp),
                 cardData.aspect || null,
                 cardData.arena || null,
 
                 // Gundam Card Game fields
-                cardData.gd_level || null,
-                cardData.gd_cost || null,
+                keep0(cardData.gd_level),
+                keep0(cardData.gd_cost),
                 cardData.gd_color || null,
                 cardData.gd_zone || null,
                 cardData.gd_trait || null,
                 cardData.gd_link || null,
-                cardData.gd_ap || null,
-                cardData.gd_hp || null,
+                keep0(cardData.gd_ap),
+                keep0(cardData.gd_hp),
                 cardData.gd_source_title || null,
                 cardData.gd_block_icon || null,
                 cardData.gd_sp || null

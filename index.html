@@ -302,7 +302,7 @@
                     <div class="text-[10px] uppercase tracking-[0.18em] text-base-content/40 font-medium mt-0.5">TCG Overlay Suite</div>
                 </div>
             </div>
-            <span class="badge badge-ghost badge-sm font-mono text-base-content/50">v1.0.0</span>
+            <span class="badge badge-ghost badge-sm font-mono text-base-content/50">v2.0.0</span>
         </div>
         <div class="navbar-center flex items-center">
             <select id="gameSelect" class="select select-bordered select-sm" style="width: 13rem; max-width: 40vw;" aria-label="Select game">
@@ -547,7 +547,7 @@
                         <div class="form-control mt-2">
                             <label class="label cursor-pointer">
                                 <span class="label-text text-sm">Search imported cards only</span>
-                                <input type="checkbox" id="searchDeckOnly" class="checkbox checkbox-primary checkbox-sm" />
+                                <input type="checkbox" id="searchDeckOnly" class="checkbox checkbox-primary checkbox-sm" onchange="updateSearchToDeckOnly()" />
                             </label>
                         </div>
                     </div>
@@ -753,7 +753,7 @@
                 // Parse the deck with resolver
                 const deck = await parseDeckList(deckText);
                 deck.name = deckName;
-                deck.game = deckGame;
+                deck.game = deck.game || deckGame;
                 deck.dateAdded = new Date().toISOString();
                 
                 // Save to localStorage
@@ -823,14 +823,14 @@
                                 <p class="text-xs text-base-content/50 capitalize">${deck.game} • ${totalCards} cards</p>
                             </div>
                             <div class="flex gap-0.5 shrink-0">
-                                <button class="btn btn-xs btn-ghost" onclick="loadDeck('${deck.game}', '${escape(deck.name)}')">View</button>
-                                <button class="btn btn-xs btn-square btn-ghost text-primary hover:bg-primary/10" title="Show this deck on the deck overlay" onclick="showDeckOnOverlay('${deck.game}', '${escape(deck.name)}')">
+                                <button class="btn btn-xs btn-ghost" onclick="loadDeck('${deck.game}', '${escapeJsString(deck.name)}')">View</button>
+                                <button class="btn btn-xs btn-square btn-ghost text-primary hover:bg-primary/10" title="Show this deck on the deck overlay" onclick="showDeckOnOverlay('${deck.game}', '${escapeJsString(deck.name)}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
                                 </button>
-                                <button class="btn btn-xs btn-square btn-ghost" title="Copy deck to clipboard" onclick="exportDeckToClipboard('${deck.game}', '${escape(deck.name)}')">
+                                <button class="btn btn-xs btn-square btn-ghost" title="Copy deck to clipboard" onclick="exportDeckToClipboard('${deck.game}', '${escapeJsString(deck.name)}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                                 </button>
-                                <button class="btn btn-xs btn-square btn-ghost text-error/80 hover:text-error" title="Delete deck" onclick="deleteDeck('${deck.game}', '${escape(deck.name)}')">
+                                <button class="btn btn-xs btn-square btn-ghost text-error/80 hover:text-error" title="Delete deck" onclick="deleteDeck('${deck.game}', '${escapeJsString(deck.name)}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 </button>
                             </div>
@@ -840,9 +840,13 @@
             }).join('');
         }
         
-        // Helper function to escape quotes in deck names
-        window.escape = function(str) {
-            return str.replace(/'/g, "\\'").replace(/\\"/g, '\\"');
+        // Helper function to escape backslashes and quotes in deck names
+        // for safe interpolation into inline onclick JS string literals.
+        function escapeJsString(str) {
+            return String(str)
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '\\"');
         }
         
         // Load a saved deck

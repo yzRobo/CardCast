@@ -508,7 +508,7 @@
             p.life.total = Math.max(0, num(v, p.life.total));
             p.life.taken = p.life.taken.filter(i => i < p.life.total);
             renderLife(n);
-            socket.emit('onepiece-life-total', { player: n, total: p.life.total, taken: p.life.taken }); save();
+            socket.emit('onepiece-life-total', { player: n, total: p.life.total }); save();
         }
         function toggleLife(n, i) {
             const p = state[`player${n}`];

@@ -348,10 +348,6 @@
         });
         socket.on('onepiece-don-update', (d) => { matchState[`player${d.player}`].don = d.don; renderDon(d.player); });
         socket.on('onepiece-character-update', (d) => { matchState[`player${d.player}`].characters[d.index] = d.character; renderChars(d.player); });
-        socket.on('onepiece-character-power', (d) => {
-            const c = matchState[`player${d.player}`].characters[d.index];
-            if (c) { c.power = d.power; renderChars(d.player); }
-        });
         socket.on('onepiece-don-attach', (d) => {
             const c = matchState[`player${d.player}`].characters[d.index];
             if (c) { c.donAttached = d.donAttached; renderChars(d.player); }

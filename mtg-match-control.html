@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MTG Match Control - CardCast</title>
+    <title>CardCast - MTG Match Control</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -99,6 +99,10 @@
                     </div>
                     <div class="form-control">
                         <label class="label"><span class="label-text">Quick Actions</span></label>
+                        <div class="flex gap-2 mb-2">
+                            <button id="show-overlay" class="btn btn-success flex-1">Show Overlay</button>
+                            <button id="hide-overlay" class="btn btn-warning flex-1">Hide Overlay</button>
+                        </div>
                         <button id="reset-match" class="btn btn-error btn-block">Reset Match</button>
                         <span class="text-[11px] text-base-content/50 mt-1">Resets life/lands/poison/permanents (keeps names).</span>
                     </div>
@@ -381,6 +385,7 @@
             socket.on('connect', () => {
                 socket.emit('register-control', 'mtg-match');
                 socket.emit('request-state', 'mtg-match');
+                socket.emit('check-overlay-status', 'mtg-match');
             });
             socket.on('disconnect', () => setOverlayStatus(false));
 
@@ -441,6 +446,11 @@
 
             document.getElementById('set-active-p1').addEventListener('click', () => setActivePlayer(1));
             document.getElementById('set-active-p2').addEventListener('click', () => setActivePlayer(2));
+
+            document.getElementById('show-overlay').addEventListener('click', () =>
+                socket.emit('toggle-mtg-match', { show: true }));
+            document.getElementById('hide-overlay').addEventListener('click', () =>
+                socket.emit('toggle-mtg-match', { show: false }));
 
             document.getElementById('reset-match').addEventListener('click', () => {
                 if (confirm('Reset the match? Clears life, lands, poison, permanents and turn flags (names kept).')) {

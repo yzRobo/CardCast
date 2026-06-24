@@ -2,7 +2,7 @@
  * CardCast Deck Parser
  * Handles deck list parsing for multiple TCGs
  * Supports: Pokemon TCG, Magic: The Gathering, Gundam Card Game, Yu-Gi-Oh!,
- * One Piece Card Game
+ * One Piece Card Game, Disney Lorcana, Digimon Card Game
  */
 
 /**
@@ -16,39 +16,19 @@ async function parseDeckList(text) {
 
     // Detect game type by looking at patterns
     const gameType = detectGameType(text);
-    console.log('Detected game type:', gameType);
-    console.log('First 3 lines:', lines.slice(0, 3));
 
     if (gameType === 'magic') {
-        const result = parseMTGDeckList(lines);
-        console.log('MTG Parse result:', result);
-        console.log('Total cards:', result.cards.length, 'Sideboard:', result.sideboard.length);
-        return result;
+        return parseMTGDeckList(lines);
     } else if (gameType === 'gundam') {
-        const result = await parseGundamDeckList(lines);
-        const cats = result.categories || {};
-        console.log('Gundam Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
-        return result;
+        return await parseGundamDeckList(lines);
     } else if (gameType === 'yugioh') {
-        const result = await parseYugiohDeckList(lines);
-        const cats = result.categories || {};
-        console.log('Yugioh Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
-        return result;
+        return await parseYugiohDeckList(lines);
     } else if (gameType === 'onepiece') {
-        const result = await parseOnePieceDeckList(lines);
-        const cats = result.categories || {};
-        console.log('One Piece Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
-        return result;
+        return await parseOnePieceDeckList(lines);
     } else if (gameType === 'lorcana') {
-        const result = await parseLorcanaDeckList(lines);
-        const cats = result.categories || {};
-        console.log('Lorcana Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
-        return result;
+        return await parseLorcanaDeckList(lines);
     } else if (gameType === 'digimon') {
-        const result = await parseDigimonDeckList(lines);
-        const cats = result.categories || {};
-        console.log('Digimon Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
-        return result;
+        return await parseDigimonDeckList(lines);
     } else {
         return parsePokemonDeckList(lines);
     }
@@ -57,7 +37,7 @@ async function parseDeckList(text) {
 /**
  * Detect which game a deck list is for
  * @param {string} text - Raw deck list text
- * @returns {string} 'magic' or 'pokemon'
+ * @returns {string} one of 'onepiece' | 'digimon' | 'gundam' | 'yugioh' | 'lorcana' | 'magic' | 'pokemon'
  */
 function detectGameType(text) {
     // One Piece: card-number tokens. OP / PRB prefixes are unique to One Piece;
@@ -83,7 +63,7 @@ function detectGameType(text) {
     // Gundam: card-number tokens like GD01-001 / ST01-012 / EB01-003 / EX01-001,
     // or a "Resource Deck" section header (builder exports). Checked first because
     // the GDxx-NNN token is unambiguous.
-    if (/\b(?:GD|ST|EB|EX)\d{2}-\d{3}/i.test(text) || /^\s*resource deck\s*$/mi.test(text)) {
+    if (/\b(?:GD|ST|EB|EX)\d{2}-\d{3}/i.test(text) || /^\s*resource deck\b/mi.test(text)) {
         return 'gundam';
     }
 

@@ -655,6 +655,10 @@ app.get('/decklist', (req, res) => {
 let overlayClients = new Set();
 let mainClients = new Set();
 let controlClients = new Set();
+// Per-socket overlay type tracking so a single overlay disconnect only affects
+// its own type. socketId -> type, and type -> Set of live socket ids.
+let overlaySocketType = new Map();
+let overlayTypeSockets = new Map();
 let overlayStates = {
     'pokemon-match': false,
     'prizes': false,
@@ -679,6 +683,13 @@ io.on('connection', (socket) => {
     socket.on('register-overlay', (type) => {
         overlayClients.add(socket.id);
         overlayStates[type] = true;
+        // Remember which type this socket registered as, and add it to the live
+        // set for that type, so disconnects can be scoped to the right overlay.
+        overlaySocketType.set(socket.id, type);
+        if (!overlayTypeSockets.has(type)) {
+            overlayTypeSockets.set(type, new Set());
+        }
+        overlayTypeSockets.get(type).add(socket.id);
         console.log(`Overlay registered: ${type} (${socket.id})`);
         
         // Notify all control panels that overlay is connected
@@ -1112,6 +1123,11 @@ io.on('connection', (socket) => {
         overlayServer.resetMTGMatch();
     });
 
+    socket.on('toggle-mtg-match', (data) => {
+        console.log('Toggle mtg match overlay:', data.show);
+        io.emit('toggle-mtg-match', data);
+    });
+
     // Gundam Match events (the overlay-server mutators re-broadcast to overlays)
     socket.on('gundam-match-update', (data) => {
         overlayServer.updateGundamMatch(data);
@@ -1394,21 +1410,25 @@ io.on('connection', (socket) => {
         mainClients.delete(socket.id);
         
         if (wasOverlay) {
-            // Check which overlay disconnected
-            Object.keys(overlayStates).forEach(type => {
-                // For simplicity, mark all as disconnected when any overlay disconnects
-                // In production, you'd track which specific overlay each socket represents
-                overlayStates[type] = false;
-            });
-            
-            // Notify control panels
-            io.emit('overlay-disconnected', 'pokemon-match');
-            io.emit('overlay-disconnected', 'mtg-match');
-            io.emit('overlay-disconnected', 'gundam-match');
-            io.emit('overlay-disconnected', 'yugioh-match');
-            io.emit('overlay-disconnected', 'onepiece-match');
-            io.emit('overlay-disconnected', 'lorcana-match');
-            io.emit('overlay-disconnected', 'digimon-match');
+            // Only clear/emit for the type this specific socket registered as,
+            // and keep the type "connected" while any other socket of that type
+            // is still live (multiple overlays are loaded at once in OBS).
+            const type = overlaySocketType.get(socket.id);
+            overlaySocketType.delete(socket.id);
+            if (type) {
+                const liveSockets = overlayTypeSockets.get(type);
+                if (liveSockets) {
+                    liveSockets.delete(socket.id);
+                    if (liveSockets.size === 0) {
+                        overlayTypeSockets.delete(type);
+                    }
+                }
+                const stillConnected = liveSockets && liveSockets.size > 0;
+                if (!stillConnected) {
+                    overlayStates[type] = false;
+                    io.emit('overlay-disconnected', type);
+                }
+            }
 
             // If no more overlays are connected, notify main clients
             if (overlayClients.size === 0) {
@@ -1438,7 +1458,7 @@ bootstrap().then(() => {
 server.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════╗
-║          CardCast v1.0.1              ║
+║          CardCast v2.0.0              ║
 ║     TCG Streaming Overlay Tool        ║
 ╚═══════════════════════════════════════╝
 

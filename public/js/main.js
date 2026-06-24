@@ -59,12 +59,15 @@ document.addEventListener('DOMContentLoaded', () => {
     setupKeyboardShortcuts();
     initOBSConnection();
     
-    // Auto-select Pokemon on load since it's the only working game
+    // Auto-select a sensible default game once the list has loaded. Prefer the
+    // first available game that actually has downloaded card data; fall back to
+    // the first selectable game so a fresh install still lands somewhere usable.
     setTimeout(() => {
-        const pokemonItem = document.querySelector('[data-game="pokemon"]');
-        if (pokemonItem) {
-            pokemonItem.click();
-        }
+        const selectable = [...document.querySelectorAll('.game-item[data-game]')]
+            .filter(item => item.style.opacity !== '0.6');
+        if (!selectable.length) return;
+        const withData = selectable.find(item => gameHasData[item.dataset.game]);
+        (withData || selectable[0]).click();
     }, 500);
 });
 
@@ -507,23 +510,11 @@ async function handleSearch(event) {
     }
 }
 
-// Display search results
-function displaySearchResults(results) {
-    const resultsDiv = document.getElementById('searchResults');
-    
-    if (results.length === 0) {
-        resultsDiv.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>No cards found</p></div>';
-        return;
-    }
-    
-    resultsDiv.innerHTML = results.map(card => `
-        <div class="card-result" onclick="selectCard('${card.id}')">
-            <img class="card-thumbnail" src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
-            <div class="card-name">${card.name}</div>
-            <div class="card-meta">${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</div>
-        </div>
-    `).join('');
-}
+// Display search results, card preview, recent cards, and the cleared-results
+// state are all rendered by the registry-aware window.* overrides defined in
+// index.html (window.displaySearchResults / window.updateCardPreview /
+// window.updateRecentCardsDisplay / window.clearSearchResults). Those overrides
+// supersede any local copies, so they are intentionally not duplicated here.
 
 // Select a card
 async function selectCard(cardId) {
@@ -551,47 +542,13 @@ async function selectCard(cardId) {
     }
 }
 
-// Update card preview
-function updateCardPreview(card) {
-    const previewDiv = document.getElementById('cardPreview');
-    
-    if (!card) {
-        previewDiv.innerHTML = '<div class="empty-state"><div class="empty-icon">🎴</div><p>No card selected</p></div>';
-        return;
-    }
-    
-    previewDiv.innerHTML = `
-        <img src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
-        <div class="card-info">
-            <h3>${card.name}</h3>
-            <p>${card.set_name || ''} ${card.card_number ? '#' + card.card_number : ''}</p>
-            ${card.hp ? `<p>HP: ${card.hp}</p>` : ''}
-        </div>
-    `;
-}
-
-// Add to recent cards
+// Add to recent cards (updateRecentCardsDisplay is provided by the registry-aware
+// window.* override in index.html; the local definition was removed as dead code).
 function addToRecentCards(card) {
     recentCards = recentCards.filter(c => c.id !== card.id);
     recentCards.unshift(card);
     recentCards = recentCards.slice(0, 5);
     updateRecentCardsDisplay();
-}
-
-// Update recent cards display
-function updateRecentCardsDisplay() {
-    const recentDiv = document.getElementById('recentCards');
-    
-    if (recentCards.length === 0) {
-        recentDiv.innerHTML = '';
-        return;
-    }
-    
-    recentDiv.innerHTML = recentCards.map((card, index) => `
-        <div class="recent-card" onclick="selectCard('${card.id}')" title="${card.name}">
-            <img src="${card.image_url || '/images/card-back.png'}" alt="${card.name}">
-        </div>
-    `).join('');
 }
 
 // Display card on overlay
@@ -1053,12 +1010,34 @@ async function mtgToCategories(parsed) {
 
 // Look up a Magic card by name in the local DB; returns the fields the registry
 // categorize() needs (card_type / type_line), or null if nothing matches.
+//
+// The /api/search projection does NOT include type_line, so we resolve the full
+// card row via /api/card/<game>/<id> (which is SELECT *), giving categorize a real
+// type_line in addition to card_type. The search-result fields are used as a
+// fallback if the full-card fetch fails, so this never regresses below card_type.
 async function resolveMagicCardType(name) {
     try {
         const res = await fetch(`/api/search/magic?q=${encodeURIComponent(name)}&limit=10`);
         const cards = await res.json();
         if (!Array.isArray(cards) || !cards.length) return null;
         const match = cards.find(c => (c.name || '').toLowerCase() === name.toLowerCase()) || cards[0];
+
+        // Resolve the full card so type_line (omitted by the search projection)
+        // is available alongside card_type.
+        if (match.id != null) {
+            try {
+                const fullRes = await fetch(`/api/card/magic/${encodeURIComponent(match.id)}`);
+                if (fullRes.ok) {
+                    const full = await fullRes.json();
+                    if (full && !full.error) {
+                        return { card_type: full.card_type, type_line: full.type_line };
+                    }
+                }
+            } catch (_) {
+                // fall through to the search-result fields below
+            }
+        }
+
         return { card_type: match.card_type, type_line: match.type_line };
     } catch (err) {
         console.error('MTG type resolve failed for', name, err);
@@ -1146,12 +1125,9 @@ function clearDeckList() {
     socket.emit('decklist-clear');
 }
 
-// Clear search results
-function clearSearchResults() {
-    document.getElementById('searchResults').innerHTML = 
-        '<div class="empty-state"><div class="empty-icon">📦</div><p>Select a game and download card data to begin</p></div>';
-    searchResults = [];
-}
+// clearSearchResults is provided by the registry-aware window.* override in
+// index.html (it also resets the searchResults array); the local duplicate was
+// removed as dead code.
 
 // Copy to clipboard
 function copyToClipboard(elementId) {
@@ -1354,24 +1330,9 @@ window.prefetchImages = prefetchImages;
 window.deleteGameData = deleteGameData;
 window.selectGame = selectGame;
 
-// Add CSS for coming soon styling
+// Add CSS for toast layering
 const style = document.createElement('style');
 style.textContent = `
-    .game-item[data-game]:not([data-game="pokemon"]) {
-        position: relative;
-    }
-    
-    .game-item[data-game]:not([data-game="pokemon"])::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.1);
-        pointer-events: none;
-    }
-    
     .toast {
         z-index: 9999;
     }

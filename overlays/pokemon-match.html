@@ -713,8 +713,6 @@
         
         // Socket event handlers
         socket.on('pokemon-match-update', (data) => {
-            console.log('Pokemon match update received:', data);
-            
             // Update player 1
             if (data.player1) {
                 // Merge basic data
@@ -780,7 +778,6 @@
         });
         
         socket.on('stadium-update', (data) => {
-            console.log('Stadium update received:', data.stadium);
             matchState.stadium = data.stadium;
             updateStadiumDisplay();
         });
@@ -863,8 +860,6 @@
         });
         
         socket.on('timer-reset', (data) => {
-            console.log('Timer reset received');
-
             // Clear any existing timer interval
             if (matchState.timerInterval) {
                 clearInterval(matchState.timerInterval);
@@ -885,8 +880,6 @@
         });
 
         socket.on('timer-set', (data) => {
-            console.log('Timer set received:', data);
-
             // Stop any running timer so the new duration is shown
             if (matchState.timerInterval) {
                 clearInterval(matchState.timerInterval);
@@ -899,8 +892,6 @@
         });
         
         socket.on('match-reset', () => {
-            console.log('Match reset received');
-            
             // Preserve visibility
             const wasVisible = matchState.visible;
 
@@ -982,8 +973,6 @@
         }
         
         function updateDisplay() {
-            console.log('Updating full display with state:', matchState);
-            
             // Update all player info
             updatePlayerInfo(1);
             updatePlayerInfo(2);
@@ -1016,9 +1005,7 @@
         function updateStadiumDisplay() {
             const stadiumEl = document.getElementById('stadiumDisplay');
             const stadiumImage = document.getElementById('stadiumImage');
-            
-            console.log('Updating stadium display:', matchState.stadium);
-            
+
             if (matchState.stadium) {
                 // Handle both object and string formats
                 if (typeof matchState.stadium === 'object' && matchState.stadium !== null) {
@@ -1246,11 +1233,9 @@
         
         // Register as overlay
         socket.emit('register-overlay', 'pokemon-match');
-        console.log('Registering as pokemon-match overlay');
-        
+
         // Request current state after registration
         setTimeout(() => {
-            console.log('Requesting current state...');
             socket.emit('request-state', 'pokemon-match');
             showOverlay();
         }, 500);
