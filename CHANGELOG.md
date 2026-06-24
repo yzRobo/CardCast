@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-06-24
+
+### Fixed
+- Search box could stay disabled on a fresh desktop install: the startup game auto-select used a fixed timer that could fire before the card list finished loading (more likely on first run, when the database is freshly written), leaving no game selected and the search box disabled. It now waits for the game list to load, so a game is always selected and search is enabled.
+
+### Added
+- In-app update check (desktop app): on launch CardCast checks GitHub for a newer release and offers to open the download page; also available any time from the Help menu (press Alt to show the menu bar).
+
 ## [2.0.0] - 2026-06-24
 
 ### Added

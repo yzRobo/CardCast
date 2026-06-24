@@ -5,12 +5,17 @@
 // Express server in this process, then shows it in a window. The web UI, overlays,
 // and control pages are unchanged - they are still served over http://localhost so
 // OBS browser sources keep working exactly as before.
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, dialog, Menu } = require('electron');
 const path = require('path');
 const http = require('http');
+const https = require('https');
 
 const PORT = 3888;
 const APP_URL = `http://localhost:${PORT}`;
+
+// GitHub repo used for the in-app update check (see checkForUpdates).
+const REPO = 'yzRobo/CardCast';
+const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
 
 // The packaged app directory is read-only, so the database, image cache, and config
 // live in the OS userData directory. server.js + tcg-api.js read CARDCAST_DATA_ROOT.
@@ -51,6 +56,129 @@ function waitForServer(timeoutMs = 90000) {
         };
         attempt();
     });
+}
+
+// ---- In-app update check -------------------------------------------------
+// CardCast is not code-signed and ships as a normal installer, so rather than a
+// silent background auto-updater we do the simple, robust thing: ask GitHub for
+// the latest release and, if it is newer than this build, offer to open the
+// download page. Runs automatically on launch and from the Help menu.
+
+// True when semver-ish string `latest` is greater than `current` (tolerates a
+// leading "v" and missing patch components).
+function isNewerVersion(latest, current) {
+    const parts = v => String(v).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+    const a = parts(latest);
+    const b = parts(current);
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        const diff = (a[i] || 0) - (b[i] || 0);
+        if (diff !== 0) return diff > 0;
+    }
+    return false;
+}
+
+function fetchLatestRelease() {
+    return new Promise((resolve, reject) => {
+        const req = https.get(
+            `https://api.github.com/repos/${REPO}/releases/latest`,
+            { headers: { 'User-Agent': 'CardCast', 'Accept': 'application/vnd.github+json' }, timeout: 10000 },
+            (res) => {
+                if (res.statusCode !== 200) { res.resume(); return reject(new Error(`GitHub returned HTTP ${res.statusCode}`)); }
+                let body = '';
+                res.on('data', (c) => { body += c; });
+                res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+            }
+        );
+        req.on('timeout', () => req.destroy(new Error('request timed out')));
+        req.on('error', reject);
+    });
+}
+
+function showMessage(opts) {
+    const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+    return parent ? dialog.showMessageBox(parent, opts) : dialog.showMessageBox(opts);
+}
+
+// Check GitHub for a newer release. When `silent` (the automatic launch check)
+// it stays quiet unless an update is found; the manual menu check reports the
+// up-to-date and error cases too.
+async function checkForUpdates({ silent = true } = {}) {
+    try {
+        const release = await fetchLatestRelease();
+        const latest = release.tag_name || '';
+        const current = app.getVersion();
+        if (isNewerVersion(latest, current)) {
+            const pick = await showMessage({
+                type: 'info',
+                title: 'Update available',
+                message: `CardCast ${latest.replace(/^v/i, '')} is available.`,
+                detail: `You have ${current}. Open the download page to get the new installer, then run it to update.`,
+                buttons: ['Download', 'Later'],
+                defaultId: 0,
+                cancelId: 1,
+            });
+            if (pick.response === 0) shell.openExternal(release.html_url || RELEASES_PAGE);
+        } else if (!silent) {
+            await showMessage({
+                type: 'info',
+                title: 'No updates',
+                message: 'CardCast is up to date.',
+                detail: `You are on the latest version (${current}).`,
+                buttons: ['OK'],
+            });
+        }
+    } catch (err) {
+        console.warn('Update check failed:', err.message);
+        if (!silent) {
+            await showMessage({
+                type: 'warning',
+                title: 'Update check failed',
+                message: 'Could not check for updates.',
+                detail: `${err.message}\n\nYou can check manually at:\n${RELEASES_PAGE}`,
+                buttons: ['Open Releases Page', 'OK'],
+                defaultId: 1,
+                cancelId: 1,
+            }).then((pick) => { if (pick.response === 0) shell.openExternal(RELEASES_PAGE); });
+        }
+    }
+}
+
+// A minimal application menu so users have a manual "Check for Updates" and a
+// reload/devtools escape hatch for troubleshooting. Hidden by default
+// (autoHideMenuBar); press Alt to reveal it.
+function buildAppMenu() {
+    const template = [
+        {
+            label: 'CardCast',
+            submenu: [
+                { label: 'Check for Updates...', click: () => checkForUpdates({ silent: false }) },
+                { type: 'separator' },
+                { role: 'quit' },
+            ],
+        },
+        {
+            label: 'View',
+            submenu: [
+                { role: 'reload' },
+                { role: 'forceReload' },
+                { role: 'toggleDevTools' },
+                { type: 'separator' },
+                { role: 'resetZoom' },
+                { role: 'zoomIn' },
+                { role: 'zoomOut' },
+                { type: 'separator' },
+                { role: 'togglefullscreen' },
+            ],
+        },
+        {
+            label: 'Help',
+            submenu: [
+                { label: 'Check for Updates...', click: () => checkForUpdates({ silent: false }) },
+                { label: 'View Releases Page', click: () => shell.openExternal(RELEASES_PAGE) },
+            ],
+        },
+    ];
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 function loadingPage(message) {
@@ -96,10 +224,14 @@ function createWindow() {
 startServer();
 
 app.whenReady().then(async () => {
+    buildAppMenu();
     createWindow();
     try {
         await waitForServer();
         if (mainWindow) await mainWindow.loadURL(APP_URL);
+        // Quietly check for a newer release once the app is up. Packaged builds
+        // only, so dev runs (electron .) don't prompt against published releases.
+        if (app.isPackaged) setTimeout(() => checkForUpdates({ silent: true }), 4000);
     } catch (err) {
         console.error(err);
         if (mainWindow) mainWindow.loadURL(loadingPage('CardCast could not start. Please close and reopen the app.'));

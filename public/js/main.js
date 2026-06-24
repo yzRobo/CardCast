@@ -54,21 +54,27 @@ let currentDeckList = {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
-    loadGames();
     loadConfig();
     setupKeyboardShortcuts();
     initOBSConnection();
-    
-    // Auto-select a sensible default game once the list has loaded. Prefer the
-    // first available game that actually has downloaded card data; fall back to
-    // the first selectable game so a fresh install still lands somewhere usable.
-    setTimeout(() => {
+
+    // Auto-select a sensible default game once the list has ACTUALLY loaded.
+    // loadGames() is async (it fetches /api/games, renders the tiles, and fills
+    // gameHasData), so hook the auto-select to its resolution rather than a fixed
+    // timer. A fixed 500ms delay raced the fetch: on a fresh install the seed DB
+    // is freshly written and the first query can take longer than that, so the
+    // timer fired before any tiles existed, selected nothing, and left the search
+    // box permanently disabled with no way in. Prefer the first game that has
+    // data; fall back to the first selectable game so a fresh install still lands
+    // somewhere usable. loadGames() swallows its own errors, so it always
+    // resolves and this callback always runs.
+    loadGames().then(() => {
         const selectable = [...document.querySelectorAll('.game-item[data-game]')]
             .filter(item => item.style.opacity !== '0.6');
         if (!selectable.length) return;
         const withData = selectable.find(item => gameHasData[item.dataset.game]);
         (withData || selectable[0]).click();
-    }, 500);
+    });
 });
 
 // Initialize OBS Connection monitoring

@@ -1474,7 +1474,7 @@ bootstrap().then(() => {
 server.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════╗
-║          CardCast v2.0.0              ║
+║          CardCast v2.0.1              ║
 ║     TCG Streaming Overlay Tool        ║
 ╚═══════════════════════════════════════╝
 

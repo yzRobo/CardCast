@@ -306,4 +306,4 @@ See [LICENSE](LICENSE) file for full details.
 
 ---
 
-**CardCast v2.0.0** - Built for the TCG streaming community
+**CardCast v2.0.1** - Built for the TCG streaming community
