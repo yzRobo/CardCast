@@ -3,8 +3,17 @@
 Status as of 2026-06-23. Produced from `CardCast Game Implementation Template.md`. Magic
 is the one game that already has a partial match overlay (built months ago, Commander-
 focused). The decision here is to RESTART clean on "MTG proper" (60-card Standard, 20
-life) and drop the Commander-specific complexity for now. No NEW feature code has been
-written this round; this doc is the plan. The data layer is complete.
+life) and drop the Commander-specific complexity for now. The data layer is complete.
+
+IMPLEMENTED 2026-06-23 (branch `feat/gundam-support`, uncommitted). Phases 1-3 done and
+verified; Phase 4 poison included, the banlist legality filter deferred (structure only).
+Reusable Playwright checks: `scripts/verify-mtg-match.mjs` (overlay, 27 checks),
+`scripts/verify-mtg-control.mjs` (control, 34), `scripts/verify-mtg-deck.mjs` (deck import,
+11). Three pre-existing bugs were fixed in passing: records never reached the overlay
+(`mtg-record-update` vs `mtg-player-record-update`), "Set Active" only toggled (player-
+switch ignored its payload), and lands never updated (control sent `count`, server read
+`lands`). MTG keeps its server-authoritative model (state in `src/overlay-server.js`); only
+the visual/UX pattern mirrors Pokemon.
 
 IMPORTANT (read before building): unlike the other game docs, Magic already has working
 files - `overlays/mtg-match.html`, `mtg-match-control.html`, the `mtgMatch` state in

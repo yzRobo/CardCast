@@ -12,8 +12,8 @@
     <script src="/socket.io/socket.io.js"></script>
     <style>
         .life-critical { color: #f87171; font-weight: 700; }
-        .life-warning { color: #fbbf24; }
-        .life-healthy { color: #34d399; }
+        .life-warning { color: #fbbf24; font-weight: 700; }
+        .life-healthy { color: #34d399; font-weight: 700; }
         .card-result { cursor: pointer; transition: all 0.2s; }
         .card-result:hover { transform: scale(1.02); box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
         .featured-card { position: relative; }
@@ -22,12 +22,11 @@
         .phase-btn.active { background-color: #6366f1; border-color: #6366f1; color: #fff; }
         .player-card-active { border-color: #818cf8 !important; box-shadow: 0 0 0 1px #818cf8, 0 0 24px rgba(129, 140, 248, 0.35); }
 
-        /* Life total readouts */
+        /* Life total readout */
         #p1-life, #p2-life {
-            width: 140px !important;
-            min-width: 140px;
+            width: 130px !important;
+            min-width: 130px;
             font-family: 'JetBrains Mono', ui-monospace, monospace;
-            font-weight: 700;
         }
     </style>
 </head>
@@ -56,53 +55,68 @@
             </div>
         </div>
         <div class="navbar-end">
-            <div id="connection-status" class="badge badge-error gap-2 py-3 font-medium">
+            <div id="overlayStatus" class="badge badge-error gap-2 py-3 font-medium">
                 <div class="w-2 h-2 rounded-full bg-current"></div>
-                <span>Disconnected</span>
+                <span>Overlay Not Connected</span>
             </div>
         </div>
     </div>
 
     <div class="max-w-7xl mx-auto px-4 pt-20 pb-8">
 
-        <!-- Format & Match Settings -->
+        <!-- Match Settings -->
         <div class="card bg-base-100 shadow-xl mb-4">
             <div class="card-body">
                 <h2 class="card-title">Match Settings</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="form-control">
-                        <label class="label"><span class="label-text">Format</span></label>
+                        <label class="label"><span class="label-text">Format (overlay label)</span></label>
                         <select id="format-selector" class="select select-bordered">
-                            <option value="standard">Standard (20 life)</option>
-                            <option value="modern">Modern (20 life)</option>
-                            <option value="legacy">Legacy (20 life)</option>
-                            <option value="vintage">Vintage (20 life)</option>
-                            <option value="commander">Commander (40 life)</option>
-                            <option value="brawl">Brawl (25 life)</option>
-                            <option value="pauper">Pauper (20 life)</option>
+                            <option value="Standard">Standard</option>
+                            <option value="Pioneer">Pioneer</option>
+                            <option value="Modern">Modern</option>
+                            <option value="Legacy">Legacy</option>
+                            <option value="Vintage">Vintage</option>
+                            <option value="Pauper">Pauper</option>
                         </select>
+                        <span class="text-[11px] text-base-content/50 mt-1">Label only - every format starts at 20 life.</span>
                     </div>
                     <div class="form-control">
-                        <label class="label"><span class="label-text">Timer</span></label>
+                        <label class="label"><span class="label-text">Round Timer</span></label>
                         <div class="flex gap-2">
-                            <div id="timer-display" class="input input-bordered flex items-center justify-center flex-1">00:00</div>
-                            <button id="timer-toggle" class="btn btn-primary">Start</button>
+                            <div id="timer-display" class="input input-bordered flex items-center justify-center flex-1 font-mono text-lg">50:00</div>
+                            <button id="timer-toggle" class="btn btn-success">Start</button>
                             <button id="timer-reset" class="btn btn-outline">Reset</button>
+                        </div>
+                        <div class="flex items-end gap-2 mt-2">
+                            <input type="number" id="timer-minutes" class="input input-bordered input-sm w-16" value="50" min="0" max="999" title="Minutes">
+                            <span class="pb-2">:</span>
+                            <input type="number" id="timer-seconds" class="input input-bordered input-sm w-16" value="0" min="0" max="59" title="Seconds">
+                            <button id="timer-set" class="btn btn-primary btn-sm">Set</button>
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(50)">50</button>
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(25)">25</button>
                         </div>
                     </div>
                     <div class="form-control">
                         <label class="label"><span class="label-text">Quick Actions</span></label>
                         <button id="reset-match" class="btn btn-error btn-block">Reset Match</button>
+                        <span class="text-[11px] text-base-content/50 mt-1">Resets life/lands/poison/permanents (keeps names).</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Phase Selector -->
+        <!-- Phase Stepper -->
         <div class="card bg-base-100 shadow-xl mb-4">
             <div class="card-body">
-                <h2 class="card-title">Current Phase</h2>
-                <div class="grid grid-cols-7 gap-2">
+                <div class="flex items-center justify-between">
+                    <h2 class="card-title">Current Phase</h2>
+                    <div class="flex gap-2">
+                        <button class="btn btn-sm btn-outline" onclick="stepPhase(-1)">&larr; Prev</button>
+                        <button class="btn btn-sm btn-outline" onclick="stepPhase(1)">Next &rarr;</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 sm:grid-cols-7 gap-2 mt-2">
                     <button class="btn phase-btn" data-phase="untap">Untap</button>
                     <button class="btn phase-btn" data-phase="upkeep">Upkeep</button>
                     <button class="btn phase-btn" data-phase="draw">Draw</button>
@@ -117,99 +131,94 @@
         <!-- Players Side by Side -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             <!-- Player 1 -->
-            <div class="card bg-base-100 shadow-xl" id="player1-card">
+            <div class="card bg-base-100 shadow-xl border-t-4 border-primary" id="player1-card">
                 <div class="card-body">
-                    <div class="flex justify-between items-center mb-4">
+                    <div class="flex justify-between items-center mb-2">
                         <h2 class="card-title">Player 1</h2>
                         <button class="btn btn-sm btn-primary" id="set-active-p1">Set Active</button>
                     </div>
-                    
+
                     <!-- Name & Record -->
-                    <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="grid grid-cols-2 gap-4 mb-2">
                         <div class="form-control">
-                            <label class="label"><span class="label-text">Name</span></label>
-                            <input type="text" class="input input-bordered" id="p1-name" value="Player 1">
+                            <label class="label py-1"><span class="label-text">Name</span></label>
+                            <input type="text" class="input input-bordered input-sm" id="p1-name" value="Player 1">
                         </div>
                         <div class="form-control">
-                            <label class="label"><span class="label-text">Record (W-L-D)</span></label>
-                            <input type="text" class="input input-bordered" id="p1-record" value="0-0-0" placeholder="2-1-0">
+                            <label class="label py-1"><span class="label-text">Record (W-L-D)</span></label>
+                            <input type="text" class="input input-bordered input-sm" id="p1-record" value="0-0-0" placeholder="2-1-0">
                         </div>
                     </div>
 
                     <!-- Deck Selector -->
-                    <div class="mb-4">
-                        <label class="label"><span class="label-text">Deck</span></label>
+                    <div class="mb-2">
+                        <label class="label py-1"><span class="label-text">Deck (filters card search)</span></label>
                         <select id="p1-deck" class="select select-bordered select-sm w-full">
-                            <option value="">No Deck (Search All Cards)</option>
+                            <option value="">No Deck (search all cards)</option>
                         </select>
-                        <div id="p1-deck-info" class="text-xs text-gray-500 mt-1"></div>
+                        <div id="p1-deck-info" class="text-xs text-base-content/50 mt-1"></div>
                     </div>
 
                     <!-- Life Total -->
-                    <div class="mb-4">
-                        <label class="label"><span class="label-text font-bold">Life Total</span></label>
+                    <div class="mb-3">
+                        <label class="label py-1"><span class="label-text font-bold">Life Total</span></label>
                         <div class="flex items-center gap-2">
-                            <button class="btn btn-error" onclick="adjustLife(1, -5)">-5</button>
-                            <button class="btn btn-error" onclick="adjustLife(1, -1)">-1</button>
+                            <button class="btn btn-error btn-sm" onclick="adjustLife(1, -5)">-5</button>
+                            <button class="btn btn-error btn-sm" onclick="adjustLife(1, -1)">-1</button>
                             <input type="number" id="p1-life" class="input input-bordered text-3xl text-center flex-1 life-healthy" value="20">
-                            <button class="btn btn-success" onclick="adjustLife(1, 1)">+1</button>
-                            <button class="btn btn-success" onclick="adjustLife(1, 5)">+5</button>
+                            <button class="btn btn-success btn-sm" onclick="adjustLife(1, 1)">+1</button>
+                            <button class="btn btn-success btn-sm" onclick="adjustLife(1, 5)">+5</button>
                         </div>
                     </div>
 
-                    <!-- Games Won & Lands -->
-                    <div class="grid grid-cols-2 gap-4 mb-4">
+                    <!-- Games Won / Lands / Poison -->
+                    <div class="grid grid-cols-3 gap-3 mb-3">
                         <div>
-                            <label class="label"><span class="label-text">Games Won</span></label>
-                            <div class="flex gap-2">
-                                <button class="btn btn-sm" onclick="adjustGamesWon(1, -1)">-</button>
-                                <input type="number" id="p1-games-won" class="input input-bordered text-center flex-1" value="0" readonly>
-                                <button class="btn btn-sm" onclick="adjustGamesWon(1, 1)">+</button>
+                            <label class="label py-1"><span class="label-text">Games Won</span></label>
+                            <div class="join w-full">
+                                <button class="btn btn-sm join-item" onclick="adjustGamesWon(1, -1)">-</button>
+                                <input type="number" id="p1-games-won" class="input input-bordered input-sm text-center join-item flex-1 min-w-0" value="0" readonly>
+                                <button class="btn btn-sm join-item" onclick="adjustGamesWon(1, 1)">+</button>
                             </div>
                         </div>
                         <div>
-                            <label class="label"><span class="label-text">Lands</span></label>
-                            <div class="flex gap-2">
-                                <button class="btn btn-sm" onclick="adjustLands(1, -1)">-</button>
-                                <input type="number" id="p1-lands" class="input input-bordered text-center flex-1" value="0" readonly>
-                                <button class="btn btn-sm" onclick="adjustLands(1, 1)">+</button>
+                            <label class="label py-1"><span class="label-text">Lands</span></label>
+                            <div class="join w-full">
+                                <button class="btn btn-sm join-item" onclick="adjustLands(1, -1)">-</button>
+                                <input type="number" id="p1-lands" class="input input-bordered input-sm text-center join-item flex-1 min-w-0" value="0" readonly>
+                                <button class="btn btn-sm join-item" onclick="adjustLands(1, 1)">+</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="label py-1"><span class="label-text">Poison</span></label>
+                            <div class="join w-full">
+                                <button class="btn btn-sm join-item" onclick="adjustPoison(1, -1)">-</button>
+                                <input type="number" id="p1-poison" class="input input-bordered input-sm text-center join-item flex-1 min-w-0" value="0" readonly>
+                                <button class="btn btn-sm join-item" onclick="adjustPoison(1, 1)">+</button>
                             </div>
                         </div>
                     </div>
 
                     <!-- Turn Actions -->
-                    <div class="mb-4">
-                        <label class="label"><span class="label-text">Turn Actions</span></label>
-                        <div class="flex gap-4">
+                    <div class="mb-3">
+                        <label class="label py-1"><span class="label-text">Turn Actions</span></label>
+                        <div class="flex gap-6">
                             <label class="cursor-pointer flex items-center gap-2">
-                                <input type="checkbox" class="checkbox" id="p1-land-played">
+                                <input type="checkbox" class="checkbox checkbox-sm" id="p1-land-played">
                                 <span>Land Played</span>
                             </label>
                             <label class="cursor-pointer flex items-center gap-2">
-                                <input type="checkbox" class="checkbox" id="p1-spell-cast">
+                                <input type="checkbox" class="checkbox checkbox-sm" id="p1-spell-cast">
                                 <span>Spell Cast</span>
                             </label>
                         </div>
                     </div>
 
-                    <!-- Commander Damage (hidden by default) -->
-                    <div id="p1-commander-section" class="mb-4" style="display: none;">
-                        <label class="label"><span class="label-text">Commander Damage Received</span></label>
-                        <div id="p1-commander-damage-list" class="space-y-2">
-                            <p class="text-sm text-gray-500">No commander damage tracked</p>
-                        </div>
-                        <div class="flex gap-2 mt-2">
-                            <input type="text" id="p1-commander-name" class="input input-bordered input-sm flex-1" placeholder="Commander name">
-                            <input type="number" id="p1-commander-dmg" class="input input-bordered input-sm w-20" value="0" min="0">
-                            <button class="btn btn-sm btn-primary" onclick="addCommanderDamage(1)">Add</button>
-                        </div>
-                    </div>
-
                     <!-- Featured Permanents -->
                     <div>
-                        <label class="label"><span class="label-text">Featured Permanents (Max 6)</span></label>
-                        <div id="p1-featured-cards" class="grid grid-cols-3 gap-2 mb-2 min-h-[100px]">
-                            <div class="text-sm text-gray-500 col-span-3 text-center">No featured permanents</div>
+                        <label class="label py-1"><span class="label-text">Featured Permanents (max 6)</span></label>
+                        <div id="p1-featured-cards" class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2 min-h-[80px]">
+                            <div class="text-sm text-base-content/50 col-span-3 sm:col-span-6 text-center self-center">No featured permanents</div>
                         </div>
                         <button class="btn btn-sm btn-outline btn-block" onclick="openCardSearch(1)">Add Permanent</button>
                     </div>
@@ -217,99 +226,94 @@
             </div>
 
             <!-- Player 2 -->
-            <div class="card bg-base-100 shadow-xl" id="player2-card">
+            <div class="card bg-base-100 shadow-xl border-t-4 border-error" id="player2-card">
                 <div class="card-body">
-                    <div class="flex justify-between items-center mb-4">
+                    <div class="flex justify-between items-center mb-2">
                         <h2 class="card-title">Player 2</h2>
                         <button class="btn btn-sm btn-primary" id="set-active-p2">Set Active</button>
                     </div>
-                    
+
                     <!-- Name & Record -->
-                    <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="grid grid-cols-2 gap-4 mb-2">
                         <div class="form-control">
-                            <label class="label"><span class="label-text">Name</span></label>
-                            <input type="text" class="input input-bordered" id="p2-name" value="Player 2">
+                            <label class="label py-1"><span class="label-text">Name</span></label>
+                            <input type="text" class="input input-bordered input-sm" id="p2-name" value="Player 2">
                         </div>
                         <div class="form-control">
-                            <label class="label"><span class="label-text">Record (W-L-D)</span></label>
-                            <input type="text" class="input input-bordered" id="p2-record" value="0-0-0" placeholder="2-1-0">
+                            <label class="label py-1"><span class="label-text">Record (W-L-D)</span></label>
+                            <input type="text" class="input input-bordered input-sm" id="p2-record" value="0-0-0" placeholder="2-1-0">
                         </div>
                     </div>
 
                     <!-- Deck Selector -->
-                    <div class="mb-4">
-                        <label class="label"><span class="label-text">Deck</span></label>
+                    <div class="mb-2">
+                        <label class="label py-1"><span class="label-text">Deck (filters card search)</span></label>
                         <select id="p2-deck" class="select select-bordered select-sm w-full">
-                            <option value="">No Deck (Search All Cards)</option>
+                            <option value="">No Deck (search all cards)</option>
                         </select>
-                        <div id="p2-deck-info" class="text-xs text-gray-500 mt-1"></div>
+                        <div id="p2-deck-info" class="text-xs text-base-content/50 mt-1"></div>
                     </div>
 
                     <!-- Life Total -->
-                    <div class="mb-4">
-                        <label class="label"><span class="label-text font-bold">Life Total</span></label>
+                    <div class="mb-3">
+                        <label class="label py-1"><span class="label-text font-bold">Life Total</span></label>
                         <div class="flex items-center gap-2">
-                            <button class="btn btn-error" onclick="adjustLife(2, -5)">-5</button>
-                            <button class="btn btn-error" onclick="adjustLife(2, -1)">-1</button>
+                            <button class="btn btn-error btn-sm" onclick="adjustLife(2, -5)">-5</button>
+                            <button class="btn btn-error btn-sm" onclick="adjustLife(2, -1)">-1</button>
                             <input type="number" id="p2-life" class="input input-bordered text-3xl text-center flex-1 life-healthy" value="20">
-                            <button class="btn btn-success" onclick="adjustLife(2, 1)">+1</button>
-                            <button class="btn btn-success" onclick="adjustLife(2, 5)">+5</button>
+                            <button class="btn btn-success btn-sm" onclick="adjustLife(2, 1)">+1</button>
+                            <button class="btn btn-success btn-sm" onclick="adjustLife(2, 5)">+5</button>
                         </div>
                     </div>
 
-                    <!-- Games Won & Lands -->
-                    <div class="grid grid-cols-2 gap-4 mb-4">
+                    <!-- Games Won / Lands / Poison -->
+                    <div class="grid grid-cols-3 gap-3 mb-3">
                         <div>
-                            <label class="label"><span class="label-text">Games Won</span></label>
-                            <div class="flex gap-2">
-                                <button class="btn btn-sm" onclick="adjustGamesWon(2, -1)">-</button>
-                                <input type="number" id="p2-games-won" class="input input-bordered text-center flex-1" value="0" readonly>
-                                <button class="btn btn-sm" onclick="adjustGamesWon(2, 1)">+</button>
+                            <label class="label py-1"><span class="label-text">Games Won</span></label>
+                            <div class="join w-full">
+                                <button class="btn btn-sm join-item" onclick="adjustGamesWon(2, -1)">-</button>
+                                <input type="number" id="p2-games-won" class="input input-bordered input-sm text-center join-item flex-1 min-w-0" value="0" readonly>
+                                <button class="btn btn-sm join-item" onclick="adjustGamesWon(2, 1)">+</button>
                             </div>
                         </div>
                         <div>
-                            <label class="label"><span class="label-text">Lands</span></label>
-                            <div class="flex gap-2">
-                                <button class="btn btn-sm" onclick="adjustLands(2, -1)">-</button>
-                                <input type="number" id="p2-lands" class="input input-bordered text-center flex-1" value="0" readonly>
-                                <button class="btn btn-sm" onclick="adjustLands(2, 1)">+</button>
+                            <label class="label py-1"><span class="label-text">Lands</span></label>
+                            <div class="join w-full">
+                                <button class="btn btn-sm join-item" onclick="adjustLands(2, -1)">-</button>
+                                <input type="number" id="p2-lands" class="input input-bordered input-sm text-center join-item flex-1 min-w-0" value="0" readonly>
+                                <button class="btn btn-sm join-item" onclick="adjustLands(2, 1)">+</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="label py-1"><span class="label-text">Poison</span></label>
+                            <div class="join w-full">
+                                <button class="btn btn-sm join-item" onclick="adjustPoison(2, -1)">-</button>
+                                <input type="number" id="p2-poison" class="input input-bordered input-sm text-center join-item flex-1 min-w-0" value="0" readonly>
+                                <button class="btn btn-sm join-item" onclick="adjustPoison(2, 1)">+</button>
                             </div>
                         </div>
                     </div>
 
                     <!-- Turn Actions -->
-                    <div class="mb-4">
-                        <label class="label"><span class="label-text">Turn Actions</span></label>
-                        <div class="flex gap-4">
+                    <div class="mb-3">
+                        <label class="label py-1"><span class="label-text">Turn Actions</span></label>
+                        <div class="flex gap-6">
                             <label class="cursor-pointer flex items-center gap-2">
-                                <input type="checkbox" class="checkbox" id="p2-land-played">
+                                <input type="checkbox" class="checkbox checkbox-sm" id="p2-land-played">
                                 <span>Land Played</span>
                             </label>
                             <label class="cursor-pointer flex items-center gap-2">
-                                <input type="checkbox" class="checkbox" id="p2-spell-cast">
+                                <input type="checkbox" class="checkbox checkbox-sm" id="p2-spell-cast">
                                 <span>Spell Cast</span>
                             </label>
                         </div>
                     </div>
 
-                    <!-- Commander Damage -->
-                    <div id="p2-commander-section" class="mb-4" style="display: none;">
-                        <label class="label"><span class="label-text">Commander Damage Received</span></label>
-                        <div id="p2-commander-damage-list" class="space-y-2">
-                            <p class="text-sm text-gray-500">No commander damage tracked</p>
-                        </div>
-                        <div class="flex gap-2 mt-2">
-                            <input type="text" id="p2-commander-name" class="input input-bordered input-sm flex-1" placeholder="Commander name">
-                            <input type="number" id="p2-commander-dmg" class="input input-bordered input-sm w-20" value="0" min="0">
-                            <button class="btn btn-sm btn-primary" onclick="addCommanderDamage(2)">Add</button>
-                        </div>
-                    </div>
-
                     <!-- Featured Permanents -->
                     <div>
-                        <label class="label"><span class="label-text">Featured Permanents (Max 6)</span></label>
-                        <div id="p2-featured-cards" class="grid grid-cols-3 gap-2 mb-2 min-h-[100px]">
-                            <div class="text-sm text-gray-500 col-span-3 text-center">No featured permanents</div>
+                        <label class="label py-1"><span class="label-text">Featured Permanents (max 6)</span></label>
+                        <div id="p2-featured-cards" class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2 min-h-[80px]">
+                            <div class="text-sm text-base-content/50 col-span-3 sm:col-span-6 text-center self-center">No featured permanents</div>
                         </div>
                         <button class="btn btn-sm btn-outline btn-block" onclick="openCardSearch(2)">Add Permanent</button>
                     </div>
@@ -321,21 +325,20 @@
     <!-- Card Search Modal -->
     <dialog id="card-search-modal" class="modal">
         <div class="modal-box max-w-4xl">
-            <h3 class="font-bold text-lg mb-4">Search MTG Cards</h3>
-            
-            <!-- Deck Filter Toggle -->
+            <h3 class="font-bold text-lg mb-2">Add Featured Permanent <span id="search-player-label" class="text-base-content/50 text-sm"></span></h3>
+
             <div class="form-control mb-2">
                 <label class="cursor-pointer flex items-center gap-2">
                     <input type="checkbox" id="search-all-cards" class="checkbox checkbox-sm">
-                    <span class="label-text">Search All Cards (ignore deck filter)</span>
+                    <span class="label-text">Search all cards (ignore deck filter)</span>
                 </label>
             </div>
-            
+
             <div class="form-control mb-4">
                 <input type="text" id="card-search-input" class="input input-bordered" placeholder="Search for a card...">
             </div>
-            <div id="card-search-results" class="grid grid-cols-4 gap-3 max-h-96 overflow-y-auto mb-4">
-                <p class="col-span-4 text-center text-gray-500">Enter a search term</p>
+            <div id="card-search-results" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-96 overflow-y-auto mb-4">
+                <p class="col-span-3 sm:col-span-5 text-center text-base-content/50">Enter a search term</p>
             </div>
             <div class="modal-action">
                 <button class="btn" onclick="closeCardSearch()">Close</button>
@@ -345,386 +348,315 @@
     </dialog>
 
     <script>
-        let socket;
-        let currentPlayer = 1;
-        let timerInterval = null;
-        let timerSeconds = 0;
-        let timerRunning = false;
-        let searchForPlayer = 1;
-        let availableDecks = [];
-        let playerDeckCards = { player1: [], player2: [] };
+        const FALLBACK_IMG = '/images/card-back.png';
+        const PHASES = ['untap', 'upkeep', 'draw', 'main1', 'combat', 'main2', 'end'];
 
-        // Initialize
+        let socket;
+        let state = null;                 // mirror of server mtgMatch
+        let currentActive = 1;
+        let searchForPlayer = 1;
+        let searchTimeout = null;
+
+        // Round timer (counts down; control drives, overlay just displays seconds)
+        let timerInterval = null;
+        let timerSeconds = 3000;          // 50:00
+        let timerDuration = 3000;
+        let timerRunning = false;
+
+        // Deck filtering for card search
+        let availableDecks = [];
+        let playerDeckCards = { 1: [], 2: [] };
+
         document.addEventListener('DOMContentLoaded', () => {
             initSocket();
             setupEventListeners();
             updateActivePlayerUI();
+            updateTimerDisplay();
             loadAvailableDecks();
         });
 
         function initSocket() {
             socket = io();
-            
-            const setConnStatus = (connected) => {
-                const el = document.getElementById('connection-status');
-                el.className = 'badge gap-2 py-3 font-medium ' + (connected ? 'badge-success' : 'badge-error');
-                el.innerHTML = '<div class="w-2 h-2 rounded-full bg-current"></div><span>' +
-                    (connected ? 'Connected' : 'Disconnected') + '</span>';
-            };
 
             socket.on('connect', () => {
-                setConnStatus(true);
-                socket.emit('request-state');
+                socket.emit('register-control', 'mtg-match');
+                socket.emit('request-state', 'mtg-match');
             });
+            socket.on('disconnect', () => setOverlayStatus(false));
 
-            socket.on('disconnect', () => {
-                setConnStatus(false);
-            });
+            socket.on('overlay-connected', (type) => { if (type === 'mtg-match') setOverlayStatus(true); });
+            socket.on('overlay-disconnected', (type) => { if (type === 'mtg-match') setOverlayStatus(false); });
 
-            socket.on('state-update', (state) => {
-                if (state.mtgMatch) {
-                    updateUIFromState(state.mtgMatch);
-                }
+            // Full hydrate
+            socket.on('state-update', (s) => { if (s && s.mtgMatch) { state = s.mtgMatch; hydrateUI(state); } });
+
+            // Granular sync (keeps this control in step with the overlay / other clients)
+            socket.on('mtg-life-update', (d) => setLifeUI(d.player, d.life));
+            socket.on('mtg-poison-update', (d) => setVal(`p${d.player}-poison`, d.poison));
+            socket.on('mtg-lands-update', (d) => setVal(`p${d.player}-lands`, d.lands));
+            socket.on('mtg-games-won-update', (d) => setVal(`p${d.player}-games-won`, d.gamesWon));
+            socket.on('mtg-record-update', (d) => setVal(`p${d.player}-record`, d.record));
+            socket.on('mtg-player-name-update', (d) => setVal(`p${d.player}-name`, d.name));
+            socket.on('mtg-turn-actions-update', (d) => {
+                document.getElementById(`p${d.player}-land-played`).checked = !!d.actions.landPlayed;
+                document.getElementById(`p${d.player}-spell-cast`).checked = !!d.actions.spellCast;
             });
+            socket.on('mtg-phase-update', (d) => highlightPhase(d.phase));
+            socket.on('mtg-format-update', (d) => { document.getElementById('format-selector').value = d.format; });
+            socket.on('mtg-player-switch', (d) => { currentActive = d.activePlayer; updateActivePlayerUI(); });
+            socket.on('mtg-permanent-added', (d) => renderFeatured(d.player, d.featuredPermanents));
+            socket.on('mtg-permanent-removed', (d) => renderFeatured(d.player, d.featuredPermanents));
+            socket.on('mtg-permanents-cleared', (d) => renderFeatured(d.player, []));
+            socket.on('mtg-match-reset', () => { resetLocalTimer(); socket.emit('request-state', 'mtg-match'); });
         }
 
+        function setOverlayStatus(connected) {
+            const el = document.getElementById('overlayStatus');
+            el.className = 'badge gap-2 py-3 font-medium ' + (connected ? 'badge-success' : 'badge-error');
+            el.innerHTML = '<div class="w-2 h-2 rounded-full bg-current"></div><span>' +
+                (connected ? 'Overlay Connected' : 'Overlay Not Connected') + '</span>';
+        }
+
+        function setVal(id, value) { const el = document.getElementById(id); if (el) el.value = value; }
+
         function setupEventListeners() {
-            // Format change
             document.getElementById('format-selector').addEventListener('change', (e) => {
                 socket.emit('mtg-format-update', { format: e.target.value });
             });
 
-            // Player names
             ['p1', 'p2'].forEach((p, idx) => {
-                document.getElementById(`${p}-name`).addEventListener('change', (e) => {
-                    socket.emit('mtg-player-name-update', { player: idx + 1, name: e.target.value });
-                });
-
-                document.getElementById(`${p}-record`).addEventListener('change', (e) => {
-                    socket.emit('mtg-player-record-update', { player: idx + 1, record: e.target.value });
-                });
-
-                document.getElementById(`${p}-life`).addEventListener('change', (e) => {
-                    updateLife(idx + 1, parseInt(e.target.value));
-                });
-
-                // Turn actions
-                document.getElementById(`${p}-land-played`).addEventListener('change', (e) => {
-                    socket.emit('mtg-turn-action', { player: idx + 1, action: 'landPlayed', value: e.target.checked });
-                });
-
-                document.getElementById(`${p}-spell-cast`).addEventListener('change', (e) => {
-                    socket.emit('mtg-turn-action', { player: idx + 1, action: 'spellCast', value: e.target.checked });
-                });
-
-                // Deck selector
-                document.getElementById(`${p}-deck`).addEventListener('change', (e) => {
-                    updatePlayerDeck(idx + 1);
-                });
+                const player = idx + 1;
+                document.getElementById(`${p}-name`).addEventListener('change', (e) =>
+                    socket.emit('mtg-player-name-update', { player, name: e.target.value }));
+                document.getElementById(`${p}-record`).addEventListener('change', (e) =>
+                    socket.emit('mtg-player-record-update', { player, record: e.target.value }));
+                document.getElementById(`${p}-life`).addEventListener('change', (e) =>
+                    updateLife(player, parseInt(e.target.value)));
+                document.getElementById(`${p}-land-played`).addEventListener('change', (e) =>
+                    socket.emit('mtg-turn-action', { player, action: 'landPlayed', value: e.target.checked }));
+                document.getElementById(`${p}-spell-cast`).addEventListener('change', (e) =>
+                    socket.emit('mtg-turn-action', { player, action: 'spellCast', value: e.target.checked }));
+                document.getElementById(`${p}-deck`).addEventListener('change', () => updatePlayerDeck(player));
             });
 
-            // Active player buttons
             document.getElementById('set-active-p1').addEventListener('click', () => setActivePlayer(1));
             document.getElementById('set-active-p2').addEventListener('click', () => setActivePlayer(2));
 
-            // Reset match
             document.getElementById('reset-match').addEventListener('click', () => {
-                if (confirm('Reset the entire match?')) {
+                if (confirm('Reset the match? Clears life, lands, poison, permanents and turn flags (names kept).')) {
                     socket.emit('mtg-match-reset');
-                    resetTimer();
                 }
             });
 
-            // Phase buttons
             document.querySelectorAll('.phase-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    document.querySelectorAll('.phase-btn').forEach(b => b.classList.remove('active'));
-                    e.target.classList.add('active');
-                    socket.emit('mtg-phase-update', { phase: e.target.dataset.phase });
-                });
+                btn.addEventListener('click', () => setPhase(btn.dataset.phase));
             });
 
-            // Timer controls
             document.getElementById('timer-toggle').addEventListener('click', toggleTimer);
             document.getElementById('timer-reset').addEventListener('click', resetTimer);
+            document.getElementById('timer-set').addEventListener('click', setTimer);
 
-            // Card search
-            let searchTimeout;
             document.getElementById('card-search-input').addEventListener('input', (e) => {
                 clearTimeout(searchTimeout);
                 searchTimeout = setTimeout(() => searchCards(e.target.value), 300);
             });
-        }
-
-        // Deck Management Functions
-        async function loadAvailableDecks() {
-            try {
-                const savedDecks = JSON.parse(localStorage.getItem('savedDecks')) || {};
-                availableDecks = [];
-                
-                // Convert saved decks to flat array for easier use
-                Object.keys(savedDecks).forEach(game => {
-                    if (game === 'magic') {  // Only show MTG decks
-                        savedDecks[game].forEach(deck => {
-                            availableDecks.push({
-                                id: `${game}-${deck.name}`,
-                                name: deck.name,
-                                game: game,
-                                ...deck
-                            });
-                        });
-                    }
-                });
-                
-                // Update both player deck selectors
-                updateDeckSelectors();
-            } catch (error) {
-                console.error('Error loading decks:', error);
-            }
-        }
-
-        function updateDeckSelectors() {
-            const player1Select = document.getElementById('p1-deck');
-            const player2Select = document.getElementById('p2-deck');
-            
-            // Create options HTML
-            let optionsHTML = '<option value="">No Deck (Search All Cards)</option>';
-            availableDecks.forEach(deck => {
-                optionsHTML += `<option value="${deck.id}">${deck.name}</option>`;
+            document.getElementById('search-all-cards').addEventListener('change', () => {
+                const q = document.getElementById('card-search-input').value;
+                if (q) searchCards(q);
             });
-            
-            // Preserve current selections
-            const player1Current = player1Select.value;
-            const player2Current = player2Select.value;
-            
-            player1Select.innerHTML = optionsHTML;
-            player2Select.innerHTML = optionsHTML;
-            
-            // Restore selections if they still exist
-            if (player1Current && availableDecks.find(d => d.id == player1Current)) {
-                player1Select.value = player1Current;
-            }
-            if (player2Current && availableDecks.find(d => d.id == player2Current)) {
-                player2Select.value = player2Current;
-            }
         }
 
-        async function updatePlayerDeck(playerNum) {
-            const deckSelect = document.getElementById(`p${playerNum}-deck`);
-            const deckId = deckSelect.value;
-            const deckInfo = document.getElementById(`p${playerNum}-deck-info`);
-            
-            if (!deckId) {
-                // No deck selected - search all cards
-                playerDeckCards[`player${playerNum}`] = [];
-                deckInfo.innerHTML = '<span class="text-xs">Searching all cards</span>';
-            } else {
-                // Load the selected deck from localStorage
-                try {
-                    const savedDecks = JSON.parse(localStorage.getItem('savedDecks')) || {};
-                    const [game, ...nameParts] = deckId.split('-');
-                    const deckName = nameParts.join('-');
-                    
-                    const deck = savedDecks[game]?.find(d => d.name === deckName);
-                    
-                    if (!deck) {
-                        throw new Error('Deck not found');
-                    }
-                    
-                    // Extract all card names from the deck
-                    const cardNames = [];
-                    
-                    // MTG decks might have different structures
-                    if (deck.cards) {
-                        // Standard structure: array of card objects
-                        deck.cards.forEach(c => {
-                            for (let i = 0; i < (c.quantity || c.count || 1); i++) {
-                                cardNames.push(c.name);
-                            }
-                        });
-                    } else if (deck.mainboard) {
-                        // Alternative structure with mainboard/sideboard
-                        deck.mainboard.forEach(c => {
-                            for (let i = 0; i < (c.quantity || c.count || 1); i++) {
-                                cardNames.push(c.name);
-                            }
-                        });
-                    }
-                    
-                    playerDeckCards[`player${playerNum}`] = cardNames;
-                    
-                    // Count unique cards
-                    const uniqueCount = new Set(cardNames).size;
-                    deckInfo.innerHTML = `<span class="text-xs">${cardNames.length} cards (${uniqueCount} unique)</span>`;
-                    
-                } catch (error) {
-                    console.error('Error loading deck:', error);
-                    deckInfo.innerHTML = '<span class="text-xs text-error">Error loading deck</span>';
-                }
-            }
-        }
-
+        // ---------- Life / counters ----------
         function adjustLife(player, amount) {
             const input = document.getElementById(`p${player}-life`);
-            const newLife = parseInt(input.value) + amount;
-            input.value = Math.max(0, newLife);
-            updateLife(player, input.value);
+            const newLife = Math.max(0, (parseInt(input.value) || 0) + amount);
+            input.value = newLife;
+            updateLife(player, newLife);
         }
 
         function updateLife(player, life) {
-            life = parseInt(life);
+            life = Math.max(0, parseInt(life) || 0);
             socket.emit('mtg-life-update', { player, life });
-            
+            setLifeUI(player, life);
+        }
+
+        function setLifeUI(player, life) {
             const input = document.getElementById(`p${player}-life`);
+            input.value = life;
             input.className = 'input input-bordered text-3xl text-center flex-1';
-            
             if (life <= 5) input.classList.add('life-critical');
             else if (life <= 10) input.classList.add('life-warning');
             else input.classList.add('life-healthy');
         }
 
+        function adjustPoison(player, amount) {
+            const input = document.getElementById(`p${player}-poison`);
+            const val = Math.min(10, Math.max(0, (parseInt(input.value) || 0) + amount));
+            input.value = val;
+            socket.emit('mtg-poison-update', { player, poison: val });
+        }
+
         function adjustGamesWon(player, amount) {
             const input = document.getElementById(`p${player}-games-won`);
-            const newValue = Math.max(0, parseInt(input.value) + amount);
-            input.value = newValue;
-            socket.emit('mtg-games-won-update', { player, gamesWon: newValue });
+            const val = Math.max(0, (parseInt(input.value) || 0) + amount);
+            input.value = val;
+            socket.emit('mtg-games-won-update', { player, gamesWon: val });
         }
 
         function adjustLands(player, amount) {
             const input = document.getElementById(`p${player}-lands`);
-            const newValue = Math.max(0, parseInt(input.value) + amount);
-            input.value = newValue;
-            socket.emit('mtg-lands-update', { player, count: newValue });
+            const val = Math.max(0, (parseInt(input.value) || 0) + amount);
+            input.value = val;
+            socket.emit('mtg-lands-update', { player, lands: val });
         }
 
-        function addCommanderDamage(player) {
-            const nameInput = document.getElementById(`p${player}-commander-name`);
-            const dmgInput = document.getElementById(`p${player}-commander-dmg`);
-            
-            const commander = nameInput.value.trim();
-            const damage = parseInt(dmgInput.value);
-            
-            if (commander && damage >= 0) {
-                socket.emit('mtg-commander-damage-update', { player, commanderName: commander, damage });
-                nameInput.value = '';
-                dmgInput.value = '0';
-            }
-        }
-
+        // ---------- Active player ----------
         function setActivePlayer(player) {
-            currentPlayer = player;
+            currentActive = player;
             socket.emit('mtg-player-switch', { activePlayer: player });
             updateActivePlayerUI();
         }
 
         function updateActivePlayerUI() {
-            const p1Card = document.getElementById('player1-card');
-            const p2Card = document.getElementById('player2-card');
-            
-            if (currentPlayer === 1) {
-                p1Card.classList.add('player-card-active');
-                p2Card.classList.remove('player-card-active');
-            } else {
-                p2Card.classList.add('player-card-active');
-                p1Card.classList.remove('player-card-active');
-            }
+            document.getElementById('player1-card').classList.toggle('player-card-active', currentActive === 1);
+            document.getElementById('player2-card').classList.toggle('player-card-active', currentActive === 2);
         }
 
+        // ---------- Phase ----------
+        function setPhase(phase) {
+            highlightPhase(phase);
+            socket.emit('mtg-phase-update', { phase });
+        }
+
+        function stepPhase(dir) {
+            const active = document.querySelector('.phase-btn.active');
+            const cur = active ? PHASES.indexOf(active.dataset.phase) : 3;
+            const next = (cur + dir + PHASES.length) % PHASES.length;
+            setPhase(PHASES[next]);
+        }
+
+        function highlightPhase(phase) {
+            document.querySelectorAll('.phase-btn').forEach(b => b.classList.toggle('active', b.dataset.phase === phase));
+        }
+
+        // ---------- Timer (counts down) ----------
         function toggleTimer() {
-            timerRunning = !timerRunning;
+            timerRunning ? pauseTimer() : startTimer();
+        }
+
+        function startTimer() {
+            if (timerInterval) return;
+            timerRunning = true;
             const btn = document.getElementById('timer-toggle');
-            
-            if (timerRunning) {
-                btn.textContent = 'Pause';
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-warning');
-                timerInterval = setInterval(() => {
-                    timerSeconds++;
-                    updateTimerDisplay();
-                    // ✅ ADD THIS: Broadcast timer to overlay
-                    socket.emit('mtg-timer-update', { seconds: timerSeconds });
-                }, 1000);
-            } else {
-                btn.textContent = 'Start';
-                btn.classList.remove('btn-warning');
-                btn.classList.add('btn-primary');
-                clearInterval(timerInterval);
-            }
+            btn.textContent = 'Pause';
+            btn.classList.remove('btn-success'); btn.classList.add('btn-warning');
+            timerInterval = setInterval(() => {
+                if (timerSeconds > 0) timerSeconds--;
+                else { pauseTimer(); return; }
+                updateTimerDisplay();
+                socket.emit('mtg-timer-update', { seconds: timerSeconds });
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            timerRunning = false;
+            clearInterval(timerInterval);
+            timerInterval = null;
+            const btn = document.getElementById('timer-toggle');
+            btn.textContent = 'Start';
+            btn.classList.remove('btn-warning'); btn.classList.add('btn-success');
         }
 
         function resetTimer() {
-            timerSeconds = 0;
-            timerRunning = false;
-            clearInterval(timerInterval);
-            updateTimerDisplay();  // ✅ ADD THIS: Update local display
-            socket.emit('mtg-timer-update', { seconds: 0 });  // ✅ ADD THIS: Broadcast reset
-            
-            // Update button state
-            const btn = document.getElementById('timer-toggle');
-            btn.textContent = 'Start';
-            btn.classList.remove('btn-warning');
-            btn.classList.add('btn-primary');
+            pauseTimer();
+            timerSeconds = timerDuration;
+            updateTimerDisplay();
+            socket.emit('mtg-timer-update', { seconds: timerSeconds });
+        }
+
+        function setTimer() {
+            let m = parseInt(document.getElementById('timer-minutes').value);
+            let s = parseInt(document.getElementById('timer-seconds').value);
+            if (isNaN(m) || m < 0) m = 0;
+            if (isNaN(s) || s < 0) s = 0;
+            if (s > 59) s = 59;
+            pauseTimer();
+            timerDuration = m * 60 + s;
+            timerSeconds = timerDuration;
+            updateTimerDisplay();
+            socket.emit('mtg-timer-update', { seconds: timerSeconds });
+        }
+
+        function setTimerPreset(minutes) {
+            document.getElementById('timer-minutes').value = minutes;
+            document.getElementById('timer-seconds').value = 0;
+            setTimer();
+        }
+
+        function resetLocalTimer() {
+            pauseTimer();
+            timerSeconds = timerDuration;
+            updateTimerDisplay();
         }
 
         function updateTimerDisplay() {
-            const minutes = Math.floor(timerSeconds / 60);
-            const seconds = timerSeconds % 60;
-            document.getElementById('timer-display').textContent = 
-                `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            const m = Math.floor(timerSeconds / 60);
+            const s = timerSeconds % 60;
+            document.getElementById('timer-display').textContent =
+                `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
         }
 
+        // ---------- Featured permanents ----------
         function openCardSearch(player) {
             searchForPlayer = player;
+            document.getElementById('search-player-label').textContent =
+                `- ${document.getElementById(`p${player}-name`).value}`;
+            document.getElementById('search-all-cards').checked = false;
+            document.getElementById('card-search-input').value = '';
+            document.getElementById('card-search-results').innerHTML =
+                '<p class="col-span-3 sm:col-span-5 text-center text-base-content/50">Enter a search term</p>';
             document.getElementById('card-search-modal').showModal();
             document.getElementById('card-search-input').focus();
-            document.getElementById('search-all-cards').checked = false;
         }
 
         function closeCardSearch() {
             document.getElementById('card-search-modal').close();
-            document.getElementById('card-search-input').value = '';
-            document.getElementById('card-search-results').innerHTML = '<p class="col-span-4 text-center text-gray-500">Enter a search term</p>';
         }
 
         async function searchCards(query) {
+            const results = document.getElementById('card-search-results');
             if (!query || query.length < 2) {
-                document.getElementById('card-search-results').innerHTML = '<p class="col-span-4 text-center text-gray-500">Enter at least 2 characters</p>';
+                results.innerHTML = '<p class="col-span-3 sm:col-span-5 text-center text-base-content/50">Enter at least 2 characters</p>';
                 return;
             }
-
             try {
-                const response = await fetch(`/api/search/magic?q=${encodeURIComponent(query)}&limit=50`);
-                let results = await response.json();
-                
-                // Filter by deck if a deck is selected and search all is not checked
-                const searchAllCards = document.getElementById('search-all-cards').checked;
-                const deckCards = playerDeckCards[`player${searchForPlayer}`];
-                
-                if (!searchAllCards && deckCards && deckCards.length > 0) {
-                    // Filter results to only cards in the deck
-                    results = results.filter(card => deckCards.includes(card.name));
+                const resp = await fetch(`/api/search/magic?q=${encodeURIComponent(query)}&limit=50`);
+                let cards = await resp.json();
+
+                const searchAll = document.getElementById('search-all-cards').checked;
+                const deckCards = playerDeckCards[searchForPlayer];
+                if (!searchAll && deckCards && deckCards.length > 0) {
+                    const set = new Set(deckCards.map(n => n.toLowerCase()));
+                    cards = cards.filter(c => set.has((c.name || '').toLowerCase()));
                 }
-                
-                if (results.length === 0) {
-                    const deckMessage = (!searchAllCards && deckCards && deckCards.length > 0) 
-                        ? ' in selected deck' 
-                        : '';
-                    document.getElementById('card-search-results').innerHTML = 
-                        `<p class="col-span-4 text-center text-gray-500">No cards found${deckMessage}</p>`;
+
+                if (!cards.length) {
+                    const inDeck = (!searchAll && deckCards && deckCards.length) ? ' in selected deck' : '';
+                    results.innerHTML = `<p class="col-span-3 sm:col-span-5 text-center text-base-content/50">No cards found${inDeck}</p>`;
                     return;
                 }
 
-                const html = results.map(card => `
-                    <div class="card-result" onclick='addFeaturedCard(${JSON.stringify(card).replace(/'/g, "&apos;")})'>
-                        <img src="${card.image_url || '/placeholder.png'}" alt="${card.name}" class="w-full rounded">
+                results.innerHTML = cards.map(card => {
+                    const img = card.display_image || card.image_url || card.local_image || FALLBACK_IMG;
+                    const json = JSON.stringify(card).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
+                    return `<div class="card-result" onclick='addFeaturedCard(JSON.parse(this.dataset.card))' data-card="${json}">
+                        <img src="${img}" alt="${card.name}" class="w-full rounded" onerror="this.src='${FALLBACK_IMG}'">
                         <p class="text-xs mt-1 text-center truncate">${card.name}</p>
-                    </div>
-                `).join('');
-                
-                document.getElementById('card-search-results').innerHTML = html;
-            } catch (error) {
-                console.error('Search error:', error);
-                document.getElementById('card-search-results').innerHTML = '<p class="col-span-4 text-center text-error">Search failed</p>';
+                    </div>`;
+                }).join('');
+            } catch (err) {
+                console.error('Search error:', err);
+                results.innerHTML = '<p class="col-span-3 sm:col-span-5 text-center text-error">Search failed</p>';
             }
         }
 
@@ -737,81 +669,98 @@
             socket.emit('mtg-permanent-remove', { player, index });
         }
 
-        function updateUIFromState(state) {
-            // Update format
-            document.getElementById('format-selector').value = state.format;
-            
-            // Show/hide commander sections
-            const isCommander = state.format === 'commander';
-            document.getElementById('p1-commander-section').style.display = isCommander ? 'block' : 'none';
-            document.getElementById('p2-commander-section').style.display = isCommander ? 'block' : 'none';
-
-            // Update players
-            [1, 2].forEach(p => {
-                const player = state[`player${p}`];
-                document.getElementById(`p${p}-name`).value = player.name;
-                document.getElementById(`p${p}-record`).value = player.record;
-                document.getElementById(`p${p}-life`).value = player.life;
-                document.getElementById(`p${p}-games-won`).value = player.gamesWon;
-                document.getElementById(`p${p}-lands`).value = player.lands;
-                document.getElementById(`p${p}-land-played`).checked = player.turnActions.landPlayed;
-                document.getElementById(`p${p}-spell-cast`).checked = player.turnActions.spellCast;
-                
-                updateLife(p, player.life);
-                
-                // Update featured cards
-                updateFeaturedCardsDisplay(p, player.featuredPermanents);
-                
-                // Update commander damage
-                if (isCommander) {
-                    updateCommanderDamageDisplay(p, player.commanderDamage);
-                }
-            });
-
-            // Update active player
-            currentPlayer = state.activePlayer;
-            updateActivePlayerUI();
-
-            // Update phase
-            document.querySelectorAll('.phase-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.phase === state.currentPhase);
-            });
-        }
-
-        function updateFeaturedCardsDisplay(player, cards) {
+        function renderFeatured(player, cards) {
             const container = document.getElementById(`p${player}-featured-cards`);
-            
             if (!cards || cards.length === 0) {
-                container.innerHTML = '<div class="text-sm text-gray-500 col-span-3 text-center">No featured permanents</div>';
+                container.innerHTML = '<div class="text-sm text-base-content/50 col-span-3 sm:col-span-6 text-center self-center">No featured permanents</div>';
                 return;
             }
-
-            container.innerHTML = cards.map((card, idx) => `
-                <div class="featured-card">
-                    <img src="${card.image_url || '/placeholder.png'}" alt="${card.name}" class="w-full rounded">
-                    <p class="text-xs mt-1 text-center truncate">${card.name}</p>
-                    <button class="btn btn-xs btn-error remove-btn absolute top-0 right-0" onclick="removeFeaturedCard(${player}, ${idx})">×</button>
-                </div>
-            `).join('');
+            container.innerHTML = cards.map((card, idx) => {
+                const img = card.display_image || card.image_url || card.local_image || FALLBACK_IMG;
+                return `<div class="featured-card">
+                    <img src="${img}" alt="${card.name}" class="w-full rounded" onerror="this.src='${FALLBACK_IMG}'">
+                    <p class="text-[10px] mt-0.5 text-center truncate">${card.name}</p>
+                    <button class="btn btn-xs btn-error remove-btn absolute top-0 right-0" onclick="removeFeaturedCard(${player}, ${idx})">&times;</button>
+                </div>`;
+            }).join('');
         }
 
-        function updateCommanderDamageDisplay(player, commanderDamage) {
-            const container = document.getElementById(`p${player}-commander-damage-list`);
-            
-            if (!commanderDamage || Object.keys(commanderDamage).length === 0) {
-                container.innerHTML = '<p class="text-sm text-gray-500">No commander damage tracked</p>';
+        // ---------- Decks (filter the permanent search) ----------
+        function loadAvailableDecks() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('savedDecks')) || {};
+                availableDecks = (saved.magic || []).map(deck => ({ id: `magic-${deck.name}`, ...deck }));
+                updateDeckSelectors();
+            } catch (err) {
+                console.error('Error loading decks:', err);
+            }
+        }
+
+        function updateDeckSelectors() {
+            let html = '<option value="">No Deck (search all cards)</option>';
+            availableDecks.forEach(d => { html += `<option value="${d.id}">${d.name}</option>`; });
+            ['p1-deck', 'p2-deck'].forEach(id => {
+                const sel = document.getElementById(id);
+                const cur = sel.value;
+                sel.innerHTML = html;
+                if (cur && availableDecks.find(d => d.id === cur)) sel.value = cur;
+            });
+        }
+
+        function updatePlayerDeck(player) {
+            const deckId = document.getElementById(`p${player}-deck`).value;
+            const info = document.getElementById(`p${player}-deck-info`);
+            if (!deckId) {
+                playerDeckCards[player] = [];
+                info.textContent = 'Searching all cards';
                 return;
             }
+            const deck = availableDecks.find(d => d.id === deckId);
+            if (!deck) { playerDeckCards[player] = []; info.textContent = ''; return; }
+            const names = deckCardNames(deck);
+            playerDeckCards[player] = names;
+            info.textContent = `${names.length} cards (${new Set(names).size} unique)`;
+        }
 
-            container.innerHTML = Object.entries(commanderDamage).map(([name, dmg]) => {
-                const isLethal = dmg >= 21;
-                return `
-                    <div class="flex justify-between items-center p-2 rounded ${isLethal ? 'bg-error text-error-content' : 'bg-base-200'}">
-                        <span>${name}</span>
-                        <span class="font-bold">${dmg} damage${isLethal ? ' (LETHAL!)' : ''}</span>
-                    </div>
-                `;
-            }).join('');
+        // Extract card names from any saved-deck shape (generic categories or
+        // the legacy MTG { cards, sideboard } shape).
+        function deckCardNames(deck) {
+            const names = [];
+            const push = (arr) => (arr || []).forEach(c => {
+                const qty = c.quantity || c.count || 1;
+                for (let i = 0; i < qty; i++) names.push(c.name);
+            });
+            if (deck.categories && typeof deck.categories === 'object') {
+                Object.values(deck.categories).forEach(push);
+            } else {
+                push(deck.cards);
+                push(deck.mainboard);
+                push(deck.sideboard);
+            }
+            return names;
+        }
+
+        // ---------- Hydrate everything from server state ----------
+        function hydrateUI(s) {
+            document.getElementById('format-selector').value = s.matchFormat || 'Standard';
+            [1, 2].forEach(p => {
+                const player = s[`player${p}`];
+                setVal(`p${p}-name`, player.name);
+                setVal(`p${p}-record`, player.record);
+                setVal(`p${p}-games-won`, player.gamesWon);
+                setVal(`p${p}-lands`, player.lands);
+                setVal(`p${p}-poison`, player.poison || 0);
+                setLifeUI(p, player.life);
+                document.getElementById(`p${p}-land-played`).checked = !!player.turnActions.landPlayed;
+                document.getElementById(`p${p}-spell-cast`).checked = !!player.turnActions.spellCast;
+                renderFeatured(p, player.featuredPermanents);
+            });
+            currentActive = s.activePlayer || 1;
+            updateActivePlayerUI();
+            highlightPhase(s.currentPhase || 'main1');
+            // Adopt the server's timer only if a round is actually counting (> 0);
+            // otherwise keep the local 50:00 duration so Start works on a fresh load.
+            if (typeof s.timer === 'number' && s.timer > 0) { timerSeconds = s.timer; updateTimerDisplay(); }
         }
     </script>
 </body>

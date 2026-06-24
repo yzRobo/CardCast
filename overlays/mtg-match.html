@@ -2,748 +2,454 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MTG Match Overlay - CardCast</title>
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>CardCast - MTG Match Overlay</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             width: 1920px;
             height: 1080px;
-            overflow: hidden;
             background: transparent;
-            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        /* Player Containers */
-        .player-container {
-            position: absolute;
-            width: 450px;
-            background: rgba(0, 0, 0, 0.85);
-            border-radius: 15px;
-            padding: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.2);
-            transition: all 0.3s ease;
-        }
-
-        .player-container.active {
-            border-color: #6366f1;
-            box-shadow: 0 0 30px rgba(59, 130, 246, 0.6);
-        }
-
-        #player1-container {
-            top: 50px;
-            left: 50px;
-        }
-
-        #player2-container {
-            top: 50px;
-            right: 50px;
-        }
-
-        .player-name {
-            font-size: 28px;
-            font-weight: bold;
-            color: #ffffff;
-            margin-bottom: 5px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-        }
-
-        .player-record {
-            font-size: 18px;
-            color: #a0a0a0;
-            margin-bottom: 15px;
-        }
-
-        .life-display {
-            font-size: 96px;
-            font-weight: bold;
-            text-align: center;
-            margin: 20px 0;
-            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.9);
-            transition: all 0.3s ease;
-        }
-
-        .life-healthy { color: #10b981; }
-        .life-warning { color: #f59e0b; }
-        .life-critical { color: #ef4444; animation: pulse 1s infinite; }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-
-        .stats-row {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 15px;
-            font-size: 20px;
-        }
-
-        .stat-item {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 8px 15px;
-            border-radius: 8px;
-            color: #ffffff;
-        }
-
-        .stat-label {
-            font-size: 14px;
-            color: #a0a0a0;
-            margin-right: 5px;
-        }
-
-        .stat-value {
-            font-weight: bold;
-        }
-
-        /* Featured Permanents */
-        .featured-permanents {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-top: 15px;
-            max-height: 200px;
-        }
-
-        .permanent-card {
+            font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+            overflow: hidden;
             position: relative;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-            transition: transform 0.2s;
         }
 
-        .permanent-card:hover {
-            transform: scale(1.05);
-        }
-
-        .permanent-card img {
-            width: 100%;
-            display: block;
-        }
-
-        .permanent-name {
+        /* Player boards - vertical glass panels on the sides */
+        .player-board {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            padding: 4px;
-            font-size: 11px;
-            text-align: center;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            top: 60px;
+            width: 420px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 22px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(20,20,30,0.92) 100%);
+            border: 3px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.7);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
         }
 
-        /* Commander Damage */
-        .commander-damage {
-            margin-top: 15px;
-            background: rgba(139, 0, 0, 0.3);
-            border-radius: 8px;
-            padding: 10px;
+        .player-board.left { left: 40px; border-top-color: #6366f1; }
+        .player-board.right { right: 40px; border-top-color: #ef4444; }
+
+        /* Active player highlight */
+        .player-board.left.active {
+            border-color: #6366f1;
+            box-shadow: 0 0 36px rgba(99,102,241,0.55), 0 15px 40px rgba(0,0,0,0.7);
+        }
+        .player-board.right.active {
+            border-color: #ef4444;
+            box-shadow: 0 0 36px rgba(239,68,68,0.55), 0 15px 40px rgba(0,0,0,0.7);
+        }
+
+        /* Header */
+        .board-header { border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; }
+        .name-row { display: flex; justify-content: space-between; align-items: center; }
+        .player-name {
+            font-size: 26px; font-weight: 800; color: #fff;
+            text-transform: uppercase; letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 270px;
+        }
+        .player-record {
+            font-size: 16px; font-weight: 700; color: #cbd5e1;
+            background: rgba(0,0,0,0.5); padding: 4px 12px; border-radius: 8px;
+        }
+        .games-won {
+            margin-top: 8px; font-size: 14px; font-weight: 600; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: 0.6px;
+        }
+
+        /* Life headline */
+        .life-block { text-align: center; padding: 6px 0; }
+        .life-label {
+            font-size: 14px; font-weight: 600; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: 2px;
+        }
+        .life-total {
+            font-size: 104px; font-weight: 800; line-height: 1.05;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.9);
+            transition: color 0.3s ease;
+        }
+        .life-healthy { color: #34d399; }
+        .life-warning { color: #fbbf24; }
+        .life-critical { color: #f87171; animation: pulse 1s infinite; }
+
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+        /* Poison counter (hidden at 0) */
+        .poison-counter {
             display: none;
+            margin-top: 4px;
+            font-size: 16px; font-weight: 700; color: #a3e635;
+            text-transform: uppercase; letter-spacing: 1px;
         }
+        .poison-counter.lethal { color: #f87171; animation: pulse 1s infinite; }
 
-        .commander-damage-title {
-            font-size: 14px;
-            color: #ff6b6b;
-            margin-bottom: 8px;
-            font-weight: bold;
+        /* Stat strip: Lands + Permanents */
+        .stat-strip { display: flex; gap: 12px; }
+        .stat {
+            flex: 1; text-align: center;
+            background: rgba(0,0,0,0.45); border-radius: 10px; padding: 10px 6px;
+            border: 1px solid rgba(255,255,255,0.06);
         }
-
-        .commander-damage-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px;
-            margin-bottom: 4px;
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 5px;
-            font-size: 16px;
-            color: #ffffff;
+        .stat-label {
+            display: block; font-size: 11px; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px;
         }
+        .stat-value { display: block; font-size: 30px; font-weight: 800; color: #e2e8f0; }
+        .left .stat-value { color: #818cf8; }
+        .right .stat-value { color: #f87171; }
 
-        .commander-damage-item.lethal {
-            background: rgba(239, 68, 68, 0.8);
-            animation: pulse 1s infinite;
-        }
-
-        /* Phase Indicator */
-        .phase-indicator {
-            position: absolute;
-            bottom: 50px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.85);
-            padding: 15px 40px;
-            border-radius: 50px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-        }
-
-        .phase-text {
-            font-size: 28px;
-            font-weight: bold;
-            color: #ffffff;
-            text-transform: uppercase;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-        }
-
-        /* Timer */
-        .timer-display {
-            position: absolute;
-            top: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.85);
-            padding: 10px 30px;
-            border-radius: 10px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            display: none;
-        }
-
-        .timer-text {
-            font-size: 32px;
-            font-weight: bold;
-            color: #ffffff;
-            font-family: 'Courier New', monospace;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-        }
-
-        /* Format Badge */
-        .format-badge {
-            position: absolute;
-            top: 50px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-size: 18px;
-            font-weight: bold;
-            color: #ffffff;
-            text-transform: uppercase;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-        }
-
-        /* Turn Actions Indicators */
-        .turn-actions {
-            margin-top: 15px;
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-
-        .action-indicator {
-            background: rgba(0, 0, 0, 0.5);
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            display: flex;
-            align-items: center;
-            gap: 6px;
+        /* Turn flags: Land played / Spell cast */
+        .turn-flags { display: flex; gap: 12px; }
+        .flag {
+            flex: 1; text-align: center;
+            background: rgba(0,0,0,0.45); border: 2px solid rgba(255,255,255,0.08);
+            border-radius: 10px; padding: 10px;
+            font-size: 13px; font-weight: 700; color: #64748b;
+            text-transform: uppercase; letter-spacing: 1px;
             transition: all 0.3s ease;
         }
+        .flag.active { border-color: #10b981; background: rgba(16,185,129,0.18); color: #34d399; }
 
-        .action-indicator.active {
-            border-color: #10b981;
-            background: rgba(16, 185, 129, 0.2);
+        /* Featured permanents */
+        .section-title {
+            font-size: 13px; color: #94a3b8; text-transform: uppercase;
+            letter-spacing: 1.2px; font-weight: 600; text-align: center;
+        }
+        .featured-row {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; min-height: 4px;
+        }
+        .perm-card {
+            position: relative; border-radius: 8px; overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+            animation: fadeIn 0.4s ease;
+        }
+        .perm-card img { width: 100%; display: block; aspect-ratio: 63/88; object-fit: cover; }
+        .perm-name {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: rgba(0,0,0,0.88); color: #fff; padding: 3px 4px;
+            font-size: 10px; font-weight: 600; text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
-        .action-label {
-            font-size: 12px;
-            color: #a0a0a0;
-            text-transform: uppercase;
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Shared bottom bar: format / timer / phase / whose turn */
+        .match-bar {
+            position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%);
+            display: flex; align-items: center; gap: 22px;
+            padding: 14px 32px; border-radius: 14px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.96) 0%, rgba(20,20,30,0.96) 100%);
+            border: 2px solid #6366f1; backdrop-filter: blur(10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+        .bar-sep { width: 1px; height: 34px; background: rgba(255,255,255,0.14); }
+        .bar-format {
+            font-size: 16px; font-weight: 700; color: #c7d2fe;
+            text-transform: uppercase; letter-spacing: 1.4px;
+        }
+        .bar-timer {
+            font-size: 34px; font-weight: 700; color: #00d4ff;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 14px rgba(0,212,255,0.5);
+        }
+        .bar-phase {
+            font-size: 18px; font-weight: 700; color: #fff;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .bar-turn {
+            padding: 8px 18px; border-radius: 22px;
+            background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+            color: #fff; font-weight: 700; font-size: 14px;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+        }
+        .bar-turn.p2 {
+            background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+            box-shadow: 0 4px 12px rgba(239,68,68,0.4);
         }
 
-        .action-indicator.active .action-label {
-            color: #10b981;
-        }
-
-        .action-icon {
-            font-size: 16px;
-            opacity: 0.3;
-        }
-
-        .action-indicator.active .action-icon {
-            opacity: 1;
-        }
-
-        /* Animations */
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .slide-in-left {
-            animation: slideInLeft 0.5s ease-out;
-        }
-
-        @keyframes slideInLeft {
-            from { transform: translateX(-100px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .slide-in-right {
-            animation: slideInRight 0.5s ease-out;
-        }
-
-        @keyframes slideInRight {
-            from { transform: translateX(100px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        /* Connection Status (for debugging) */
+        /* Connection status (debug, unobtrusive) */
         .connection-status {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 5px 10px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 5px;
-            font-size: 12px;
-            color: #10b981;
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
+            background: rgba(0,0,0,0.6); color: #34d399; opacity: 0.5;
         }
-
-        .connection-status.disconnected {
-            color: #ef4444;
-        }
+        .connection-status.disconnected { color: #f87171; }
     </style>
 </head>
 <body>
-    <!-- Connection Status -->
     <div id="connection-status" class="connection-status">Connected</div>
 
-    <!-- Format Badge -->
-    <div id="format-badge" class="format-badge">Standard</div>
-
-    <!-- Timer Display -->
-    <div id="timer-display" class="timer-display">
-        <div class="timer-text" id="timer-text">00:00</div>
+    <!-- Player 1 (left) -->
+    <div id="p1-board" class="player-board left active">
+        <div class="board-header">
+            <div class="name-row">
+                <span class="player-name" id="p1-name">Player 1</span>
+                <span class="player-record" id="p1-record">0-0-0</span>
+            </div>
+            <div class="games-won">Games Won: <span id="p1-games">0</span></div>
+        </div>
+        <div class="life-block">
+            <div class="life-label">Life</div>
+            <div class="life-total life-healthy" id="p1-life">20</div>
+            <div class="poison-counter" id="p1-poison">Poison <b id="p1-poison-val">0</b> / 10</div>
+        </div>
+        <div class="stat-strip">
+            <div class="stat"><span class="stat-label">Lands</span><span class="stat-value" id="p1-lands">0</span></div>
+            <div class="stat"><span class="stat-label">Permanents</span><span class="stat-value" id="p1-perm-count">0</span></div>
+        </div>
+        <div class="turn-flags">
+            <div class="flag" id="p1-land-flag">Land</div>
+            <div class="flag" id="p1-spell-flag">Spell</div>
+        </div>
+        <div class="section-title">Featured Permanents</div>
+        <div class="featured-row" id="p1-featured"></div>
     </div>
 
-    <!-- Player 1 -->
-    <div id="player1-container" class="player-container slide-in-left">
-        <div class="player-name" id="p1-name">Player 1</div>
-        <div class="player-record" id="p1-record">0-0-0 | Games Won: 0</div>
-        <div class="life-display life-healthy" id="p1-life">20</div>
-        
-        <div class="stats-row">
-            <div class="stat-item">
-                <span class="stat-label">⛰️ Lands:</span>
-                <span class="stat-value" id="p1-lands">0</span>
+    <!-- Player 2 (right) -->
+    <div id="p2-board" class="player-board right">
+        <div class="board-header">
+            <div class="name-row">
+                <span class="player-name" id="p2-name">Player 2</span>
+                <span class="player-record" id="p2-record">0-0-0</span>
             </div>
-            <div class="stat-item">
-                <span class="stat-label">🎴 Permanents:</span>
-                <span class="stat-value" id="p1-perm-count">0</span>
-            </div>
+            <div class="games-won">Games Won: <span id="p2-games">0</span></div>
         </div>
-
-        <!-- Turn Actions -->
-        <div class="turn-actions" id="p1-turn-actions">
-            <div class="action-indicator" id="p1-land-action">
-                <span class="action-label">Land</span>
-                <span class="action-icon">🌲</span>
-            </div>
-            <div class="action-indicator" id="p1-spell-action">
-                <span class="action-label">Spell</span>
-                <span class="action-icon">✨</span>
-            </div>
+        <div class="life-block">
+            <div class="life-label">Life</div>
+            <div class="life-total life-healthy" id="p2-life">20</div>
+            <div class="poison-counter" id="p2-poison">Poison <b id="p2-poison-val">0</b> / 10</div>
         </div>
-
-        <div id="p1-commander-damage" class="commander-damage">
-            <div class="commander-damage-title">⚔️ Commander Damage</div>
-            <div id="p1-commander-list"></div>
+        <div class="stat-strip">
+            <div class="stat"><span class="stat-label">Lands</span><span class="stat-value" id="p2-lands">0</span></div>
+            <div class="stat"><span class="stat-label">Permanents</span><span class="stat-value" id="p2-perm-count">0</span></div>
         </div>
-
-        <div id="p1-featured" class="featured-permanents"></div>
+        <div class="turn-flags">
+            <div class="flag" id="p2-land-flag">Land</div>
+            <div class="flag" id="p2-spell-flag">Spell</div>
+        </div>
+        <div class="section-title">Featured Permanents</div>
+        <div class="featured-row" id="p2-featured"></div>
     </div>
 
-    <!-- Player 2 -->
-    <div id="player2-container" class="player-container slide-in-right">
-        <div class="player-name" id="p2-name">Player 2</div>
-        <div class="player-record" id="p2-record">0-0-0 | Games Won: 0</div>
-        <div class="life-display life-healthy" id="p2-life">20</div>
-        
-        <div class="stats-row">
-            <div class="stat-item">
-                <span class="stat-label">⛰️ Lands:</span>
-                <span class="stat-value" id="p2-lands">0</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">🎴 Permanents:</span>
-                <span class="stat-value" id="p2-perm-count">0</span>
-            </div>
-        </div>
-
-        <!-- Turn Actions -->
-        <div class="turn-actions" id="p2-turn-actions">
-            <div class="action-indicator" id="p2-land-action">
-                <span class="action-label">Land</span>
-                <span class="action-icon">🌲</span>
-            </div>
-            <div class="action-indicator" id="p2-spell-action">
-                <span class="action-label">Spell</span>
-                <span class="action-icon">✨</span>
-            </div>
-        </div>
-
-        <div id="p2-commander-damage" class="commander-damage">
-            <div class="commander-damage-title">⚔️ Commander Damage</div>
-            <div id="p2-commander-list"></div>
-        </div>
-
-        <div id="p2-featured" class="featured-permanents"></div>
-    </div>
-
-    <!-- Phase Indicator -->
-    <div class="phase-indicator">
-        <div class="phase-text" id="phase-text">Main Phase</div>
+    <!-- Shared bottom bar -->
+    <div class="match-bar">
+        <div class="bar-format" id="format-label">Standard</div>
+        <div class="bar-sep"></div>
+        <div class="bar-timer" id="timer-text">00:00</div>
+        <div class="bar-sep"></div>
+        <div class="bar-phase" id="phase-text">Main 1</div>
+        <div class="bar-sep"></div>
+        <div class="bar-turn" id="turn-text">Player 1's Turn</div>
     </div>
 
     <script>
-        let socket;
-        let currentState = null;
+        const FALLBACK_IMG = '/images/card-back.png';
 
-        // Phase display names
-        const phaseNames = {
-            'untap': 'Untap',
-            'upkeep': 'Upkeep',
-            'draw': 'Draw',
-            'main1': 'Main Phase 1',
-            'combat': 'Combat',
-            'main2': 'Main Phase 2',
-            'end': 'End Step'
+        // Phase id -> display label
+        const PHASE_NAMES = {
+            untap: 'Untap', upkeep: 'Upkeep', draw: 'Draw',
+            main1: 'Main 1', combat: 'Combat', main2: 'Main 2', end: 'End Step'
         };
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            initSocket();
-        });
+        // Latest known state (kept so granular events can update derived UI like
+        // the whose-turn label, which needs the current player names).
+        let mtg = null;
+
+        let socket;
+
+        document.addEventListener('DOMContentLoaded', initSocket);
 
         function initSocket() {
             socket = io();
-            
+
             socket.on('connect', () => {
-                console.log('Connected to server');
-                updateConnectionStatus(true);
-                // Register as MTG overlay - FIXED: Use string not object
+                setConn(true);
                 socket.emit('register-overlay', 'mtg-match');
-                // Request current state
-                setTimeout(() => {
-                    socket.emit('request-state', 'mtg-match');
-                }, 500);
+                setTimeout(() => socket.emit('request-state', 'mtg-match'), 300);
             });
+            socket.on('disconnect', () => setConn(false));
 
-            socket.on('disconnect', () => {
-                console.log('Disconnected from server');
-                updateConnectionStatus(false);
-            });
-
-            // Listen for state updates
+            // Full hydrate
             socket.on('state-update', (state) => {
-                if (state.mtgMatch) {
-                    currentState = state.mtgMatch;
-                    updateOverlay(state.mtgMatch);
+                if (state && state.mtgMatch) {
+                    mtg = state.mtgMatch;
+                    renderAll(mtg);
                 }
             });
 
-            // Listen for individual update events
-            socket.on('mtg-life-update', (data) => {
-                if (currentState) {
-                    currentState[`player${data.player}`].life = data.life;
-                    updateLife(data.player, data.life);
-                }
+            // Granular updates
+            socket.on('mtg-life-update', (d) => {
+                if (mtg) mtg[`player${d.player}`].life = d.life;
+                renderLife(d.player, d.life);
             });
-
-            socket.on('mtg-lands-update', (data) => {
-                if (currentState) {
-                    currentState[`player${data.player}`].lands = data.lands;
-                    updateLands(data.player, data.lands);
-                }
+            socket.on('mtg-poison-update', (d) => {
+                if (mtg) mtg[`player${d.player}`].poison = d.poison;
+                renderPoison(d.player, d.poison);
             });
-
-            socket.on('mtg-commander-damage-update', (data) => {
-                if (currentState) {
-                    currentState[`player${data.player}`].commanderDamage[data.commanderName] = data.damage;
-                    updateCommanderDamage(data.player, currentState[`player${data.player}`].commanderDamage);
-                }
+            socket.on('mtg-lands-update', (d) => {
+                if (mtg) mtg[`player${d.player}`].lands = d.lands;
+                setText(`p${d.player}-lands`, d.lands);
             });
-
-            socket.on('mtg-permanent-added', (data) => {
-                if (currentState) {
-                    currentState[`player${data.player}`].featuredPermanents = data.featuredPermanents;
-                    updateFeaturedPermanents(data.player, data.featuredPermanents);
-                }
+            socket.on('mtg-permanent-added', (d) => {
+                if (mtg) mtg[`player${d.player}`].featuredPermanents = d.featuredPermanents;
+                renderFeatured(d.player, d.featuredPermanents);
             });
-
-            socket.on('mtg-permanent-removed', (data) => {
-                if (currentState) {
-                    currentState[`player${data.player}`].featuredPermanents = data.featuredPermanents;
-                    updateFeaturedPermanents(data.player, data.featuredPermanents);
-                }
+            socket.on('mtg-permanent-removed', (d) => {
+                if (mtg) mtg[`player${d.player}`].featuredPermanents = d.featuredPermanents;
+                renderFeatured(d.player, d.featuredPermanents);
             });
-
-            socket.on('mtg-permanents-cleared', (data) => {
-                if (currentState) {
-                    currentState[`player${data.player}`].featuredPermanents = [];
-                }
-                updateFeaturedPermanents(data.player, []);
+            socket.on('mtg-permanents-cleared', (d) => {
+                if (mtg) mtg[`player${d.player}`].featuredPermanents = [];
+                renderFeatured(d.player, []);
             });
-
-            socket.on('mtg-phase-update', (data) => {
-                if (currentState) {
-                    currentState.currentPhase = data.phase;
-                }
-                updatePhase(data.phase);
+            socket.on('mtg-phase-update', (d) => {
+                if (mtg) mtg.currentPhase = d.phase;
+                renderPhase(d.phase);
             });
-
-            socket.on('mtg-player-name-update', (data) => {
-                if (currentState) {
-                    currentState[`player${data.player}`].name = data.name;
-                }
-                document.getElementById(`p${data.player}-name`).textContent = data.name;
+            socket.on('mtg-player-name-update', (d) => {
+                if (mtg) mtg[`player${d.player}`].name = d.name;
+                setText(`p${d.player}-name`, d.name);
+                if (mtg) renderTurn(mtg.activePlayer);
             });
-
-            socket.on('mtg-player-record-update', (data) => {
-                if (currentState) {
-                    currentState[`player${data.player}`].record = data.record;
-                    const player = currentState[`player${data.player}`];
-                    document.getElementById(`p${data.player}-record`).textContent = 
-                        `${data.record} | Games Won: ${player.gamesWon}`;
-                }
+            // Server emits 'mtg-record-update' (not 'mtg-player-record-update')
+            socket.on('mtg-record-update', (d) => {
+                if (mtg) mtg[`player${d.player}`].record = d.record;
+                setText(`p${d.player}-record`, d.record);
             });
-
-            socket.on('mtg-games-won-update', (data) => {
-                if (currentState) {
-                    currentState[`player${data.player}`].gamesWon = data.gamesWon;
-                    const player = currentState[`player${data.player}`];
-                    document.getElementById(`p${data.player}-record`).textContent = 
-                        `${player.record} | Games Won: ${data.gamesWon}`;
-                }
+            socket.on('mtg-games-won-update', (d) => {
+                if (mtg) mtg[`player${d.player}`].gamesWon = d.gamesWon;
+                setText(`p${d.player}-games`, d.gamesWon);
             });
-
-            socket.on('mtg-turn-actions-update', (data) => {
-                if (currentState) {
-                    currentState[`player${data.player}`].turnActions = data.actions;
-                    updateTurnActions(data.player, data.actions);
-                }
+            socket.on('mtg-turn-actions-update', (d) => {
+                if (mtg) mtg[`player${d.player}`].turnActions = d.actions;
+                renderTurnFlags(d.player, d.actions);
             });
-
-            socket.on('mtg-player-switch', (data) => {
-                if (currentState) {
-                    currentState.activePlayer = data.activePlayer;
-                }
-                updateActivePlayer(data.activePlayer || 1);
+            socket.on('mtg-player-switch', (d) => {
+                if (mtg) mtg.activePlayer = d.activePlayer;
+                renderActive(d.activePlayer || 1);
             });
-
-            socket.on('mtg-format-update', (data) => {
-                if (currentState) {
-                    currentState.format = data.format;
-                    // Update life displays with new thresholds
-                    updateLife(1, currentState.player1.life);
-                    updateLife(2, currentState.player2.life);
-                }
-                updateFormat(data.format);
+            socket.on('mtg-format-update', (d) => {
+                if (mtg) mtg.matchFormat = d.format;
+                renderFormat(d.format);
             });
-
-            socket.on('mtg-match-reset', () => {
-                // Reload to reset all UI
-                location.reload();
+            socket.on('mtg-timer-update', (d) => {
+                if (mtg) mtg.timer = d.seconds;
+                renderTimer(d.seconds);
             });
+            socket.on('mtg-match-reset', () => location.reload());
 
-            // ADDED: Periodic re-registration like Pokemon
-            setInterval(() => {
-                if (socket.connected) {
-                    socket.emit('register-overlay', 'mtg-match');
-                }
-            }, 5000);
+            // Keep the control's overlay-status badge fresh
+            setInterval(() => { if (socket.connected) socket.emit('register-overlay', 'mtg-match'); }, 5000);
         }
 
-        function updateConnectionStatus(connected) {
-            const status = document.getElementById('connection-status');
-            status.textContent = connected ? 'Connected' : 'Disconnected';
-            status.className = connected ? 'connection-status' : 'connection-status disconnected';
+        function setConn(connected) {
+            const el = document.getElementById('connection-status');
+            el.textContent = connected ? 'Connected' : 'Disconnected';
+            el.className = connected ? 'connection-status' : 'connection-status disconnected';
         }
 
-        function updateOverlay(state) {
-            // Update format first (affects life thresholds)
-            updateFormat(state.format);
+        function setText(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value;
+        }
 
-            // Update both players
+        function renderAll(state) {
             [1, 2].forEach(p => {
                 const player = state[`player${p}`];
-                document.getElementById(`p${p}-name`).textContent = player.name;
-                document.getElementById(`p${p}-record`).textContent = 
-                    `${player.record} | Games Won: ${player.gamesWon}`;
-                updateLife(p, player.life);
-                updateLands(p, player.lands);
-                updateFeaturedPermanents(p, player.featuredPermanents);
-                updateTurnActions(p, player.turnActions);
-                
-                if (state.format === 'commander') {
-                    updateCommanderDamage(p, player.commanderDamage);
-                }
+                setText(`p${p}-name`, player.name);
+                setText(`p${p}-record`, player.record);
+                setText(`p${p}-games`, player.gamesWon);
+                setText(`p${p}-lands`, player.lands);
+                renderLife(p, player.life);
+                renderPoison(p, player.poison || 0);
+                renderFeatured(p, player.featuredPermanents);
+                renderTurnFlags(p, player.turnActions);
             });
-
-            // Update phase
-            updatePhase(state.currentPhase);
-
-            // Update active player
-            updateActivePlayer(state.activePlayer);
-
-            // Update timer if exists
-            if (state.timer !== undefined) {
-                updateTimer(state.timer);
-            }
+            renderFormat(state.matchFormat);
+            renderPhase(state.currentPhase);
+            renderTimer(state.timer || 0);
+            renderActive(state.activePlayer || 1);
         }
 
-        function updateLife(player, life) {
-            life = parseInt(life);
-            socket.emit('mtg-life-update', { player, life });
-            
-            const input = document.getElementById(`p${player}-life`);
-            input.className = 'input input-bordered text-3xl text-center flex-1';
-            
-            // Get starting life based on current format
-            const format = document.getElementById('format-selector').value;
-            let startingLife = 20;
-            if (format === 'commander') {
-                startingLife = 40;
-            } else if (format === 'brawl') {
-                startingLife = 25;
-            }
-            
-            // Calculate percentage of starting life
-            const lifePercent = (life / startingLife) * 100;
-            
-            // Apply color classes based on percentage
-            if (lifePercent <= 15) {
-                input.classList.add('life-critical');
-            } else if (lifePercent <= 30) {
-                input.classList.add('life-warning');
-            } else {
-                input.classList.add('life-healthy');
-            }
-
-            // Add flash animation
-            input.classList.add('fade-in');
-            setTimeout(() => input.classList.remove('fade-in'), 500);
+        function renderLife(player, life) {
+            const el = document.getElementById(`p${player}-life`);
+            if (!el) return;
+            el.textContent = life;
+            let cls = 'life-healthy';
+            if (life <= 5) cls = 'life-critical';
+            else if (life <= 10) cls = 'life-warning';
+            el.className = `life-total ${cls}`;
         }
 
-        function updateLands(player, count) {
-            document.getElementById(`p${player}-lands`).textContent = count;
+        function renderPoison(player, poison) {
+            const wrap = document.getElementById(`p${player}-poison`);
+            const val = document.getElementById(`p${player}-poison-val`);
+            if (!wrap || !val) return;
+            val.textContent = poison;
+            wrap.style.display = poison > 0 ? 'block' : 'none';
+            wrap.classList.toggle('lethal', poison >= 10);
         }
 
-        function updateFeaturedPermanents(player, permanents) {
-            const container = document.getElementById(`p${player}-featured`);
-            document.getElementById(`p${player}-perm-count`).textContent = permanents.length;
-            
-            if (!permanents || permanents.length === 0) {
-                container.innerHTML = '';
-                return;
-            }
-
-            container.innerHTML = permanents.map(card => `
-                <div class="permanent-card fade-in">
-                    <img src="${card.image_url || '/placeholder.png'}" alt="${card.name}">
-                    <div class="permanent-name">${card.name}</div>
-                </div>
-            `).join('');
-        }
-
-        function updateCommanderDamage(player, commanderDamage) {
-            const container = document.getElementById(`p${player}-commander-damage`);
-            const listElement = document.getElementById(`p${player}-commander-list`);
-            
-            if (!commanderDamage || Object.keys(commanderDamage).length === 0) {
-                container.style.display = 'none';
-                return;
-            }
-
-            container.style.display = 'block';
-            listElement.innerHTML = Object.entries(commanderDamage).map(([name, dmg]) => {
-                const isLethal = dmg >= 21;
-                return `
-                    <div class="commander-damage-item ${isLethal ? 'lethal' : ''}">
-                        <span>${name}</span>
-                        <span>${dmg}/21</span>
-                    </div>
-                `;
+        function renderFeatured(player, cards) {
+            const el = document.getElementById(`p${player}-featured`);
+            setText(`p${player}-perm-count`, cards ? cards.length : 0);
+            if (!el) return;
+            if (!cards || cards.length === 0) { el.innerHTML = ''; return; }
+            el.innerHTML = cards.map(c => {
+                const img = c.display_image || c.image_url || c.local_image || FALLBACK_IMG;
+                return `<div class="perm-card">
+                    <img src="${img}" alt="${c.name}" onerror="this.src='${FALLBACK_IMG}'">
+                    <div class="perm-name">${c.name}</div>
+                </div>`;
             }).join('');
         }
 
-        function updateTurnActions(player, actions) {
-            const landAction = document.getElementById(`p${player}-land-action`);
-            const spellAction = document.getElementById(`p${player}-spell-action`);
-            
-            if (actions.landPlayed) {
-                landAction.classList.add('active');
-            } else {
-                landAction.classList.remove('active');
-            }
-            
-            if (actions.spellCast) {
-                spellAction.classList.add('active');
-            } else {
-                spellAction.classList.remove('active');
-            }
+        function renderTurnFlags(player, actions) {
+            actions = actions || {};
+            const land = document.getElementById(`p${player}-land-flag`);
+            const spell = document.getElementById(`p${player}-spell-flag`);
+            if (land) land.classList.toggle('active', !!actions.landPlayed);
+            if (spell) spell.classList.toggle('active', !!actions.spellCast);
         }
 
-        function updatePhase(phase) {
-            document.getElementById('phase-text').textContent = phaseNames[phase] || phase;
+        function renderPhase(phase) {
+            setText('phase-text', PHASE_NAMES[phase] || phase || 'Main 1');
         }
 
-        function updateActivePlayer(activePlayer) {
-            document.getElementById('player1-container').classList.toggle('active', activePlayer === 1);
-            document.getElementById('player2-container').classList.toggle('active', activePlayer === 2);
+        function renderFormat(format) {
+            setText('format-label', format || 'Standard');
         }
 
-        function updateFormat(format) {
-            const formatNames = {
-                'standard': 'Standard',
-                'modern': 'Modern',
-                'legacy': 'Legacy',
-                'vintage': 'Vintage',
-                'commander': 'Commander',
-                'brawl': 'Brawl',
-                'pauper': 'Pauper',
-                'pioneer': 'Pioneer'
-            };
-
-            document.getElementById('format-badge').textContent = formatNames[format] || format;
-
-            // Show/hide commander damage based on format
-            const isCommander = format === 'commander';
-            document.getElementById('p1-commander-damage').style.display = isCommander ? 'block' : 'none';
-            document.getElementById('p2-commander-damage').style.display = isCommander ? 'block' : 'none';
+        function renderTimer(seconds) {
+            seconds = Math.max(0, parseInt(seconds) || 0);
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            setText('timer-text', `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
         }
 
-        function updateTimer(seconds) {
-            const timerDisplay = document.getElementById('timer-display');
-            const timerText = document.getElementById('timer-text');
-            
-            if (seconds > 0) {
-                const minutes = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                timerText.textContent = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-                timerDisplay.style.display = 'block';
-            } else {
-                timerDisplay.style.display = 'none';
-            }
+        function renderActive(activePlayer) {
+            document.getElementById('p1-board').classList.toggle('active', activePlayer === 1);
+            document.getElementById('p2-board').classList.toggle('active', activePlayer === 2);
+            renderTurn(activePlayer);
+        }
+
+        function renderTurn(activePlayer) {
+            const name = mtg ? mtg[`player${activePlayer}`].name : `Player ${activePlayer}`;
+            const el = document.getElementById('turn-text');
+            el.textContent = `${name}'s Turn`;
+            el.classList.toggle('p2', activePlayer === 2);
         }
     </script>
 </body>

@@ -950,50 +950,101 @@ async function importDeck() {
         alert('Please paste a deck list first');
         return;
     }
-    
-    const deckName = document.getElementById('deckNameInput').value || 'Imported Deck';
-    const deck = await parseDeckList(deckText);
 
-    const totalCards =
-        deck.pokemon.reduce((sum, c) => sum + c.quantity, 0) +
-        deck.trainers.reduce((sum, c) => sum + c.quantity, 0) +
-        deck.energy.reduce((sum, c) => sum + c.quantity, 0);
-    
-    if (totalCards !== 60) {
-        if (!confirm(`Deck has ${totalCards} cards (should be 60). Import anyway?`)) {
+    const deckName = document.getElementById('deckNameInput').value || 'Imported Deck';
+
+    // parseDeckList auto-detects the game and returns a game-specific shape;
+    // deckToCategories normalizes ALL of them to { CategoryName: [cards] } and,
+    // for Magic, resolves each card's type against the local DB so it buckets
+    // into Creatures / Spells / Artifacts / Enchantments / Planeswalkers / Lands.
+    const parsed = await parseDeckList(deckText);
+    const { game, categories } = await deckToCategories(parsed);
+
+    const totalCards = Object.values(categories)
+        .reduce((sum, arr) => sum + arr.reduce((s, c) => s + (c.quantity || 1), 0), 0);
+
+    // Soft-warn against the active game's main-deck size (e.g. 60 for MTG/Pokemon).
+    const target = getGameConfig(game).deck?.rules?.main;
+    if (target && totalCards !== target) {
+        if (!confirm(`Deck has ${totalCards} cards (should be ${target}). Import anyway?`)) {
             return;
         }
     }
-    
-    // Update current deck list
-    currentDeckList = {
-        name: deckName,
-        format: 'Standard',
-        pokemon: deck.pokemon,
-        trainers: deck.trainers,
-        energy: deck.energy
-    };
-    
-    // Send to overlay
+
+    currentDeckList = { name: deckName, format: 'Standard', game, categories };
+
     socket.emit('decklist-update', {
-        deck: {
-            title: deckName,
-            format: 'Standard',
-            game: 'pokemon',
-            categories: {
-                'Pokemon': deck.pokemon,
-                'Trainers': deck.trainers,
-                'Energy': deck.energy
-            }
-        },
+        deck: { title: deckName, format: 'Standard', game, categories },
         show: false
     });
-    
-    // Clear import area
+
     document.getElementById('deckImportText').value = '';
     document.getElementById('deckNameInput').value = '';
-    
-    alert(`Imported "${deckName}" with ${deck.pokemon.length} Pokémon, ${deck.trainers.length} Trainers, ${deck.energy.length} Energy`);
+
+    const summary = Object.entries(categories)
+        .map(([name, arr]) => `${arr.reduce((s, c) => s + (c.quantity || 1), 0)} ${name}`)
+        .join(', ');
+    alert(`Imported "${deckName}" (${summary})`);
+}
+
+// Normalize any parsed-deck shape to { game, categories: { Name: [cards] } }.
+//   Pokemon: { pokemon, trainers, energy }
+//   Gundam:  { categories: {...} }  (already generic)
+//   Magic:   { cards, sideboard }   -> resolve types against the DB and bucket
+async function deckToCategories(parsed) {
+    // Gundam (and any future parser) already returns the generic shape.
+    if (parsed.categories && typeof parsed.categories === 'object') {
+        return { game: 'gundam', categories: parsed.categories };
+    }
+
+    // Pokemon shape.
+    if (parsed.pokemon || parsed.trainers || parsed.energy) {
+        const categories = {};
+        if (parsed.pokemon && parsed.pokemon.length) categories.Pokemon = parsed.pokemon;
+        if (parsed.trainers && parsed.trainers.length) categories.Trainers = parsed.trainers;
+        if (parsed.energy && parsed.energy.length) categories.Energy = parsed.energy;
+        return { game: 'pokemon', categories };
+    }
+
+    // Magic shape.
+    if (parsed.cards || parsed.sideboard) {
+        return { game: 'magic', categories: await mtgToCategories(parsed) };
+    }
+
+    return { game: currentGame, categories: {} };
+}
+
+// Bucket an imported MTG deck into the registry's type categories by resolving
+// each card's type_line against the local DB (cached per name). Unresolved
+// cards fall back to the registry's default bucket; the sideboard is kept separate.
+async function mtgToCategories(parsed) {
+    const categorize = getGameConfig('magic').deck.categorize;
+    const categories = {};
+    const add = (cat, card) => { (categories[cat] = categories[cat] || []).push(card); };
+    const typeCache = {};
+
+    for (const card of (parsed.cards || [])) {
+        if (!(card.name in typeCache)) typeCache[card.name] = await resolveMagicCardType(card.name);
+        add(categorize(typeCache[card.name] || { card_type: '', type_line: '' }), card);
+    }
+
+    if (parsed.sideboard && parsed.sideboard.length) categories.Sideboard = parsed.sideboard;
+    return categories;
+}
+
+// Look up a Magic card by name in the local DB; returns the fields the registry
+// categorize() needs (card_type / type_line), or null if nothing matches.
+async function resolveMagicCardType(name) {
+    try {
+        const res = await fetch(`/api/search/magic?q=${encodeURIComponent(name)}&limit=10`);
+        const cards = await res.json();
+        if (!Array.isArray(cards) || !cards.length) return null;
+        const match = cards.find(c => (c.name || '').toLowerCase() === name.toLowerCase()) || cards[0];
+        return { card_type: match.card_type, type_line: match.type_line };
+    } catch (err) {
+        console.error('MTG type resolve failed for', name, err);
+        return null;
+    }
 }
 
 function clearDeckImport() {
@@ -1005,13 +1056,9 @@ function showDeckList() {
     socket.emit('decklist-update', {
         deck: {
             title: currentDeckList.name,
-            format: 'Standard',
-            game: 'pokemon',
-            categories: {
-                'Pokemon': currentDeckList.pokemon,
-                'Trainers': currentDeckList.trainers,
-                'Energy': currentDeckList.energy
-            }
+            format: currentDeckList.format || 'Standard',
+            game: currentDeckList.game || currentGame,
+            categories: currentDeckList.categories || {}
         },
         show: true
     });

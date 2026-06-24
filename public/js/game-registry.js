@@ -65,7 +65,18 @@ const GAME_REGISTRY = {
                 return 'Spells';
             },
             rules: { main: 60, copyLimit: 4 },
-            formats: ['Standard', 'Pioneer', 'Modern', 'Legacy', 'Commander']
+            // Label-only by default (an opt-in legality filter can use banlist later).
+            // Commander is intentionally dropped - CardCast Magic is MTG proper (60-card,
+            // 20 life); re-add it later as its own format if needed.
+            formats: ['Standard', 'Pioneer', 'Modern', 'Legacy'],
+            // Per-format banned cards for the future opt-in legality filter. Seeded
+            // empty; fill from the official B&R list (magic.wizards.com/en/banned-restricted-list).
+            banlist: {
+                Standard: [],
+                Pioneer: [],
+                Modern: [],
+                Legacy: []
+            }
         },
         searchMeta: (card) => (card.mana_cost || card.card_type || '')
     },

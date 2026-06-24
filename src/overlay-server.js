@@ -55,38 +55,14 @@ class OverlayServer {
             stadium: ''
         };
 
-        // MTG Match State
+        // MTG Match State (MTG proper: 60-card constructed, 20 life - no Commander).
         this.mtgMatch = {
-            player1: {
-                name: 'Player 1',
-                record: '0-0-0',
-                gamesWon: 0,
-                life: 20,
-                commanderDamage: {},
-                lands: 0,
-                featuredPermanents: [],
-                turnActions: {
-                    landPlayed: false,
-                    spellCast: false
-                }
-            },
-            player2: {
-                name: 'Player 2',
-                record: '0-0-0',
-                gamesWon: 0,
-                life: 20,
-                commanderDamage: {},
-                lands: 0,
-                featuredPermanents: [],
-                turnActions: {
-                    landPlayed: false,
-                    spellCast: false
-                }
-            },
+            player1: this.freshMTGPlayer('Player 1'),
+            player2: this.freshMTGPlayer('Player 2'),
             activePlayer: 1,
             currentPhase: 'main1',
             timer: 0,
-            format: 'standard'
+            matchFormat: 'Standard'
         };
 
         // Gundam Match State (mirrors pokemonMatch; locked design: equal 6-unit
@@ -112,6 +88,21 @@ class OverlayServer {
             resources: { active: 0, total: 0, ex: false },
             units: [null, null, null, null, null, null],
             base: null
+        };
+    }
+
+    // A blank MTG player board. 20 starting life; poison is the alt loss
+    // condition (overlay hides it until > 0). No Commander damage / 40-life.
+    freshMTGPlayer(name) {
+        return {
+            name,
+            record: '0-0-0',
+            gamesWon: 0,
+            life: 20,
+            poison: 0,
+            lands: 0,
+            featuredPermanents: [],
+            turnActions: { landPlayed: false, spellCast: false }
         };
     }
 
@@ -197,40 +188,19 @@ class OverlayServer {
     // ============ MTG MATCH METHODS ============
     
     resetMTGMatch() {
-        const p1Name = this.mtgMatch.player1.name;
-        const p2Name = this.mtgMatch.player2.name;
-        
         this.mtgMatch = {
-            player1: {
-                name: p1Name,
-                record: '0-0-0',
-                gamesWon: 0,
-                life: this.mtgMatch.format === 'commander' ? 40 : 20,
-                commanderDamage: {},
-                lands: 0,
-                featuredPermanents: [],
-                turnActions: { landPlayed: false, spellCast: false }
-            },
-            player2: {
-                name: p2Name,
-                record: '0-0-0',
-                gamesWon: 0,
-                life: this.mtgMatch.format === 'commander' ? 40 : 20,
-                commanderDamage: {},
-                lands: 0,
-                featuredPermanents: [],
-                turnActions: { landPlayed: false, spellCast: false }
-            },
+            player1: this.freshMTGPlayer(this.mtgMatch.player1.name),
+            player2: this.freshMTGPlayer(this.mtgMatch.player2.name),
             activePlayer: 1,
             currentPhase: 'main1',
             timer: 0,
-            format: this.mtgMatch.format
+            matchFormat: this.mtgMatch.matchFormat
         };
-        
+
         this.io.emit('mtg-match-reset', {
             timestamp: Date.now()
         });
-        
+
         console.log('MTG match reset');
     }
     
@@ -249,20 +219,19 @@ class OverlayServer {
         console.log(`Player ${player} life updated to ${life}`);
     }
     
-    // MTG Commander Damage Management
-    updateCommanderDamage(player, commanderName, damage) {
+    // MTG Poison Counters (alt loss condition; 10 poison = lethal)
+    updateMTGPoison(player, poison) {
         if (player !== 1 && player !== 2) return;
-        
-        this.mtgMatch[`player${player}`].commanderDamage[commanderName] = damage;
-        
-        this.io.emit('mtg-commander-damage-update', {
+
+        this.mtgMatch[`player${player}`].poison = Math.max(0, poison);
+
+        this.io.emit('mtg-poison-update', {
             player: player,
-            commanderName: commanderName,
-            damage: damage,
+            poison: this.mtgMatch[`player${player}`].poison,
             timestamp: Date.now()
         });
-        
-        console.log(`Player ${player} took ${damage} commander damage from ${commanderName}`);
+
+        console.log(`Player ${player} poison updated to ${poison}`);
     }
     
     // MTG Land Tracking
@@ -417,37 +386,44 @@ class OverlayServer {
         });
     }
     
-    // MTG Match Control
-    switchMTGActivePlayer() {
-        this.mtgMatch.activePlayer = this.mtgMatch.activePlayer === 1 ? 2 : 1;
-        
+    // MTG Match Control. Pass an explicit 1/2 to set the active player directly
+    // (so "Set Active" buttons work); call with no target to toggle.
+    switchMTGActivePlayer(target) {
+        if (target === 1 || target === 2) {
+            this.mtgMatch.activePlayer = target;
+        } else {
+            this.mtgMatch.activePlayer = this.mtgMatch.activePlayer === 1 ? 2 : 1;
+        }
+
         this.io.emit('mtg-player-switch', {
             activePlayer: this.mtgMatch.activePlayer,
             timestamp: Date.now()
         });
-        
-        console.log(`Active player switched to Player ${this.mtgMatch.activePlayer}`);
+
+        console.log(`Active player set to Player ${this.mtgMatch.activePlayer}`);
     }
-    
+
+    // Format is a label only in MTG proper - it never changes life (always 20).
     updateMTGFormat(format) {
-        const oldFormat = this.mtgMatch.format;
-        this.mtgMatch.format = format;
-        
-        // Adjust life totals if format changed
-        if (format === 'commander' && oldFormat !== 'commander') {
-            this.mtgMatch.player1.life = 40;
-            this.mtgMatch.player2.life = 40;
-        } else if (format !== 'commander' && oldFormat === 'commander') {
-            this.mtgMatch.player1.life = 20;
-            this.mtgMatch.player2.life = 20;
-        }
-        
+        this.mtgMatch.matchFormat = format;
+
         this.io.emit('mtg-format-update', {
             format: format,
             timestamp: Date.now()
         });
-        
+
         console.log(`Format changed to ${format}`);
+    }
+
+    // Match timer (seconds). Kept in state so a freshly-loaded overlay can
+    // hydrate the current value via state-update; the control drives the count.
+    updateMTGTimer(seconds) {
+        this.mtgMatch.timer = Math.max(0, seconds | 0);
+
+        this.io.emit('mtg-timer-update', {
+            seconds: this.mtgMatch.timer,
+            timestamp: Date.now()
+        });
     }
     
     // ============ END MTG METHODS ============

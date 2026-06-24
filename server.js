@@ -939,8 +939,8 @@ io.on('connection', (socket) => {
         overlayServer.updateMTGLife(data.player, data.life);
     });
 
-    socket.on('mtg-commander-damage-update', (data) => {
-        overlayServer.updateCommanderDamage(data.player, data.commanderName, data.damage);
+    socket.on('mtg-poison-update', (data) => {
+        overlayServer.updateMTGPoison(data.player, data.poison);
     });
 
     socket.on('mtg-lands-update', (data) => {
@@ -979,12 +979,16 @@ io.on('connection', (socket) => {
         overlayServer.setMTGTurnAction(data.player, data.action, data.value);
     });
 
-    socket.on('mtg-player-switch', () => {
-        overlayServer.switchMTGActivePlayer();
+    socket.on('mtg-player-switch', (data) => {
+        overlayServer.switchMTGActivePlayer(data && data.activePlayer);
     });
 
     socket.on('mtg-format-update', (data) => {
         overlayServer.updateMTGFormat(data.format);
+    });
+
+    socket.on('mtg-timer-update', (data) => {
+        overlayServer.updateMTGTimer(data.seconds);
     });
 
     socket.on('mtg-match-reset', () => {
