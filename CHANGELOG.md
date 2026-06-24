@@ -5,6 +5,18 @@ All notable changes to CardCast will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Gundam Card Game support: card data download and search for boosters and starter decks, scraped from the official site (gundam-gcg.com), which has no public API
+- Magic: The Gathering match control and overlay
+- Card data download and search for Yu-Gi-Oh!, Disney Lorcana, Digimon Card Game, and One Piece Card Game (One Piece and Gundam include starter-deck cards)
+- Metadata seed database: fresh installs fetch a prebuilt metadata-only database so they skip the live API/scrape downloads
+- Lazy, self-healing image cache: card images download on first view and are re-fetched from their source URL if missing
+
+### Changed
+- Card data is pulled from each game's free public API, except Gundam which is read from the official card site (no public API for that game)
+
 ## [1.0.1] - 2025-08-24
 
 ### Fixed

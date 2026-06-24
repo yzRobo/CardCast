@@ -6,12 +6,19 @@ A straightforward streaming overlay tool for Trading Card Game content creators.
 
 - **Pokemon TCG** - Fully functional with 20,000+ cards
 - **Magic: The Gathering** - Match control and overlay (new in v1.1.0)
-- Yu-Gi-Oh! *(Coming Soon)*
-- Disney Lorcana *(Coming Soon)*
-- One Piece Card Game *(Coming Soon)*
-- Digimon Card Game *(Coming Soon)*
+- **Yu-Gi-Oh!** - Card data download and search
+- **Disney Lorcana** - Card data download and search
+- **Digimon Card Game** - Card data download and search
+- **One Piece Card Game** - Card data download and search (booster sets and starter decks)
+- **Gundam Card Game** - Card data download and search (boosters and starter decks)
 - Flesh and Blood *(Coming Soon)*
 - Star Wars Unlimited *(Coming Soon)*
+
+Card data is pulled live on demand from each game's public API (or, for the Gundam
+Card Game, the official card site, which has no public API) and cached locally
+(images included), so the project hosts no card data itself. Dedicated match
+overlays currently exist for Pokemon and Magic; the other games support card
+search and display today, with overlays planned.
 
 ## Features
 
@@ -113,13 +120,53 @@ Edit `config.json` to customize:
   "theme": "dark",        // UI theme
   "autoUpdate": true,     // Auto-check for card updates
   "games": {
-    "pokemon": { 
-      "enabled": true,    // Currently the only working game
-      "dataPath": null 
+    "pokemon": {
+      "enabled": true,    // Show this game in the interface
+      "dataPath": null
     }
   }
 }
 ```
+
+For a personal override that is never committed, copy `config.local.example.json`
+to `config.local.json` (gitignored). Anything there overrides `config.json`.
+
+## Optional API keys
+
+All card downloads work with no API key (anonymous requests). A key is only
+useful for raising rate limits. Keys are optional, never committed, and resolved
+in this priority order:
+
+1. Environment variable (preferred)
+2. `config.local.json` (gitignored)
+3. None (anonymous)
+
+| Game | Key | Environment variable | `config.local.json` |
+| --- | --- | --- | --- |
+| Pokemon | [pokemontcg.io](https://dev.pokemontcg.io/) | `POKEMONTCG_API_KEY` | `apiKeys.pokemon` |
+
+The other games use sources that need no key: Magic via Scryfall, Yu-Gi-Oh via
+YGOPRODeck, Lorcana via Lorcast, Digimon via digimoncard.io, One Piece via
+optcgapi.com, and Gundam via the official card site (scraped, no API).
+
+To configure a key, either copy `.env.example` to `.env` and fill it in:
+
+```
+POKEMONTCG_API_KEY=your-key-here
+```
+
+or copy `config.local.example.json` to `config.local.json`:
+
+```json
+{
+  "apiKeys": { "pokemon": "your-key-here" }
+}
+```
+
+When a Pokemon key is present it is sent as the `X-Api-Key` header on requests to
+`api.pokemontcg.io`; when absent, requests are made anonymously. On startup the
+server logs whether a key was loaded. Never commit a real key - `.env` and
+`config.local.json` are already gitignored.
 
 ## Troubleshooting
 
@@ -179,9 +226,17 @@ npm run build
 
 ## Data Sources
 
-Card data is sourced from:
-[PokemonTCG.io](https://pokemontcg.io/) - Highly Organized and Comprehensive Pokemon TCG API.
-[TCGCSV.com](https://tcgcsv.com) - A Comprehensive TCGPlayer Database API.
+Card data is pulled live when you click download, then cached locally (database
+and images) for offline use. Most games use a free public API; the Gundam Card
+Game has no public API, so its data is read from the official card site:
+
+- [PokemonTCG.io](https://pokemontcg.io/) - Pokemon TCG
+- [Scryfall](https://scryfall.com/docs/api) - Magic: The Gathering
+- [YGOPRODeck](https://ygoprodeck.com/api-guide/) - Yu-Gi-Oh!
+- [Lorcast](https://lorcast.com/docs/api) - Disney Lorcana
+- [digimoncard.io](https://digimoncard.io/api-public/) - Digimon Card Game
+- [optcgapi.com](https://optcgapi.com/documentation) - One Piece Card Game (booster sets and starter decks)
+- [gundam-gcg.com](https://www.gundam-gcg.com/en/cards) - Gundam Card Game (boosters and starter decks; site scrape, no public API)
 
 ## Contributing
 
@@ -219,8 +274,11 @@ See [LICENSE](LICENSE) file for full details.
 
 ### Coming Soon
 - [x] Magic: The Gathering match control and overlay
-- [ ] Yu-Gi-Oh! integration
-- [ ] Disney Lorcana cards
+- [x] Yu-Gi-Oh! integration
+- [x] Disney Lorcana cards
+- [x] One Piece Card Game cards
+- [x] Digimon Card Game cards
+- [x] Gundam Card Game cards
 - [ ] Tournament mode
 - [ ] Stream deck integration
 - [ ] Custom overlay designer

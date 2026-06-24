@@ -10,8 +10,10 @@ const { exec } = require('child_process');
 const Database = require('./src/database');
 const TCGCSVApi = require('./src/tcg-api');
 const OverlayServer = require('./src/overlay-server');
+const { loadEnv, readJson, mergeConfig, resolveApiKeys } = require('./src/config');
+const { ensureSeedDatabase } = require('./src/seed-install');
 
-const AVAILABLE_GAMES = ['pokemon', 'magic'];
+const AVAILABLE_GAMES = ['pokemon', 'magic', 'yugioh', 'lorcana', 'digimon', 'onepiece', 'gundam'];
 
 // Initialize Express app
 const app = express();
@@ -23,9 +25,14 @@ const io = socketIo(server, {
     }
 });
 
-// Load config
+// Load optional .env (gitignored) so API keys can be supplied via env vars.
+loadEnv();
+
+// Load config. Resolution priority: process.env > config.local.json > config.json.
 const configPath = path.join(__dirname, 'config.json');
-let config = {
+const localConfigPath = path.join(__dirname, 'config.local.json');
+
+const defaultConfig = {
     port: 3888,
     theme: 'dark',
     autoUpdate: true,
@@ -35,7 +42,8 @@ let config = {
         yugioh: { enabled: true, dataPath: null },
         lorcana: { enabled: true, dataPath: null },
         onepiece: { enabled: true, dataPath: null },
-        digimon: { enabled: false, dataPath: null },
+        digimon: { enabled: true, dataPath: null },
+        gundam: { enabled: true, dataPath: null },
         fab: { enabled: false, dataPath: null },
         starwars: { enabled: false, dataPath: null }
     },
@@ -46,30 +54,86 @@ let config = {
     }
 };
 
-// Load existing config if it exists
-if (fs.existsSync(configPath)) {
-    try {
-        config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    } catch (e) {
-        console.log('Error loading config, using defaults');
-    }
-} else {
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+// Read committed config.json (writing defaults out on first run), then overlay
+// the gitignored config.local.json on top.
+const diskConfig = readJson(configPath);
+if (!diskConfig) {
+    fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
 }
+const localConfig = readJson(localConfigPath);
 
-// Save config function
+let config = mergeConfig(mergeConfig(defaultConfig, diskConfig), localConfig);
+// API keys are resolved separately and must never be persisted into config.json.
+delete config.apiKeys;
+
+// Resolve optional API keys (env var wins over config.local.json).
+const apiKeys = resolveApiKeys(localConfig);
+console.log(`Pokemon TCG API key: ${apiKeys.pokemonApiKey ? 'loaded (requests authenticated)' : 'not set (running anonymously)'}`);
+
+// Save config function - strips any apiKeys so secrets are never written to disk.
 function saveConfig() {
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    const { apiKeys: _ignored, ...safeConfig } = config;
+    fs.writeFileSync(configPath, JSON.stringify(safeConfig, null, 2));
 }
 
-// Initialize components
-const db = new Database();
-const tcgApi = new TCGCSVApi(db);
+// Initialize components. db and tcgApi are assigned in bootstrap() once the
+// first-run seed install (if any) has finished; route handlers reference them
+// lazily, so they only run after the server starts listening.
+const dbPath = path.join(__dirname, 'data', 'cardcast.db');
+let db;
+let tcgApi;
 const overlayServer = new OverlayServer(io);
 
 // Middleware
 app.use(express.json());
 app.use(express.static('public'));
+
+// Lazy image resolution for cached card images. Three tiers:
+//   1. file already on disk  -> fall through to express.static below
+//   2. file missing but the card has a stored remote URL -> download + cache,
+//      then fall through to serve it (this is what lets a metadata-only seed DB
+//      self-heal its images on first view)
+//   3. unknown card / no source URL -> 404 (the Download/Update buttons remain
+//      the backfill path; no per-card API code here)
+// Concurrent requests for the same missing image share one download via the
+// in-flight map so we never fetch or write the same file twice at once.
+const inFlightImageFetches = new Map();
+
+app.get('/cache/images/:game/:filename', async (req, res, next) => {
+    const { game, filename } = req.params;
+    const diskPath = path.join(__dirname, 'cache', 'images', game, filename);
+
+    // Tier 1: already cached.
+    if (fs.existsSync(diskPath)) {
+        return next();
+    }
+
+    // Tier 2: look the card up by its /cache web path and re-fetch from source.
+    const webPath = `/cache/images/${game}/${filename}`;
+    const sourceUrl = db.getSourceImageUrl(game, webPath);
+    if (!sourceUrl) {
+        // Tier 3: nothing we can do here; let the Update flow backfill it.
+        return res.status(404).send('Image not available');
+    }
+
+    const key = `${game}/${filename}`;
+    try {
+        let fetchPromise = inFlightImageFetches.get(key);
+        if (!fetchPromise) {
+            fetchPromise = tcgApi.downloadImage(sourceUrl, game, filename)
+                .finally(() => inFlightImageFetches.delete(key));
+            inFlightImageFetches.set(key, fetchPromise);
+        }
+        const saved = await fetchPromise;
+        if (saved) {
+            return next(); // file now exists; express.static serves it
+        }
+        return res.status(404).send('Image not available');
+    } catch (error) {
+        console.error(`Lazy image fetch failed for ${webPath}:`, error.message);
+        return res.status(502).send('Image source unavailable');
+    }
+});
 
 // Serve cached images
 app.use('/cache', express.static(path.join(__dirname, 'cache')));
@@ -85,7 +149,8 @@ app.get('/api/config', (req, res) => {
 });
 
 app.post('/api/config', (req, res) => {
-    config = { ...config, ...req.body };
+    const { apiKeys: _ignored, ...incoming } = req.body || {};
+    config = { ...config, ...incoming };
     saveConfig();
     res.json({ success: true, config });
 });
@@ -99,10 +164,22 @@ function getGameName(gameId) {
         lorcana: 'Disney Lorcana',
         onepiece: 'One Piece Card Game',
         digimon: 'Digimon Card Game',
+        gundam: 'Gundam Card Game',
         fab: 'Flesh and Blood',
         starwars: 'Star Wars Unlimited'
     };
     return names[gameId] || gameId;
+}
+
+// Count cached image files on disk for a game (cache/images/<game>).
+function countCachedImages(game) {
+    try {
+        const dir = path.join(__dirname, 'cache', 'images', game);
+        if (!fs.existsSync(dir)) return 0;
+        return fs.readdirSync(dir).length;
+    } catch (e) {
+        return 0;
+    }
 }
 
 // Get list of games - UPDATED FOR COMING SOON
@@ -138,7 +215,9 @@ app.get('/api/games', (req, res) => {
                     comingSoon: false,
                     hasData: hasData,
                     cardCount: stats?.card_count || 0,
-                    lastUpdate: stats?.last_update || null
+                    lastUpdate: stats?.last_update || null,
+                    totalImages: hasData ? db.getImageManifestCount(key) : 0,
+                    cachedImages: hasData ? countCachedImages(key) : 0
                 };
             }
         });
@@ -351,12 +430,47 @@ app.post('/api/download/:game', async (req, res) => {
             userMessage = `Failed to fetch cards for ${game}. The API might be down or the format may have changed.`;
         }
         
-        io.emit('download-error', { 
-            game, 
+        io.emit('download-error', {
+            game,
             error: userMessage,
             details: err.message,
             canRetry: !err.message.includes('Rate limit')
         });
+    });
+});
+
+// Pre-download all cached card images for a game (optional cache-warming so
+// streamers avoid any on-air hitch from lazy image fetching). Mirrors the
+// download flow: responds immediately and reports progress over socket.io.
+app.post('/api/download-images/:game', async (req, res) => {
+    const game = req.params.game;
+    const setCount = req.body.setCount || 'all';
+
+    if (!AVAILABLE_GAMES.includes(game)) {
+        return res.status(400).json({
+            error: `${getGameName(game)} support is coming soon!`,
+            comingSoon: true
+        });
+    }
+
+    if (!config.games[game]) {
+        return res.status(400).json({ error: 'Invalid game' });
+    }
+
+    res.json({ message: 'Image pre-download started', game, setCount });
+
+    tcgApi.downloadAllImages(game, (progress) => {
+        io.emit('image-download-progress', {
+            game,
+            progress: progress.percent || 0,
+            message: progress.message || 'Caching images...'
+        });
+    }, setCount).then((result) => {
+        io.emit('image-download-complete', { game, ...result });
+        console.log(`Image cache for ${game}: ${result.downloaded} downloaded, ${result.skipped} cached, ${result.failed} failed`);
+    }).catch((err) => {
+        console.error(`Image pre-download error for ${game}:`, err);
+        io.emit('image-download-error', { game, error: err.message });
     });
 });
 
@@ -482,6 +596,29 @@ app.get('/mtg-match', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'mtg-match.html'));
 });
 
+app.get('/gundam-match', (req, res) => {
+    res.sendFile(path.join(__dirname, 'overlays', 'gundam-match.html'));
+});
+
+app.get('/gundam-match-control', (req, res) => {
+    res.sendFile(path.join(__dirname, 'gundam-match-control.html'));
+});
+
+// Main card-display overlay (dual card display controlled from the dashboard)
+app.get('/overlay', (req, res) => {
+    res.sendFile(path.join(__dirname, 'overlays', 'main.html'));
+});
+
+// Prize cards overlay
+app.get('/prizes', (req, res) => {
+    res.sendFile(path.join(__dirname, 'overlays', 'prizes.html'));
+});
+
+// Deck list overlay
+app.get('/decklist', (req, res) => {
+    res.sendFile(path.join(__dirname, 'overlays', 'decklist.html'));
+});
+
 // Track overlay connections
 let overlayClients = new Set();
 let mainClients = new Set();
@@ -491,7 +628,8 @@ let overlayStates = {
     'prizes': false,
     'decklist': false,
     'main': false,
-    'mtg-match': false
+    'mtg-match': false,
+    'gundam-match': false
 };
 
 // Socket.io events
@@ -529,9 +667,19 @@ io.on('connection', (socket) => {
             socket.emit('decklist-state', state);
         } else if (type === 'mtg-match') {
             socket.emit('state-update', { mtgMatch: state.mtgMatch });
+        } else if (type === 'gundam-match') {
+            socket.emit('gundam-match-state', state.gundamMatch);
+            // Also send as update so a freshly-loaded overlay renders immediately
+            socket.emit('gundam-match-update', {
+                player1: state.gundamMatch.player1,
+                player2: state.gundamMatch.player2,
+                currentTurn: state.gundamMatch.currentTurn,
+                gameNumber: state.gundamMatch.gameNumber,
+                matchFormat: state.gundamMatch.matchFormat
+            });
         }
     });
-    
+
     // Handle control panel registration
     socket.on('register-control', (type) => {
         controlClients.add(socket.id);
@@ -581,9 +729,18 @@ io.on('connection', (socket) => {
             });
         } else if (type === 'mtg-match') {
             socket.emit('state-update', { mtgMatch: state.mtgMatch });
+        } else if (type === 'gundam-match') {
+            socket.emit('gundam-match-state', state.gundamMatch);
+            socket.emit('gundam-match-update', {
+                player1: state.gundamMatch.player1,
+                player2: state.gundamMatch.player2,
+                currentTurn: state.gundamMatch.currentTurn,
+                gameNumber: state.gundamMatch.gameNumber,
+                matchFormat: state.gundamMatch.matchFormat
+            });
         }
     });
-    
+
     // Handle OBS status check
     socket.on('check-obs-status', () => {
         socket.emit('obs-status', { connected: overlayClients.size > 0 });
@@ -833,7 +990,62 @@ io.on('connection', (socket) => {
     socket.on('mtg-match-reset', () => {
         overlayServer.resetMTGMatch();
     });
-    
+
+    // Gundam Match events (the overlay-server mutators re-broadcast to overlays)
+    socket.on('gundam-match-update', (data) => {
+        overlayServer.updateGundamMatch(data);
+    });
+
+    socket.on('gundam-unit-update', (data) => {
+        overlayServer.setGundamUnit(data.player, data.index, data.unit);
+    });
+
+    socket.on('gundam-unit-hp', (data) => {
+        overlayServer.setGundamUnitHp(data.player, data.index, data.currentHp, data.maxHp);
+    });
+
+    socket.on('gundam-pilot-pair', (data) => {
+        overlayServer.setGundamPilot(data.player, data.index, data.pilot);
+    });
+
+    socket.on('gundam-base-update', (data) => {
+        overlayServer.setGundamBase(data.player, data.base);
+    });
+
+    socket.on('gundam-base-hp', (data) => {
+        overlayServer.setGundamBaseHp(data.player, data.currentHp, data.maxHp);
+    });
+
+    socket.on('gundam-resource-update', (data) => {
+        overlayServer.setGundamResources(data.player, data.resources);
+    });
+
+    socket.on('gundam-shield-taken', (data) => {
+        if (Array.isArray(data.shieldsTaken)) overlayServer.setGundamShields(data.player, data.shieldsTaken);
+        else overlayServer.takeGundamShield(data.player, data.index);
+    });
+
+    socket.on('gundam-shields-reset', () => {
+        overlayServer.resetGundamShields();
+    });
+
+    socket.on('gundam-record-update', (data) => {
+        overlayServer.updateGundamRecord(data.player, data.record);
+    });
+
+    socket.on('gundam-games-won-update', (data) => {
+        overlayServer.updateGundamGamesWon(data.player, data.gamesWon);
+    });
+
+    socket.on('gundam-match-reset', () => {
+        overlayServer.resetGundamMatch();
+    });
+
+    socket.on('toggle-gundam-match', (data) => {
+        console.log('Toggle gundam match overlay:', data.show);
+        io.emit('toggle-gundam-match', data);
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
@@ -854,6 +1066,7 @@ io.on('connection', (socket) => {
             // Notify control panels
             io.emit('overlay-disconnected', 'pokemon-match');
             io.emit('overlay-disconnected', 'mtg-match');
+            io.emit('overlay-disconnected', 'gundam-match');
             
             // If no more overlays are connected, notify main clients
             if (overlayClients.size === 0) {
@@ -863,8 +1076,23 @@ io.on('connection', (socket) => {
     });
 });
 
-// Start server
+// Start server (after the first-run seed install + DB init)
 const PORT = config.port || 3888;
+
+async function bootstrap() {
+    // On a fresh install (no data/cardcast.db yet) try to fetch the metadata seed
+    // so the user skips the live metadata-API downloads. Soft-fails to an empty DB
+    // if the Release asset is unreachable; the live Download buttons still work.
+    const result = await ensureSeedDatabase({ dbPath });
+    if (result.installed) {
+        console.log('Initialized from downloaded metadata seed database.');
+    }
+
+    db = new Database(dbPath);
+    tcgApi = new TCGCSVApi(db, apiKeys);
+}
+
+bootstrap().then(() => {
 server.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════╗
@@ -880,20 +1108,23 @@ OBS Overlays:
   - Decklist: http://localhost:${PORT}/decklist
   - Pokemon Match: http://localhost:${PORT}/pokemon-match
   - MTG Match: http://localhost:${PORT}/mtg-match
+  - Gundam Match: http://localhost:${PORT}/gundam-match
 
 Control Panels:
   - Pokemon: http://localhost:${PORT}/pokemon-match-control
   - MTG: http://localhost:${PORT}/mtg-match-control
+  - Gundam: http://localhost:${PORT}/gundam-match-control
 
 Currently Available:
   ✓ Pokemon TCG (20,000+ cards)
   ✓ Magic: The Gathering
+  ✓ Yu-Gi-Oh!
+  ✓ Disney Lorcana
+  ✓ Digimon Card Game
+  ✓ One Piece Card Game
+  ✓ Gundam Card Game
 
 Coming Soon:
-  ○ Yu-Gi-Oh!
-  ○ Disney Lorcana
-  ○ One Piece Card Game
-  ○ Digimon Card Game
   ○ Flesh and Blood
   ○ Star Wars Unlimited
 
@@ -917,11 +1148,15 @@ Opening browser...
             break;
     }
 });
+}).catch((error) => {
+    console.error('Failed to start CardCast:', error);
+    process.exit(1);
+});
 
 // Graceful shutdown
 process.on('SIGINT', () => {
     console.log('\nShutting down CardCast...');
-    db.close();
+    if (db) db.close();
     server.close();
     process.exit(0);
 });

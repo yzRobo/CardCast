@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>CardCast - Gundam Match Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            width: 1920px;
+            height: 1080px;
+            background: transparent;
+            font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Player boards - vertical panels on the sides */
+        .player-board {
+            position: absolute;
+            width: 380px;
+            height: 940px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            top: 50%;
+            opacity: 0;
+            transition: all 0.5s ease;
+        }
+        .player-board.left { left: 20px; transform: translateX(-420px) translateY(-50%); }
+        .player-board.left.active { transform: translateX(0) translateY(-50%); }
+        .player-board.right { right: 20px; transform: translateX(420px) translateY(-50%); }
+        .player-board.right.active { transform: translateX(0) translateY(-50%); }
+        .player-board.active { opacity: 1; }
+
+        .panel {
+            background: linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(20,20,30,0.95) 100%);
+            border: 2px solid #6366f1;
+            border-radius: 12px;
+            padding: 12px;
+            backdrop-filter: blur(10px);
+        }
+        .player-board.right .panel { border-color: #ef4444; }
+        .panel.soft { border-color: rgba(99,102,241,0.5); }
+        .player-board.right .panel.soft { border-color: rgba(239,68,68,0.5); }
+
+        .section-title {
+            font-size: 12px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        /* Header */
+        .player-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .player-name {
+            font-size: 22px; font-weight: 800; color: #fff;
+            text-transform: uppercase; letter-spacing: 1.2px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 230px;
+        }
+        .player-record {
+            font-size: 15px; color: #94a3b8; font-weight: 700;
+            background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+        }
+        .games-won {
+            background: rgba(16,185,129,0.2); border: 2px solid #10b981; color: #10b981;
+            padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; text-align: center;
+        }
+
+        /* Shields row (life track) */
+        .shields-row { display: flex; gap: 6px; justify-content: center; }
+        .shield {
+            width: 46px; height: 64px;
+            background: linear-gradient(135deg, #3b4cca 0%, #1a237e 100%);
+            border: 2px solid #6366f1; border-radius: 6px;
+            position: relative; box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .player-board.right .shield { border-color: #ef4444; background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%); }
+        .shield::before {
+            content: ''; position: absolute; width: 20px; height: 20px;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%); border-radius: 50%;
+        }
+        .shield.taken { opacity: 0.2; background: #1a1a1a; border-color: #333; box-shadow: none; }
+        .shield.taken::after { content: '\2715'; font-size: 24px; color: #ef4444; font-weight: bold; }
+
+        /* Resources */
+        .resources-row { display: flex; align-items: center; justify-content: center; gap: 12px; }
+        .res-value { font-size: 30px; font-weight: 800; color: #6366f1; font-family: 'Inter', monospace; }
+        .player-board.right .res-value { color: #ef4444; }
+        .res-value .slash { color: #64748b; margin: 0 4px; font-weight: 600; }
+        .res-value .total { color: #cbd5e1; }
+        .ex-badge {
+            background: rgba(251,191,36,0.18); border: 1px solid #fbbf24; color: #fbbf24;
+            padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px; visibility: hidden;
+        }
+        .ex-badge.on { visibility: visible; }
+
+        /* Battle area: equal 6-unit grid (3 x 2) */
+        .units-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .unit-cell {
+            position: relative; aspect-ratio: 5/7;
+            background: rgba(255,255,255,0.04);
+            border: 2px solid rgba(255,255,255,0.1); border-radius: 8px;
+            overflow: hidden;
+        }
+        .unit-cell.empty { border-style: dashed; }
+        .unit-cell img.unit-art { width: 100%; height: 100%; object-fit: cover; }
+        .ap-chip {
+            position: absolute; top: 4px; left: 4px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(30,27,75,0.92) 100%);
+            border: 1px solid rgba(99,102,241,0.9); color: #e0e7ff;
+            font-size: 12px; font-weight: 800; padding: 1px 6px; border-radius: 5px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
+        .player-board.right .ap-chip { border-color: rgba(239,68,68,0.9); }
+        .unit-hp-wrap {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: linear-gradient(180deg, transparent, rgba(0,0,0,0.9) 40%);
+            padding: 14px 5px 5px;
+        }
+        .unit-hp-text { color: #fff; font-size: 11px; font-weight: 700; text-align: center; margin-bottom: 3px; text-shadow: 0 1px 2px #000; }
+        .unit-hp { height: 8px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; }
+        .unit-hp-fill { height: 100%; background: linear-gradient(90deg, #10b981, #059669); transition: width 0.3s ease; }
+        .unit-hp-fill.low { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+        .unit-hp-fill.critical { background: linear-gradient(90deg, #ef4444, #dc2626); }
+        .pilot-chip {
+            position: absolute; top: 4px; right: 4px; left: 4px;
+            display: flex; align-items: center; gap: 4px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(30,27,75,0.92) 100%);
+            border: 1px solid rgba(251,191,36,0.9); border-radius: 6px; padding: 2px 5px;
+            margin-top: 22px;
+        }
+        .pilot-chip img { width: 16px; height: 22px; object-fit: cover; border-radius: 3px; }
+        .pilot-chip span {
+            color: #fde68a; font-size: 10px; font-weight: 700;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* Base slot */
+        .base-slot { display: flex; gap: 10px; align-items: center; min-height: 92px; }
+        .base-art { width: 64px; height: 90px; object-fit: cover; border-radius: 6px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
+        .base-empty {
+            width: 64px; height: 90px; border: 2px dashed rgba(255,255,255,0.15); border-radius: 6px;
+            display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; flex-shrink: 0;
+        }
+        .base-info { flex: 1; min-width: 0; }
+        .base-name { color: #fff; font-size: 14px; font-weight: 700; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .base-hp-text { color: #cbd5e1; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+        .base-hp { height: 12px; background: rgba(255,255,255,0.12); border-radius: 6px; overflow: hidden; }
+        .base-hp-fill { height: 100%; background: linear-gradient(90deg, #10b981, #059669); transition: width 0.3s ease; }
+        .base-hp-fill.low { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+        .base-hp-fill.critical { background: linear-gradient(90deg, #ef4444, #dc2626); }
+        .base-none { color: #64748b; font-size: 13px; }
+
+        /* Shared match-info bar (verbatim concept from Pokemon overlay) */
+        .match-info {
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(0,0,0,0.98) 0%, rgba(20,20,30,0.98) 100%);
+            border: 2px solid #6366f1; border-radius: 12px; padding: 14px 30px;
+            display: flex; align-items: center; gap: 25px; backdrop-filter: blur(10px);
+            opacity: 0; transition: all 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+        .match-info.active { opacity: 1; }
+        .match-format { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+        .timer { font-size: 36px; font-weight: bold; color: #00d4ff; font-family: 'Courier New', monospace; text-shadow: 0 0 15px rgba(0,212,255,0.5); }
+        .turn-indicator {
+            padding: 8px 16px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-radius: 24px; color: #fff; font-weight: bold; font-size: 14px;
+            text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(16,185,129,0.4);
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <!-- Player 1 (Left) -->
+    <div class="player-board left" id="player1Board">
+        <div class="panel">
+            <div class="player-name-row">
+                <div class="player-name" id="p1Name">Player 1</div>
+                <div class="player-record" id="p1Record">0-0-0</div>
+            </div>
+            <div class="games-won" id="p1GamesWon">Games Won: 0</div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Shields</div>
+            <div class="shields-row" id="p1Shields"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Resources</div>
+            <div class="resources-row">
+                <div class="res-value" id="p1Resources"><span class="active">0</span><span class="slash">/</span><span class="total">0</span></div>
+                <div class="ex-badge" id="p1Ex">EX</div>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Battle Area</div>
+            <div class="units-grid" id="p1Units"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Base</div>
+            <div class="base-slot" id="p1Base"></div>
+        </div>
+    </div>
+
+    <!-- Player 2 (Right) -->
+    <div class="player-board right" id="player2Board">
+        <div class="panel">
+            <div class="player-name-row">
+                <div class="player-name" id="p2Name">Player 2</div>
+                <div class="player-record" id="p2Record">0-0-0</div>
+            </div>
+            <div class="games-won" id="p2GamesWon">Games Won: 0</div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Shields</div>
+            <div class="shields-row" id="p2Shields"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Resources</div>
+            <div class="resources-row">
+                <div class="res-value" id="p2Resources"><span class="active">0</span><span class="slash">/</span><span class="total">0</span></div>
+                <div class="ex-badge" id="p2Ex">EX</div>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Battle Area</div>
+            <div class="units-grid" id="p2Units"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Base</div>
+            <div class="base-slot" id="p2Base"></div>
+        </div>
+    </div>
+
+    <!-- Shared match-info bar -->
+    <div class="match-info" id="matchInfo">
+        <div class="match-format" id="matchFormat">BEST OF 3 • GAME 1</div>
+        <div class="timer" id="matchTimer">50:00</div>
+        <div class="turn-indicator" id="turnIndicator">Player 1's Turn</div>
+    </div>
+
+    <script>
+        const socket = io('http://localhost:3888');
+
+        function freshPlayer(name) {
+            return {
+                name, record: { wins: 0, losses: 0, ties: 0 }, gamesWon: 0,
+                shields: 6, shieldsTaken: [],
+                resources: { active: 0, total: 0, ex: false },
+                units: [null, null, null, null, null, null],
+                base: null
+            };
+        }
+
+        let matchState = {
+            player1: freshPlayer('Player 1'),
+            player2: freshPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            timerDuration: { minutes: 50, seconds: 0 },
+            timerInterval: null,
+            gameNumber: 1,
+            matchFormat: 'Best of 3',
+            visible: false
+        };
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+        function hpClass(cur, max) {
+            const pct = max > 0 ? (cur / max) * 100 : 0;
+            if (pct <= 20) return 'critical';
+            if (pct <= 50) return 'low';
+            return '';
+        }
+
+        // ---- Socket handlers ----
+        socket.on('gundam-match-state', (state) => { if (state) { applyFullState(state); updateDisplay(); } });
+
+        socket.on('gundam-match-update', (data) => {
+            if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
+            if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
+            if (data.currentTurn !== undefined) matchState.currentTurn = data.currentTurn;
+            if (data.gameNumber !== undefined) matchState.gameNumber = data.gameNumber;
+            if (data.matchFormat !== undefined) matchState.matchFormat = data.matchFormat;
+            updateDisplay();
+        });
+
+        socket.on('gundam-unit-update', (d) => { setUnit(d.player, d.index, d.unit); renderUnits(d.player); });
+        socket.on('gundam-unit-hp', (d) => {
+            const u = matchState[`player${d.player}`].units[d.index];
+            if (u) { u.currentHp = d.currentHp; if (d.maxHp !== undefined) u.maxHp = d.maxHp; renderUnits(d.player); }
+        });
+        socket.on('gundam-pilot-pair', (d) => {
+            const u = matchState[`player${d.player}`].units[d.index];
+            if (u) { u.pilot = d.pilot; renderUnits(d.player); }
+        });
+        socket.on('gundam-base-update', (d) => { matchState[`player${d.player}`].base = d.base; renderBase(d.player); });
+        socket.on('gundam-base-hp', (d) => {
+            const b = matchState[`player${d.player}`].base;
+            if (b) { b.currentHp = d.currentHp; if (d.maxHp !== undefined) b.maxHp = d.maxHp; renderBase(d.player); }
+        });
+        socket.on('gundam-resource-update', (d) => { matchState[`player${d.player}`].resources = d.resources; renderResources(d.player); });
+        socket.on('gundam-shield-taken', (d) => {
+            const p = matchState[`player${d.player}`];
+            if (Array.isArray(d.shieldsTaken)) p.shieldsTaken = d.shieldsTaken;
+            p.shields = 6 - p.shieldsTaken.length;
+            renderShields(d.player);
+        });
+        socket.on('gundam-shields-reset', () => {
+            matchState.player1.shieldsTaken = []; matchState.player1.shields = 6;
+            matchState.player2.shieldsTaken = []; matchState.player2.shields = 6;
+            renderShields(1); renderShields(2);
+        });
+        socket.on('gundam-record-update', (d) => { matchState[`player${d.player}`].record = d.record; renderHeader(d.player); updateMatchInfo(); });
+        socket.on('gundam-games-won-update', (d) => { matchState[`player${d.player}`].gamesWon = d.gamesWon; renderHeader(d.player); });
+
+        socket.on('gundam-match-reset', () => {
+            const wasVisible = matchState.visible;
+            const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            matchState = {
+                player1: freshPlayer('Player 1'), player2: freshPlayer('Player 2'),
+                currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
+                timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: 'Best of 3', visible: wasVisible
+            };
+            updateDisplay();
+        });
+
+        socket.on('toggle-gundam-match', (d) => { matchState.visible = d.show; d.show ? showOverlay() : hideOverlay(); });
+
+        // Reused global match events
+        socket.on('turn-switch', (d) => { if (d && d.currentTurn) matchState.currentTurn = d.currentTurn; updateMatchInfo(); });
+        socket.on('match-settings', (d) => { if (d.gameNumber) matchState.gameNumber = d.gameNumber; if (d.matchFormat) matchState.matchFormat = d.matchFormat; updateMatchInfo(); });
+        socket.on('timer-start', startTimer);
+        socket.on('timer-pause', pauseTimer);
+        socket.on('timer-reset', (d) => {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            if (d && typeof d.minutes === 'number') matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds || 0 };
+            const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
+            matchState.timer = { minutes: dur.minutes, seconds: dur.seconds };
+            updateMatchInfo();
+        });
+        socket.on('timer-set', (d) => {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds };
+            matchState.timer = { minutes: d.minutes, seconds: d.seconds };
+            updateMatchInfo();
+        });
+
+        function applyFullState(s) {
+            ['player1', 'player2'].forEach(k => {
+                if (s[k]) matchState[k] = { ...freshPlayer(s[k].name || (k === 'player1' ? 'Player 1' : 'Player 2')), ...s[k] };
+            });
+            if (s.currentTurn !== undefined) matchState.currentTurn = s.currentTurn;
+            if (s.gameNumber !== undefined) matchState.gameNumber = s.gameNumber;
+            if (s.matchFormat !== undefined) matchState.matchFormat = s.matchFormat;
+            if (s.timer) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
+        }
+
+        function setUnit(player, index, unit) {
+            const p = matchState[`player${player}`];
+            if (!p || index < 0 || index > 5) return;
+            p.units[index] = unit;
+        }
+
+        // ---- Rendering ----
+        function updateDisplay() {
+            [1, 2].forEach(n => { renderHeader(n); renderShields(n); renderResources(n); renderUnits(n); renderBase(n); });
+            updateMatchInfo();
+        }
+
+        function renderHeader(n) {
+            const p = matchState[`player${n}`];
+            document.getElementById(`p${n}Name`).textContent = p.name || `Player ${n}`;
+            const r = p.record || { wins: 0, losses: 0, ties: 0 };
+            document.getElementById(`p${n}Record`).textContent = `${r.wins}-${r.losses}-${r.ties}`;
+            document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${p.gamesWon || 0}`;
+        }
+
+        function renderShields(n) {
+            const p = matchState[`player${n}`];
+            const taken = p.shieldsTaken || [];
+            let html = '';
+            for (let i = 0; i < 6; i++) html += `<div class="shield${taken.includes(i) ? ' taken' : ''}"></div>`;
+            document.getElementById(`p${n}Shields`).innerHTML = html;
+        }
+
+        function renderResources(n) {
+            const res = matchState[`player${n}`].resources || { active: 0, total: 0, ex: false };
+            const el = document.getElementById(`p${n}Resources`);
+            el.innerHTML = `<span class="active">${res.active || 0}</span><span class="slash">/</span><span class="total">${res.total || 0}</span>`;
+            document.getElementById(`p${n}Ex`).classList.toggle('on', !!res.ex);
+        }
+
+        function renderUnits(n) {
+            const p = matchState[`player${n}`];
+            const grid = document.getElementById(`p${n}Units`);
+            let html = '';
+            for (let i = 0; i < 6; i++) {
+                const u = p.units[i];
+                if (!u) { html += '<div class="unit-cell empty"></div>'; continue; }
+                const cur = (u.currentHp != null ? u.currentHp : (u.maxHp || 0));
+                const max = (u.maxHp != null ? u.maxHp : cur);
+                const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
+                const pilot = u.pilot ? `
+                    <div class="pilot-chip">
+                        ${u.pilot.image ? `<img src="${esc(u.pilot.image)}" alt="">` : ''}
+                        <span>${esc(u.pilot.name)}</span>
+                    </div>` : '';
+                html += `
+                    <div class="unit-cell">
+                        <img class="unit-art" src="${esc(u.image)}" alt="${esc(u.name)}">
+                        <div class="ap-chip">AP ${esc(u.ap != null ? u.ap : '-')}</div>
+                        ${pilot}
+                        <div class="unit-hp-wrap">
+                            <div class="unit-hp-text">${cur}/${max}</div>
+                            <div class="unit-hp"><div class="unit-hp-fill ${hpClass(cur, max)}" style="width:${pct}%"></div></div>
+                        </div>
+                    </div>`;
+            }
+            grid.innerHTML = html;
+        }
+
+        function renderBase(n) {
+            const b = matchState[`player${n}`].base;
+            const el = document.getElementById(`p${n}Base`);
+            if (!b) { el.innerHTML = '<div class="base-empty">No Base</div><div class="base-info"><div class="base-none">No Base in play</div></div>'; return; }
+            const cur = (b.currentHp != null ? b.currentHp : (b.maxHp || 0));
+            const max = (b.maxHp != null ? b.maxHp : cur);
+            const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
+            el.innerHTML = `
+                ${b.image ? `<img class="base-art" src="${esc(b.image)}" alt="${esc(b.name)}">` : '<div class="base-empty">Base</div>'}
+                <div class="base-info">
+                    <div class="base-name">${esc(b.name)}</div>
+                    <div class="base-hp-text">${cur}/${max} HP</div>
+                    <div class="base-hp"><div class="base-hp-fill ${hpClass(cur, max)}" style="width:${pct}%"></div></div>
+                </div>`;
+        }
+
+        function updateMatchInfo() {
+            document.getElementById('matchTimer').textContent =
+                `${String(matchState.timer.minutes).padStart(2, '0')}:${String(matchState.timer.seconds).padStart(2, '0')}`;
+            const name = matchState[`player${matchState.currentTurn}`].name;
+            document.getElementById('turnIndicator').textContent = `${name}'s Turn`;
+            document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber}`;
+        }
+
+        function startTimer() {
+            if (matchState.timerInterval) return;
+            matchState.timerInterval = setInterval(() => {
+                if (matchState.timer.seconds > 0) matchState.timer.seconds--;
+                else if (matchState.timer.minutes > 0) { matchState.timer.minutes--; matchState.timer.seconds = 59; }
+                else { pauseTimer(); }
+                updateMatchInfo();
+            }, 1000);
+        }
+        function pauseTimer() {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+        }
+
+        function showOverlay() {
+            document.getElementById('player1Board').classList.add('active');
+            document.getElementById('player2Board').classList.add('active');
+            document.getElementById('matchInfo').classList.add('active');
+        }
+        function hideOverlay() {
+            document.getElementById('player1Board').classList.remove('active');
+            document.getElementById('player2Board').classList.remove('active');
+            document.getElementById('matchInfo').classList.remove('active');
+        }
+
+        // Init
+        updateDisplay();
+        socket.emit('register-overlay', 'gundam-match');
+        setTimeout(() => { socket.emit('request-state', 'gundam-match'); showOverlay(); }, 500);
+        setInterval(() => socket.emit('register-overlay', 'gundam-match'), 5000);
+    </script>
+</body>
+</html>

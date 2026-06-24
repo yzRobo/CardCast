@@ -3,498 +3,306 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=1920, height=1080">
-    <title>CardCast - Decklist Overlay</title>
+    <title>CardCast - Deck List Overlay</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             width: 1920px;
             height: 1080px;
             background: transparent;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             overflow: hidden;
+            -webkit-font-smoothing: antialiased;
         }
-        
-        .decklist-container {
+
+        /* Panel anchored top-left; reposition/crop in OBS as needed */
+        .deck-panel {
             position: absolute;
-            right: 50px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 350px;
-            max-height: 900px;
-            background: linear-gradient(135deg, rgba(17, 17, 17, 0.95) 0%, rgba(33, 33, 33, 0.95) 100%);
-            border-radius: 15px;
-            border: 2px solid rgba(102, 126, 234, 0.5);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            top: 60px;
+            left: 60px;
+            width: 460px;
+            max-height: 960px;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(180deg, rgba(18, 24, 38, 0.96) 0%, rgba(11, 15, 23, 0.97) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 18px;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
             opacity: 0;
-            transform: translateY(-50%) translateX(100px);
-            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-            overflow: hidden;
+            transform: translateX(-40px);
+            transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
-        
-        .decklist-container.active {
-            opacity: 1;
-            transform: translateY(-50%) translateX(0);
-        }
-        
-        .decklist-header {
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            padding: 15px 20px;
-            color: white;
-            border-bottom: 2px solid rgba(0, 212, 255, 0.3);
-        }
-        
-        .deck-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        
-        .deck-meta {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            opacity: 0.9;
-        }
-        
-        .deck-format {
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .deck-count {
-            font-weight: 600;
-        }
-        
-        .decklist-body {
-            max-height: 750px;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 15px;
-        }
-        
-        /* Custom scrollbar */
-        .decklist-body::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .decklist-body::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 3px;
-        }
-        
-        .decklist-body::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #6366f1, #a855f7);
-            border-radius: 3px;
-        }
-        
-        .card-category {
-            margin-bottom: 20px;
-        }
-        
-        .category-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 12px;
-            background: rgba(102, 126, 234, 0.1);
-            border-left: 3px solid #6366f1;
-            margin-bottom: 8px;
-            color: #00d4ff;
-            font-size: 13px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .category-count {
-            background: rgba(0, 212, 255, 0.2);
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 11px;
-        }
-        
-        .card-list {
-            list-style: none;
-        }
-        
-        .card-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 6px 12px;
-            margin-bottom: 3px;
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 5px;
-            color: #e0e0e0;
-            font-size: 13px;
-            transition: all 0.2s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .card-item:hover {
-            background: rgba(102, 126, 234, 0.15);
-            transform: translateX(5px);
-        }
-        
-        .card-item::before {
+        .deck-panel.active { opacity: 1; transform: translateX(0); }
+
+        /* Accent bar on top */
+        .deck-panel::before {
             content: '';
             position: absolute;
-            left: 0;
-            top: 0;
-            height: 100%;
-            width: 2px;
-            background: linear-gradient(135deg, #6366f1, #a855f7);
-            opacity: 0;
-            transition: opacity 0.2s ease;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #6366f1, #a855f7, #38bdf8);
         }
-        
-        .card-item:hover::before {
-            opacity: 1;
+
+        .deck-header {
+            padding: 22px 24px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
-        
-        .card-quantity {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 24px;
-            height: 24px;
-            background: rgba(102, 126, 234, 0.2);
-            border: 1px solid rgba(102, 126, 234, 0.5);
-            border-radius: 5px;
-            color: #00d4ff;
-            font-weight: bold;
-            font-size: 12px;
-            margin-right: 10px;
-        }
-        
-        .card-name {
-            flex: 1;
+        .deck-title {
+            color: #fff;
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1.15;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        
-        .card-cost {
-            margin-left: 10px;
-            padding: 2px 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            font-size: 11px;
-            color: #999;
-        }
-        
-        /* Energy/Land symbols for Pokemon/Magic */
-        .energy-symbol {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            margin-left: 2px;
-            vertical-align: middle;
-        }
-        
-        .energy-fire { background: linear-gradient(135deg, #ff6b6b, #c92a2a); }
-        .energy-water { background: linear-gradient(135deg, #339af0, #1864ab); }
-        .energy-grass { background: linear-gradient(135deg, #51cf66, #2b8a3e); }
-        .energy-lightning { background: linear-gradient(135deg, #ffd43b, #fab005); }
-        .energy-psychic { background: linear-gradient(135deg, #da77f2, #9c36b5); }
-        .energy-fighting { background: linear-gradient(135deg, #ff8787, #fa5252); }
-        .energy-darkness { background: linear-gradient(135deg, #495057, #212529); }
-        .energy-metal { background: linear-gradient(135deg, #adb5bd, #868e96); }
-        .energy-fairy { background: linear-gradient(135deg, #ff8cc8, #f06595); }
-        .energy-dragon { background: linear-gradient(135deg, #9775fa, #7048e8); }
-        .energy-colorless { background: linear-gradient(135deg, #f8f9fa, #dee2e6); }
-        
-        /* Deck stats footer */
-        .decklist-footer {
-            padding: 12px 20px;
-            background: rgba(0, 0, 0, 0.3);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        .deck-sub {
+            margin-top: 6px;
             display: flex;
-            justify-content: space-around;
-            text-align: center;
-        }
-        
-        .stat-item {
-            flex: 1;
-        }
-        
-        .stat-label {
-            font-size: 10px;
-            color: #999;
+            align-items: center;
+            gap: 10px;
+            color: rgba(226, 232, 240, 0.55);
+            font-size: 13px;
+            font-weight: 500;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 3px;
+            letter-spacing: 0.12em;
         }
-        
-        .stat-value {
-            font-size: 16px;
-            font-weight: bold;
-            color: #00d4ff;
+        .deck-sub .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+        .deck-total-pill {
+            margin-left: auto;
+            background: rgba(99, 102, 241, 0.18);
+            border: 1px solid rgba(129, 140, 248, 0.35);
+            color: #c7d2fe;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            letter-spacing: 0;
         }
-        
-        /* Animation for new cards */
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
+
+        .deck-body {
+            padding: 16px 20px 8px;
+            overflow: hidden;
+            column-count: 1;
+            column-gap: 22px;
         }
-        
-        .card-item.new {
-            animation: slideIn 0.3s ease;
+        /* If lots of cards, switch to two columns automatically */
+        .deck-body.two-col { column-count: 2; }
+
+        .category { break-inside: avoid; margin-bottom: 16px; }
+        .category-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .category-accent {
+            width: 4px; height: 16px; border-radius: 2px;
+            background: var(--accent, #6366f1);
+        }
+        .category-name {
+            color: #e6ebf5;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .category-count {
+            margin-left: auto;
+            color: rgba(226, 232, 240, 0.45);
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+        }
+
+        .card-row {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            padding: 3px 0;
+        }
+        .card-qty {
+            flex-shrink: 0;
+            min-width: 26px;
+            text-align: center;
+            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 13px;
+            background: var(--accent, #6366f1);
+            border-radius: 6px;
+            padding: 1px 4px;
+            opacity: 0.92;
+        }
+        .card-name {
+            color: rgba(232, 237, 245, 0.92);
+            font-size: 15px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .deck-empty {
+            padding: 30px 24px;
+            text-align: center;
+            color: rgba(226, 232, 240, 0.4);
+            font-size: 14px;
+        }
+
+        .deck-foot {
+            margin-top: auto;
+            padding: 10px 24px 14px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            color: rgba(226, 232, 240, 0.4);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+        .deck-foot .brand-dot {
+            width: 14px; height: 14px; border-radius: 4px;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
         }
     </style>
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-    <div class="decklist-container" id="decklistContainer">
-        <div class="decklist-header">
+    <div class="deck-panel" id="deckPanel">
+        <div class="deck-header">
             <div class="deck-title" id="deckTitle">Deck List</div>
-            <div class="deck-meta">
-                <span class="deck-format" id="deckFormat">Standard</span>
-                <span class="deck-count" id="deckCount">0 Cards</span>
+            <div class="deck-sub">
+                <span id="deckGame">Pokemon</span>
+                <span class="dot"></span>
+                <span id="deckCats">0 types</span>
+                <span class="deck-total-pill" id="deckTotal">0</span>
             </div>
         </div>
-        
-        <div class="decklist-body" id="decklistBody">
-            <!-- Categories will be dynamically added here -->
-        </div>
-        
-        <div class="decklist-footer">
-            <div class="stat-item">
-                <div class="stat-label">Pokemon</div>
-                <div class="stat-value" id="statPokemon">0</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Trainers</div>
-                <div class="stat-value" id="statTrainers">0</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Energy</div>
-                <div class="stat-value" id="statEnergy">0</div>
-            </div>
-        </div>
+        <div class="deck-body" id="deckBody"></div>
+        <div class="deck-foot"><span class="brand-dot"></span> CardCast</div>
     </div>
-    
+
     <script>
         const socket = io('http://localhost:3888');
-        let currentDeck = {
-            title: 'Deck List',
-            format: 'Standard',
-            game: 'pokemon',
-            categories: {}
+        let currentDeck = { title: 'Deck List', game: '', categories: {} };
+
+        // Display order + accent color per category
+        const CATEGORY_ORDER = [
+            'Pokemon', 'Trainers', 'Energy',
+            'Units', 'Pilots', 'Commands', 'Bases', 'Resources',
+            'Deck', 'Creatures', 'Spells', 'Lands', 'Sideboard'
+        ];
+        const CATEGORY_ACCENT = {
+            Pokemon: '#f87171', Trainers: '#fbbf24', Energy: '#34d399',
+            Units: '#38bdf8', Pilots: '#fbbf24', Commands: '#f87171', Bases: '#34d399', Resources: '#94a3b8',
+            Deck: '#818cf8', Sideboard: '#c084fc', Creatures: '#38bdf8',
+            Spells: '#a855f7', Lands: '#facc15'
         };
-        
-        function updateDecklist() {
-            const body = document.getElementById('decklistBody');
-            body.innerHTML = '';
-            
-            let totalCards = 0;
-            let categoryTotals = {
-                pokemon: 0,
-                trainers: 0,
-                energy: 0,
-                creatures: 0,
-                spells: 0,
-                lands: 0,
-                monsters: 0,
-                magic: 0,
-                traps: 0
-            };
-            
-            // Sort categories by type
-            const sortOrder = {
-                'Pokemon': 1, 'Creatures': 1, 'Monsters': 1, 'Characters': 1,
-                'Trainer': 2, 'Spells': 2, 'Magic': 2, 'Actions': 2,
-                'Energy': 3, 'Lands': 3, 'Traps': 3, 'Items': 3
-            };
-            
-            const sortedCategories = Object.entries(currentDeck.categories)
-                .sort((a, b) => {
-                    const orderA = sortOrder[a[0]] || 99;
-                    const orderB = sortOrder[b[0]] || 99;
-                    return orderA - orderB;
-                });
-            
-            sortedCategories.forEach(([categoryName, cards]) => {
-                if (cards.length === 0) return;
-                
-                const categoryDiv = document.createElement('div');
-                categoryDiv.className = 'card-category';
-                
-                const categoryCount = cards.reduce((sum, card) => sum + (card.quantity || 1), 0);
-                totalCards += categoryCount;
-                
-                // Update category totals for footer
-                const catLower = categoryName.toLowerCase();
-                if (catLower.includes('pokemon') || catLower.includes('character')) {
-                    categoryTotals.pokemon += categoryCount;
-                } else if (catLower.includes('trainer') || catLower.includes('supporter')) {
-                    categoryTotals.trainers += categoryCount;
-                } else if (catLower.includes('energy')) {
-                    categoryTotals.energy += categoryCount;
-                } else if (catLower.includes('creature') || catLower.includes('monster')) {
-                    categoryTotals.creatures += categoryCount;
-                } else if (catLower.includes('spell') || catLower.includes('instant') || catLower.includes('sorcery')) {
-                    categoryTotals.spells += categoryCount;
-                } else if (catLower.includes('land')) {
-                    categoryTotals.lands += categoryCount;
-                } else if (catLower.includes('magic')) {
-                    categoryTotals.magic += categoryCount;
-                } else if (catLower.includes('trap')) {
-                    categoryTotals.traps += categoryCount;
-                }
-                
-                categoryDiv.innerHTML = `
-                    <div class="category-header">
-                        <span>${categoryName}</span>
-                        <span class="category-count">${categoryCount}</span>
-                    </div>
-                    <ul class="card-list"></ul>
-                `;
-                
-                const cardList = categoryDiv.querySelector('.card-list');
-                
-                cards.forEach(card => {
-                    const li = document.createElement('li');
-                    li.className = 'card-item';
-                    
-                    let costDisplay = '';
-                    if (card.cost) {
-                        if (currentDeck.game === 'pokemon' && card.cost.includes('Energy')) {
-                            // Parse Pokemon energy costs
-                            costDisplay = card.cost.split(',').map(e => {
-                                const type = e.trim().toLowerCase().replace(' energy', '');
-                                return `<span class="energy-symbol energy-${type}"></span>`;
-                            }).join('');
-                        } else {
-                            costDisplay = `<span class="card-cost">${card.cost}</span>`;
-                        }
-                    }
-                    
-                    li.innerHTML = `
-                        <span class="card-quantity">${card.quantity || 1}</span>
-                        <span class="card-name">${card.name}</span>
-                        ${costDisplay}
-                    `;
-                    
-                    cardList.appendChild(li);
-                });
-                
-                body.appendChild(categoryDiv);
-            });
-            
-            // Update header
-            document.getElementById('deckTitle').textContent = currentDeck.title;
-            document.getElementById('deckFormat').textContent = currentDeck.format;
-            document.getElementById('deckCount').textContent = `${totalCards} Cards`;
-            
-            // Update footer based on game
-            if (currentDeck.game === 'pokemon') {
-                document.getElementById('statPokemon').textContent = categoryTotals.pokemon;
-                document.getElementById('statTrainers').textContent = categoryTotals.trainers;
-                document.getElementById('statEnergy').textContent = categoryTotals.energy;
-                document.querySelector('.stat-item:nth-child(1) .stat-label').textContent = 'Pokemon';
-                document.querySelector('.stat-item:nth-child(2) .stat-label').textContent = 'Trainers';
-                document.querySelector('.stat-item:nth-child(3) .stat-label').textContent = 'Energy';
-            } else if (currentDeck.game === 'magic') {
-                document.getElementById('statPokemon').textContent = categoryTotals.creatures;
-                document.getElementById('statTrainers').textContent = categoryTotals.spells;
-                document.getElementById('statEnergy').textContent = categoryTotals.lands;
-                document.querySelector('.stat-item:nth-child(1) .stat-label').textContent = 'Creatures';
-                document.querySelector('.stat-item:nth-child(2) .stat-label').textContent = 'Spells';
-                document.querySelector('.stat-item:nth-child(3) .stat-label').textContent = 'Lands';
-            } else if (currentDeck.game === 'yugioh') {
-                document.getElementById('statPokemon').textContent = categoryTotals.monsters;
-                document.getElementById('statTrainers').textContent = categoryTotals.magic;
-                document.getElementById('statEnergy').textContent = categoryTotals.traps;
-                document.querySelector('.stat-item:nth-child(1) .stat-label').textContent = 'Monsters';
-                document.querySelector('.stat-item:nth-child(2) .stat-label').textContent = 'Magic';
-                document.querySelector('.stat-item:nth-child(3) .stat-label').textContent = 'Traps';
-            }
+
+        function catRank(name) {
+            const i = CATEGORY_ORDER.indexOf(name);
+            return i === -1 ? 99 : i;
         }
-        
+
+        function updateDecklist() {
+            const cats = currentDeck.categories || {};
+            const entries = Object.entries(cats).filter(([, cards]) => cards && cards.length);
+            entries.sort((a, b) => catRank(a[0]) - catRank(b[0]) || a[0].localeCompare(b[0]));
+
+            // Header
+            document.getElementById('deckTitle').textContent = currentDeck.title || 'Deck List';
+            document.getElementById('deckGame').textContent =
+                (currentDeck.game || 'TCG').charAt(0).toUpperCase() + (currentDeck.game || 'TCG').slice(1);
+
+            let total = 0;
+            entries.forEach(([, cards]) => cards.forEach(c => { total += (c.quantity || 1); }));
+            document.getElementById('deckTotal').textContent = total;
+            document.getElementById('deckCats').textContent =
+                `${entries.length} ${entries.length === 1 ? 'type' : 'types'}`;
+
+            // Body
+            const body = document.getElementById('deckBody');
+            if (!entries.length) {
+                body.classList.remove('two-col');
+                body.innerHTML = '<div class="deck-empty">No deck loaded</div>';
+                return;
+            }
+
+            // Two columns when the list is long
+            const rowCount = entries.reduce((n, [, cards]) => n + cards.length + 1, 0);
+            body.classList.toggle('two-col', rowCount > 22);
+
+            body.innerHTML = entries.map(([name, cards]) => {
+                const accent = CATEGORY_ACCENT[name] || '#6366f1';
+                const count = cards.reduce((s, c) => s + (c.quantity || 1), 0);
+                const rows = cards.map(c => `
+                    <div class="card-row">
+                        <span class="card-qty">${c.quantity || 1}</span>
+                        <span class="card-name">${escapeHtml(c.name || '')}</span>
+                    </div>`).join('');
+                return `
+                    <div class="category" style="--accent:${accent}">
+                        <div class="category-head">
+                            <span class="category-accent"></span>
+                            <span class="category-name">${escapeHtml(name)}</span>
+                            <span class="category-count">${count}</span>
+                        </div>
+                        ${rows}
+                    </div>`;
+            }).join('');
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        function setShown(show) {
+            document.getElementById('deckPanel').classList.toggle('active', !!show);
+        }
+
         socket.on('decklist-update', (data) => {
-            currentDeck = data.deck;
+            if (data && data.deck) currentDeck = data.deck;
+            if (!currentDeck.categories) currentDeck.categories = {};
             updateDecklist();
-            
-            if (data.show) {
-                setTimeout(() => {
-                    document.getElementById('decklistContainer').classList.add('active');
-                }, 100);
-            } else {
-                document.getElementById('decklistContainer').classList.remove('active');
-            }
+            if (data) setShown(data.show);
         });
-        
+
         socket.on('decklist-add-card', (data) => {
-            const { category, card } = data;
-            
-            if (!currentDeck.categories[category]) {
-                currentDeck.categories[category] = [];
-            }
-            
-            // Check if card already exists and increment quantity
-            const existingCard = currentDeck.categories[category].find(c => c.name === card.name);
-            if (existingCard) {
-                existingCard.quantity = (existingCard.quantity || 1) + 1;
-            } else {
-                currentDeck.categories[category].push({ ...card, quantity: 1 });
-            }
-            
+            const { category, card } = data || {};
+            if (!category || !card) return;
+            if (!currentDeck.categories) currentDeck.categories = {};
+            if (!currentDeck.categories[category]) currentDeck.categories[category] = [];
+            const existing = currentDeck.categories[category].find(c => c.name === card.name);
+            if (existing) existing.quantity = (existing.quantity || 1) + 1;
+            else currentDeck.categories[category].push({ name: card.name, quantity: 1 });
             updateDecklist();
         });
-        
+
         socket.on('decklist-clear', () => {
             currentDeck.categories = {};
             updateDecklist();
-            document.getElementById('decklistContainer').classList.remove('active');
+            setShown(false);
         });
-        
-        // Auto-reconnect on disconnect
-        socket.on('disconnect', () => {
-            console.log('Disconnected from CardCast server');
-        });
-        
+
         socket.on('connect', () => {
-            console.log('Connected to decklist overlay');
             socket.emit('register-overlay', 'decklist');
-            
-            // Request current state
             socket.emit('request-state', 'decklist');
         });
 
-        // Also make it automatically show when updated
-        socket.on('decklist-update', (data) => {
-            if (data.deck) {
-                currentDeck = data.deck;
-                updateDecklist();
-            }
-            
-            if (data.show !== undefined) {
-                if (data.show) {
-                    setTimeout(() => {
-                        document.getElementById('decklistContainer').classList.add('active');
-                    }, 100);
-                } else {
-                    document.getElementById('decklistContainer').classList.remove('active');
-                }
-            }
-        });
+        updateDecklist();
     </script>
 </body>
 </html>

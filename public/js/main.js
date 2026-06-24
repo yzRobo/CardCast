@@ -7,6 +7,15 @@ let searchResults = [];
 let selectedCard = null;
 let recentCards = [];
 let isOBSConnected = false;
+// Map of gameId -> hasData, populated by loadGames; used by the header dropdown.
+let gameHasData = {};
+// Server port for OBS overlay URLs (refreshed from /api/config in loadConfig).
+let serverPort = window.location.port || '3888';
+
+// Build an OBS-friendly overlay URL for a route (e.g. '/overlay').
+function overlayUrl(route) {
+    return `http://localhost:${serverPort}${route}`;
+}
 
 // Pokemon Match State
 let pokemonMatchState = {
@@ -34,13 +43,12 @@ let pokemonMatchState = {
     showPrizes: false
 };
 
-// Current deck list
+// Current deck list - generic, keyed by the active game's registry categories
+// (e.g. { Pokemon: [...], Trainers: [...] } or { Creatures: [...], Lands: [...] }).
 let currentDeckList = {
     name: 'My Deck',
     format: 'Standard',
-    pokemon: [],
-    trainers: [],
-    energy: []
+    categories: {}
 };
 
 // Initialize on page load
@@ -118,6 +126,15 @@ function initializeEventListeners() {
     if (clearDisplayBtn) {
         clearDisplayBtn.addEventListener('click', clearDisplay);
     }
+
+    // Header game selector (kept in sync with the sidebar list; both call selectGame)
+    const gameSelect = document.getElementById('gameSelect');
+    if (gameSelect) {
+        gameSelect.addEventListener('change', (e) => {
+            const id = e.target.value;
+            if (id) selectGame(id, gameHasData[id]);
+        });
+    }
     
     // Copy buttons
     document.querySelectorAll('.copy-btn').forEach(btn => {
@@ -136,14 +153,37 @@ async function loadGames() {
         
         const gamesList = document.getElementById('gamesList');
         gamesList.innerHTML = '';
-        
+
         games.forEach(game => {
             const gameItem = createGameElement(game);
             gamesList.appendChild(gameItem);
         });
+
+        // Keep the header dropdown in sync with the sidebar list
+        populateGameSelect(games);
     } catch (error) {
         console.error('Error loading games:', error);
     }
+}
+
+// Populate the header game-selector dropdown from the same /api/games data.
+// Coming-soon games are disabled; games without data stay selectable but are
+// marked "(no data)" so the dropdown is still usable on a fresh install.
+function populateGameSelect(games) {
+    const sel = document.getElementById('gameSelect');
+    if (!sel) return;
+
+    gameHasData = {};
+    const opts = ['<option value="" disabled>Select a game...</option>'];
+    games.forEach(game => {
+        const available = game.available && !game.comingSoon;
+        const hasData = !!(game.hasData && game.cardCount > 0);
+        gameHasData[game.id] = hasData;
+        const suffix = !available ? ' (coming soon)' : (hasData ? '' : ' (no data)');
+        opts.push(`<option value="${game.id}"${available ? '' : ' disabled'}>${game.name}${suffix}</option>`);
+    });
+    sel.innerHTML = opts.join('');
+    if (currentGame) sel.value = currentGame;
 }
 
 // Create game element - UPDATED FOR COMING SOON
@@ -157,10 +197,20 @@ function createGameElement(game) {
     // Check if game is available based on API data
     const isAvailable = game.available && !game.comingSoon;
     const hasData = game.hasData && game.cardCount > 0;
-    const cardCountFormatted = game.cardCount >= 1000 
-        ? `${(game.cardCount / 1000).toFixed(1)}k` 
+    const cardCountFormatted = game.cardCount >= 1000
+        ? `${(game.cardCount / 1000).toFixed(1)}k`
         : `${game.cardCount}`;
-    
+
+    // Image cache progress (how many card images are cached vs total available).
+    const fmtCount = (nn) => nn >= 1000 ? `${(nn / 1000).toFixed(1)}k` : `${nn}`;
+    const totalImages = game.totalImages || 0;
+    const cachedImages = Math.min(game.cachedImages || 0, totalImages);
+    const imagesLabel = totalImages > 0
+        ? (cachedImages >= totalImages
+            ? `all ${fmtCount(totalImages)} imgs cached`
+            : `${fmtCount(cachedImages)}/${fmtCount(totalImages)} imgs cached`)
+        : '';
+
     const gameColors = {
         pokemon: 'bg-gradient-to-br from-red-500 to-red-600',
         magic: 'bg-gradient-to-br from-orange-500 to-amber-600',
@@ -168,6 +218,7 @@ function createGameElement(game) {
         lorcana: 'bg-gradient-to-br from-purple-500 to-pink-600',
         onepiece: 'bg-gradient-to-br from-red-600 to-orange-600',
         digimon: 'bg-gradient-to-br from-blue-500 to-cyan-600',
+        gundam: 'bg-gradient-to-br from-sky-600 to-indigo-700',
         fab: 'bg-gradient-to-br from-rose-500 to-red-600',
         starwars: 'bg-gradient-to-br from-gray-500 to-slate-600'
     };
@@ -182,35 +233,34 @@ function createGameElement(game) {
     let buttonHTML = '';
     if (!isAvailable) {
         // Not available - show Coming Soon
-        buttonHTML = '<div class="badge badge-neutral badge-sm">Coming Soon</div>';
+        buttonHTML = '<span class="badge badge-neutral badge-sm">Coming Soon</span>';
     } else if (hasData) {
-        // Available with data - show Update and Delete
+        // Available with data - show Update, Images and Delete
         buttonHTML = `
-            <button class="btn btn-xs btn-primary" onclick="event.stopPropagation(); updateGameData('${game.id}')">Update</button>
-            <button class="btn btn-xs btn-error btn-outline" onclick="event.stopPropagation(); deleteGameData('${game.id}')">×</button>
+            <button class="btn btn-xs btn-primary flex-1" onclick="event.stopPropagation(); updateGameData('${game.id}')">Update</button>
+            <button class="btn btn-xs btn-ghost border border-base-content/15 flex-1" onclick="event.stopPropagation(); prefetchImages('${game.id}')" title="Pre-download all card images so they are cached for offline / no-hitch use">Images</button>
+            <button class="btn btn-xs btn-square btn-ghost text-error/80 hover:text-error hover:bg-error/10" onclick="event.stopPropagation(); deleteGameData('${game.id}')" title="Delete downloaded data">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
         `;
     } else {
         // Available without data - show Download
-        buttonHTML = `<button class="btn btn-xs btn-secondary" onclick="event.stopPropagation(); downloadGameData('${game.id}')">Download</button>`;
+        buttonHTML = `<button class="btn btn-xs btn-secondary w-full" onclick="event.stopPropagation(); downloadGameData('${game.id}')">Download</button>`;
     }
-    
+
     gameItem.innerHTML = `
-        <div class="flex items-center gap-3 flex-1">
-            <div class="avatar">
-                <div class="w-10 rounded-lg ${gameColors[game.id] || 'bg-gradient-to-br from-gray-500 to-gray-600'}">
-                    <span class="text-white text-lg flex items-center justify-center h-full font-bold">
-                        ${game.name[0]}
-                    </span>
-                </div>
+        <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-white text-base font-bold shadow ${gameColors[game.id] || 'bg-gradient-to-br from-gray-500 to-gray-600'}">
+                ${game.name[0]}
             </div>
-            <div class="flex-1">
-                <div class="font-semibold text-base-content">${game.name}</div>
-                <div class="text-xs opacity-60">
-                    ${!isAvailable ? 'Coming Soon' : (hasData ? `${cardCountFormatted} cards` : 'No data')}
+            <div class="min-w-0 flex-1">
+                <div class="game-title truncate">${game.name}</div>
+                <div class="game-subtitle truncate" title="${hasData && imagesLabel ? `${cardCountFormatted} cards, ${imagesLabel}` : ''}">
+                    ${!isAvailable ? 'Coming Soon' : (hasData ? `${cardCountFormatted} cards${imagesLabel ? ` &middot; ${imagesLabel}` : ''}` : 'No data')}
                 </div>
             </div>
         </div>
-        <div class="flex gap-2">
+        <div class="flex items-center gap-1.5">
             ${buttonHTML}
         </div>
     `;
@@ -229,51 +279,117 @@ function createGameElement(game) {
     return gameItem;
 }
 
-// Select a game - UPDATED FOR COMING SOON
+// Select a game - single data-driven switcher backed by GAME_REGISTRY.
+// Rebuilds every game-specific panel so switching games never leaves another
+// game's links/controls on screen.
 function selectGame(gameId, hasData) {
-    // Get the game object to check if it's available
-    const games = Array.from(document.querySelectorAll('.game-item'));
-    const gameElement = games.find(el => el.dataset.game === gameId);
+    // Coming-soon guard (unavailable games are dimmed in the list)
+    const gameElement = document.querySelector(`.game-item[data-game="${gameId}"]`);
     if (gameElement && gameElement.style.opacity === '0.6') {
         showToast(`${gameId.charAt(0).toUpperCase() + gameId.slice(1)} support is coming soon!`);
         return;
     }
-    
+
     currentGame = gameId;
-    
-    // Update UI
+    const cfg = getGameConfig(gameId);
+
+    // Highlight the active game in the sidebar list
     document.querySelectorAll('.game-item').forEach(item => {
         item.classList.toggle('active', item.dataset.game === gameId);
     });
-    
-    // Show/hide Pokemon-specific controls
-    const pokemonControls = document.getElementById('pokemonMatchControls');
-    if (pokemonControls) {
-        pokemonControls.style.display = gameId === 'pokemon' ? 'block' : 'none';
+
+    // Rebuild the per-game panels from the registry
+    renderMatchControls(gameId);
+    renderObsSources(gameId);
+
+    // Keep the deck-import game selector in sync with the chosen game
+    const deckGameSelect = document.getElementById('deckGameSelect');
+    if (deckGameSelect) deckGameSelect.value = gameId;
+
+    // Keep the header dropdown in sync (so sidebar clicks update it too)
+    const gameSelect = document.getElementById('gameSelect');
+    if (gameSelect) gameSelect.value = gameId;
+
+    // Enable/disable search + per-game placeholder
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.disabled = !hasData;
+        searchInput.placeholder = hasData
+            ? `Search ${cfg.name} cards...`
+            : 'Download card data first';
+        if (hasData) searchInput.focus();
     }
 
-    // Show/hide match control buttons
-    const pokemonBtn = document.getElementById('pokemonMatchBtn');
-    const mtgBtn = document.getElementById('mtgMatchBtn');
-    const noGameMsg = document.getElementById('noGameSelected');
-    
-    if (pokemonBtn) pokemonBtn.style.display = gameId === 'pokemon' ? 'block' : 'none';
-    if (mtgBtn) mtgBtn.style.display = gameId === 'magic' ? 'block' : 'none';
-    if (noGameMsg) noGameMsg.style.display = (gameId === 'pokemon' || gameId === 'magic') ? 'none' : 'block';
-    
-    // Enable/disable search
-    const searchInput = document.getElementById('searchInput');
-    searchInput.disabled = !hasData;
-    searchInput.placeholder = hasData 
-        ? `Search ${gameId} cards...` 
-        : 'Download card data first';
-    
-    if (hasData) {
-        searchInput.focus();
+    // Leaving a game should drop any open deck view
+    if (typeof isDeckViewMode !== 'undefined' && isDeckViewMode && typeof exitDeckView === 'function') {
+        exitDeckView();
     }
-    
-    // Clear search results
+
+    // Reset the results pane for the new game
     clearSearchResults();
+
+    // Re-apply the "search imported cards only" filter if it's on
+    const deckOnly = document.getElementById('searchDeckOnly');
+    if (deckOnly && deckOnly.checked && typeof updateSearchToDeckOnly === 'function') {
+        updateSearchToDeckOnly();
+    }
+
+    // Refilter the saved-decks list to this game's decks
+    if (typeof updateSavedDecksList === 'function') updateSavedDecksList();
+}
+
+// Render the Match Controls panel buttons for a game from the registry.
+function renderMatchControls(gameId) {
+    const list = document.getElementById('matchControlsList');
+    if (!list) return;
+
+    const controls = getGameConfig(gameId).matchControls;
+    if (!controls.length) {
+        list.innerHTML = `
+            <p class="text-xs text-center text-base-content/40 pt-1">
+                No dedicated match controls for this game yet
+            </p>`;
+        return;
+    }
+
+    list.innerHTML = controls.map(c => `
+        <button onclick="window.open('${c.route}', '_blank')" class="btn btn-sm ${c.style || 'btn-primary'} w-full gap-2 justify-start">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            ${c.label}
+        </button>
+    `).join('');
+}
+
+// Render the OBS Browser Sources list for a game from the registry.
+function renderObsSources(gameId) {
+    const list = document.getElementById('obsSourcesList');
+    if (!list) return;
+
+    const overlays = getGameConfig(gameId || currentGame).overlays;
+    list.innerHTML = overlays.map(o => {
+        const url = overlayUrl(o.route);
+        return `
+            <div class="bg-base-300/60 border border-white/5 p-2 rounded-lg">
+                <div class="flex justify-between items-center gap-2">
+                    <div class="min-w-0">
+                        <p class="text-xs text-base-content/50">${o.label}</p>
+                        <p class="text-xs font-mono truncate">${url}</p>
+                    </div>
+                    <button class="btn btn-ghost btn-xs copy-btn shrink-0" data-copy-url="${url}">Copy</button>
+                </div>
+            </div>`;
+    }).join('');
+
+    // Wire the freshly-rendered copy buttons (innerHTML drops old listeners).
+    list.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            navigator.clipboard.writeText(btn.dataset.copyUrl).then(() => {
+                const original = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = original; }, 1500);
+            });
+        });
+    });
 }
 
 // Download game data - UPDATED FOR COMING SOON
@@ -321,8 +437,36 @@ async function updateGameData(gameId) {
     }
 }
 
+// Pre-download all card images for a game (optional cache warming). The work runs
+// in the background on the server; progress arrives over the image-download-* socket
+// events and reuses the shared download progress bar.
+async function prefetchImages(gameId) {
+    const setCount = document.querySelector('input[name="sets"]:checked')?.value || '1';
+    showDownloadProgress(true);
+
+    try {
+        const response = await fetch(`/api/download-images/${gameId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ setCount })
+        });
+
+        if (!response.ok) {
+            throw new Error('Image pre-download failed to start');
+        }
+        const scope = setCount === 'all'
+            ? 'all sets'
+            : `newest ${setCount} set${setCount === '1' ? '' : 's'}`;
+        showToast(`Caching ${gameId} images (${scope}) in the background...`);
+    } catch (error) {
+        console.error('Image pre-download error:', error);
+        showDownloadProgress(false);
+        alert('Failed to start image pre-download');
+    }
+}
+
 // Delete game data - UPDATED FOR COMING SOON
-async function deleteGameData(gameId) {    
+async function deleteGameData(gameId) {
     if (!confirm(`Delete all data for ${gameId}?\n\nThis action cannot be undone.`)) {
         return;
     }
@@ -808,9 +952,9 @@ async function importDeck() {
     }
     
     const deckName = document.getElementById('deckNameInput').value || 'Imported Deck';
-    const deck = parseDeckList(deckText);
-    
-    const totalCards = 
+    const deck = await parseDeckList(deckText);
+
+    const totalCards =
         deck.pokemon.reduce((sum, c) => sum + c.quantity, 0) +
         deck.trainers.reduce((sum, c) => sum + c.quantity, 0) +
         deck.energy.reduce((sum, c) => sum + c.quantity, 0);
@@ -885,41 +1029,41 @@ function addSelectedToDeck() {
         alert('Please select a card first');
         return;
     }
-    
-    // Determine category
-    let category = 'pokemon';
-    if (selectedCard.card_type?.includes('Trainer')) {
-        category = 'trainers';
-    } else if (selectedCard.card_type?.includes('Energy')) {
-        category = 'energy';
+
+    // Bucket the card into the active game's category via the registry.
+    const cfg = getGameConfig(currentGame);
+    if (!cfg.deck) {
+        showToast(`Deck building is not set up for ${cfg.name || 'this game'} yet`);
+        return;
     }
-    
+    const category = cfg.deck.categorize(selectedCard);
+
+    if (!currentDeckList.categories) currentDeckList.categories = {};
+    if (!currentDeckList.categories[category]) currentDeckList.categories[category] = [];
+    const bucket = currentDeckList.categories[category];
+
     // Find if card already exists
-    const existingCard = currentDeckList[category].find(c => 
-        c.name === selectedCard.name && 
-        c.setCode === selectedCard.set_code
+    const existingCard = bucket.find(c =>
+        c.name === selectedCard.name &&
+        c.setCode === (selectedCard.set_code || '')
     );
-    
+
     if (existingCard) {
         existingCard.quantity++;
     } else {
-        currentDeckList[category].push({
+        bucket.push({
             quantity: 1,
             name: selectedCard.name,
             setCode: selectedCard.set_code || '',
             number: selectedCard.card_number || '',
-            fullName: `${selectedCard.name} ${selectedCard.set_code || ''} ${selectedCard.card_number || ''}`
+            fullName: `${selectedCard.name} ${selectedCard.set_code || ''} ${selectedCard.card_number || ''}`.trim()
         });
     }
-    
-    // Send update
-    socket.emit('decklist-add-card', {
-        category: category === 'pokemon' ? 'Pokemon' : 
-                  category === 'trainers' ? 'Trainers' : 'Energy',
-        card: selectedCard
-    });
-    
-    alert(`Added ${selectedCard.name} to deck`);
+
+    // Send update (category is the registry label, e.g. 'Pokemon' / 'Creatures')
+    socket.emit('decklist-add-card', { category, card: selectedCard });
+
+    showToast(`Added ${selectedCard.name} to ${category}`);
 }
 
 function clearDeckList() {
@@ -930,11 +1074,9 @@ function clearDeckList() {
     currentDeckList = {
         name: 'My Deck',
         format: 'Standard',
-        pokemon: [],
-        trainers: [],
-        energy: []
+        categories: {}
     };
-    
+
     socket.emit('decklist-clear');
 }
 
@@ -1007,12 +1149,10 @@ async function loadConfig() {
         const response = await fetch('/api/config');
         const config = await response.json();
         
-        // Update OBS URLs
-        const port = config.port || 3888;
-        document.getElementById('obsMainUrl').textContent = `http://localhost:${port}/overlay`;
-        document.getElementById('obsPokemonUrl').textContent = `http://localhost:${port}/pokemon-match`;
-        document.getElementById('obsPrizesUrl').textContent = `http://localhost:${port}/prizes`;
-        document.getElementById('obsDecklistUrl').textContent = `http://localhost:${port}/decklist`;
+        // OBS Browser Sources are rendered per game from the registry; just
+        // refresh the port and re-render the current game's links.
+        serverPort = config.port || serverPort;
+        if (currentGame) renderObsSources(currentGame);
     } catch (error) {
         console.error('Error loading config:', error);
     }
@@ -1085,6 +1225,31 @@ socket.on('download-error', (data) => {
     alert(`Download failed: ${data.error}`);
 });
 
+socket.on('image-download-progress', (data) => {
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+
+    if (progressFill && progressText) {
+        progressFill.style.width = `${data.progress}%`;
+        progressText.textContent = `${data.progress}% - ${data.message || ''}`;
+    }
+});
+
+socket.on('image-download-complete', (data) => {
+    showDownloadProgress(false);
+    const msg = (data.total === 0)
+        ? `${data.game}: selected sets are already cached`
+        : `Image cache ready for ${data.game}: ${data.downloaded} downloaded, ${data.skipped} already cached${data.failed ? `, ${data.failed} failed` : ''}`;
+    showToast(msg);
+    // Refresh the game cards so the cached/total image counts update.
+    loadGames();
+});
+
+socket.on('image-download-error', (data) => {
+    showDownloadProgress(false);
+    alert(`Image pre-download failed: ${data.error}`);
+});
+
 // Utility: Debounce function
 function debounce(func, wait) {
     let timeout;
@@ -1119,6 +1284,7 @@ window.addSelectedToDeck = addSelectedToDeck;
 window.clearDeckList = clearDeckList;
 window.downloadGameData = downloadGameData;
 window.updateGameData = updateGameData;
+window.prefetchImages = prefetchImages;
 window.deleteGameData = deleteGameData;
 window.selectGame = selectGame;
 

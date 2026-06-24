@@ -32,29 +32,23 @@ window.displayDeckView = async function(deck, game) {
 }
 
 /**
- * Render deck view - supports both Pokemon and MTG
+ * Render deck view - generic across games (iterates the deck's categories).
+ * Section list + order comes from the registry (getDeckSectionNames); card
+ * arrays are read via getDeckCategories so any deck shape renders correctly.
  */
 window.renderDeckView = async function() {
     const deck = editingDeck || currentViewedDeck;
-    const game = deck.game;
-    
-    if (game === 'magic') {
-        await renderMTGDeckView(deck);
-    } else {
-        await renderPokemonDeckView(deck);
-    }
-}
+    const cats = getDeckCategories(deck);
 
-/**
- * Render MTG deck view
- */
-async function renderMTGDeckView(deck) {
-    const mainCount = deck.cards?.reduce((sum, c) => sum + c.quantity, 0) || 0;
-    const sideCount = deck.sideboard?.reduce((sum, c) => sum + c.quantity, 0) || 0;
-    const totalCards = mainCount + sideCount;
-    
+    // Standard sections for this game, plus any populated categories not in that list.
+    const sectionNames = getDeckSectionNames(deck);
+    Object.keys(cats).forEach(name => {
+        if (!sectionNames.includes(name)) sectionNames.push(name);
+    });
+
+    const totalCards = deckCardCount(deck);
     let deckHTML = buildDeckHeader(deck, totalCards);
-    
+
     if (isEditMode) {
         deckHTML += `
             <div class="edit-mode-indicator">
@@ -63,113 +57,28 @@ async function renderMTGDeckView(deck) {
             </div>
         `;
     }
-    
-    // Main Deck section
-    const mainCards = deck.cards || [];
-    deckHTML += `
-        <div class="deck-section">
-            <div class="deck-section-header">
-                <span class="deck-section-title">Main Deck</span>
-                <span class="deck-section-count">${mainCount}</span>
-            </div>
-            <div class="deck-card-grid" id="cards-grid">
-                ${mainCards.length > 0 ? await renderDeckCards(mainCards, deck.game, 'cards') : 
-                  (isEditMode ? '<div class="empty-section">Drop cards here</div>' : '')}
-            </div>
-        </div>
-    `;
-    
-    // Sideboard section
-    const sideCards = deck.sideboard || [];
-    deckHTML += `
-        <div class="deck-section">
-            <div class="deck-section-header">
-                <span class="deck-section-title">Sideboard</span>
-                <span class="deck-section-count">${sideCount}</span>
-            </div>
-            <div class="deck-card-grid" id="sideboard-grid">
-                ${sideCards.length > 0 ? await renderDeckCards(sideCards, deck.game, 'sideboard') : 
-                  (isEditMode ? '<div class="empty-section">Drop cards here</div>' : '')}
-            </div>
-        </div>
-    `;
-    
-    if (isEditMode) {
-        deckHTML += buildAddCardSection();
-    }
-    
-    document.getElementById('deckView').innerHTML = deckHTML;
-}
 
-/**
- * Render Pokemon deck view
- */
-async function renderPokemonDeckView(deck) {
-    const pokemonCount = deck.pokemon?.reduce((sum, c) => sum + c.quantity, 0) || 0;
-    const trainerCount = deck.trainers?.reduce((sum, c) => sum + c.quantity, 0) || 0;
-    const energyCount = deck.energy?.reduce((sum, c) => sum + c.quantity, 0) || 0;
-    const totalCards = pokemonCount + trainerCount + energyCount;
-    
-    let deckHTML = buildDeckHeader(deck, totalCards);
-    
-    if (isEditMode) {
+    for (const name of sectionNames) {
+        const cards = cats[name] || [];
+        const count = cards.reduce((sum, c) => sum + (c.quantity || 1), 0);
         deckHTML += `
-            <div class="edit-mode-indicator">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                <span>Edit Mode - Drag cards to reorder or move between sections</span>
+            <div class="deck-section">
+                <div class="deck-section-header">
+                    <span class="deck-section-title">${name}</span>
+                    <span class="deck-section-count">${count}</span>
+                </div>
+                <div class="deck-card-grid" id="${name}-grid">
+                    ${cards.length > 0 ? await renderDeckCards(cards, deck.game, name) :
+                      (isEditMode ? '<div class="empty-section">Drop cards here</div>' : '')}
+                </div>
             </div>
         `;
     }
-    
-    // Pokemon section
-    const pokemonCards = deck.pokemon || [];
-    deckHTML += `
-        <div class="deck-section">
-            <div class="deck-section-header">
-                <span class="deck-section-title">Pokémon</span>
-                <span class="deck-section-count">${pokemonCount}</span>
-            </div>
-            <div class="deck-card-grid" id="pokemon-grid">
-                ${pokemonCards.length > 0 ? await renderDeckCards(pokemonCards, deck.game, 'pokemon') : 
-                  (isEditMode ? '<div class="empty-section">Drop Pokémon cards here</div>' : '')}
-            </div>
-        </div>
-    `;
-    
-    // Trainers section
-    const trainerCards = deck.trainers || [];
-    deckHTML += `
-        <div class="deck-section">
-            <div class="deck-section-header">
-                <span class="deck-section-title">Trainers</span>
-                <span class="deck-section-count">${trainerCount}</span>
-            </div>
-            <div class="deck-card-grid" id="trainers-grid">
-                ${trainerCards.length > 0 ? await renderDeckCards(trainerCards, deck.game, 'trainers') : 
-                  (isEditMode ? '<div class="empty-section">Drop Trainer cards here</div>' : '')}
-            </div>
-        </div>
-    `;
-    
-    // Energy section
-    const energyCards = deck.energy || [];
-    deckHTML += `
-        <div class="deck-section">
-            <div class="deck-section-header">
-                <span class="deck-section-title">Energy</span>
-                <span class="deck-section-count">${energyCount}</span>
-            </div>
-            <div class="deck-card-grid" id="energy-grid">
-                ${energyCards.length > 0 ? await renderDeckCards(energyCards, deck.game, 'energy') : 
-                  (isEditMode ? '<div class="empty-section">Drop Energy cards here</div>' : '')}
-            </div>
-        </div>
-    `;
-    
+
     if (isEditMode) {
         deckHTML += buildAddCardSection();
     }
-    
+
     document.getElementById('deckView').innerHTML = deckHTML;
 }
 
@@ -215,22 +124,12 @@ function buildDeckHeader(deck, totalCards) {
  */
 function buildAddCardSection() {
     const deck = editingDeck || currentViewedDeck;
-    const game = deck.game;
-    
-    let categoryOptions = '';
-    if (game === 'magic') {
-        categoryOptions = `
-            <option value="cards">Main Deck</option>
-            <option value="sideboard">Sideboard</option>
-        `;
-    } else {
-        categoryOptions = `
-            <option value="pokemon">Pokémon</option>
-            <option value="trainers">Trainers</option>
-            <option value="energy">Energy</option>
-        `;
-    }
-    
+
+    // One option per standard section for this game (display name = storage target).
+    const categoryOptions = getDeckSectionNames(deck)
+        .map(name => `<option value="${name}">${name}</option>`)
+        .join('');
+
     return `
         <div class="add-card-section show">
             <h3 class="text-lg font-semibold mb-3">Add Cards</h3>
@@ -417,7 +316,8 @@ window.saveDeckEdits = function() {
  * Adjust card quantity
  */
 window.adjustCardQuantity = function(category, index, delta) {
-    const card = editingDeck[category][index];
+    const card = getDeckCategoryArray(editingDeck, category)[index];
+    if (!card) return;
     card.quantity = Math.max(1, Math.min(4, card.quantity + delta));
     renderDeckView();
 }
@@ -426,7 +326,7 @@ window.adjustCardQuantity = function(category, index, delta) {
  * Remove card from deck
  */
 window.removeCardFromDeck = function(category, index) {
-    editingDeck[category].splice(index, 1);
+    getDeckCategoryArray(editingDeck, category).splice(index, 1);
     renderDeckView();
 }
 
@@ -466,13 +366,10 @@ window.searchCardsToAdd = async function(event) {
  */
 window.addCardToDeck = function(cardName, cardImage) {
     const category = document.getElementById('addCardCategory').value;
-    
-    if (!editingDeck[category]) {
-        editingDeck[category] = [];
-    }
-    
-    const existingCard = editingDeck[category].find(c => c.name === cardName);
-    
+    const arr = getDeckCategoryArray(editingDeck, category);
+
+    const existingCard = arr.find(c => c.name === cardName);
+
     if (existingCard) {
         if (existingCard.quantity < 4) {
             existingCard.quantity++;
@@ -481,12 +378,12 @@ window.addCardToDeck = function(cardName, cardImage) {
             return;
         }
     } else {
-        editingDeck[category].push({
+        arr.push({
             name: cardName,
             quantity: 1
         });
     }
-    
+
     document.getElementById('addCardSearch').value = '';
     document.getElementById('addCardResults').innerHTML = '';
     
@@ -513,12 +410,13 @@ window.sendDeckToOverlay = function() {
  * Drag and drop handlers
  */
 window.handleCardDragStart = function(event, category, index) {
-    if (!editingDeck || !editingDeck[category] || !editingDeck[category][index]) {
+    const arr = editingDeck ? getDeckCategoryArray(editingDeck, category) : null;
+    if (!arr || !arr[index]) {
         console.error('Invalid drag start:', category, index);
         return;
     }
-    
-    draggedCard = editingDeck[category][index];
+
+    draggedCard = arr[index];
     draggedFromCategory = category;
     draggedFromIndex = index;
     event.target.classList.add('dragging');
@@ -551,40 +449,36 @@ window.handleDrop = function(event, targetCategory) {
     event.currentTarget.classList.remove('drag-over');
     
     if (!draggedCard || !draggedFromCategory || draggedFromIndex === null) return;
-    
-    if (!editingDeck[targetCategory]) {
-        editingDeck[targetCategory] = [];
-    }
-    if (!editingDeck[draggedFromCategory]) {
-        editingDeck[draggedFromCategory] = [];
-    }
-    
+
+    const targetArr = getDeckCategoryArray(editingDeck, targetCategory);
+    const fromArr = getDeckCategoryArray(editingDeck, draggedFromCategory);
+
     const targetElement = event.target.closest('.deck-card-item');
-    let targetIndex = editingDeck[targetCategory].length;
-    
+    let targetIndex = targetArr.length;
+
     if (targetElement && targetElement.dataset.category === targetCategory) {
         targetIndex = parseInt(targetElement.dataset.index) || 0;
-        
+
         const rect = targetElement.getBoundingClientRect();
         const midpoint = rect.left + rect.width / 2;
         if (event.clientX > midpoint) {
             targetIndex++;
         }
     }
-    
+
     if (draggedFromCategory === targetCategory) {
-        const [removed] = editingDeck[draggedFromCategory].splice(draggedFromIndex, 1);
-        
+        const [removed] = fromArr.splice(draggedFromIndex, 1);
+
         if (targetIndex > draggedFromIndex) {
             targetIndex--;
         }
-        
-        editingDeck[targetCategory].splice(targetIndex, 0, removed);
+
+        targetArr.splice(targetIndex, 0, removed);
     } else {
-        const [removed] = editingDeck[draggedFromCategory].splice(draggedFromIndex, 1);
-        editingDeck[targetCategory].splice(targetIndex, 0, removed);
+        const [removed] = fromArr.splice(draggedFromIndex, 1);
+        targetArr.splice(targetIndex, 0, removed);
     }
-    
+
     draggedCard = null;
     draggedFromCategory = null;
     draggedFromIndex = null;

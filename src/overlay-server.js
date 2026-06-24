@@ -88,8 +88,33 @@ class OverlayServer {
             timer: 0,
             format: 'standard'
         };
+
+        // Gundam Match State (mirrors pokemonMatch; locked design: equal 6-unit
+        // grid, Shields=6, per-player Base + Resources, no turn-flag row).
+        this.gundamMatch = {
+            player1: this.freshGundamPlayer('Player 1'),
+            player2: this.freshGundamPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: 'Best of 3'
+        };
     }
-    
+
+    // A blank Gundam player board. units is a fixed 6-slot grid (null = empty cell).
+    freshGundamPlayer(name) {
+        return {
+            name,
+            record: { wins: 0, losses: 0, ties: 0 },
+            gamesWon: 0,
+            shields: 6,
+            shieldsTaken: [],
+            resources: { active: 0, total: 0, ex: false },
+            units: [null, null, null, null, null, null],
+            base: null
+        };
+    }
+
     updateCard(cardData, position = 'left') {
         this.currentCards[position] = cardData;
         this.io.emit('card-update', {
@@ -426,7 +451,124 @@ class OverlayServer {
     }
     
     // ============ END MTG METHODS ============
-    
+
+    // ============ GUNDAM MATCH METHODS ============
+
+    // Bulk update (player boards / turn / game / format) - used on control load + show.
+    updateGundamMatch(data) {
+        if (data.player1) this.gundamMatch.player1 = { ...this.gundamMatch.player1, ...data.player1 };
+        if (data.player2) this.gundamMatch.player2 = { ...this.gundamMatch.player2, ...data.player2 };
+        if (data.currentTurn !== undefined) this.gundamMatch.currentTurn = data.currentTurn;
+        if (data.gameNumber !== undefined) this.gundamMatch.gameNumber = data.gameNumber;
+        if (data.matchFormat !== undefined) this.gundamMatch.matchFormat = data.matchFormat;
+        this.io.emit('gundam-match-update', data);
+    }
+
+    // Set or clear (unit=null) a battle-area grid cell (0-5).
+    setGundamUnit(player, index, unit) {
+        const key = `player${player}`;
+        if (!this.gundamMatch[key] || index < 0 || index > 5) return;
+        this.gundamMatch[key].units[index] = unit;
+        this.io.emit('gundam-unit-update', { player, index, unit, timestamp: Date.now() });
+    }
+
+    setGundamUnitHp(player, index, currentHp, maxHp) {
+        const key = `player${player}`;
+        const unit = this.gundamMatch[key] && this.gundamMatch[key].units[index];
+        if (!unit) return;
+        unit.currentHp = currentHp;
+        if (maxHp !== undefined) unit.maxHp = maxHp;
+        this.io.emit('gundam-unit-hp', { player, index, currentHp, maxHp: unit.maxHp, timestamp: Date.now() });
+    }
+
+    // Pair (pilot object) or unpair (pilot=null) a Pilot onto a unit.
+    setGundamPilot(player, index, pilot) {
+        const key = `player${player}`;
+        const unit = this.gundamMatch[key] && this.gundamMatch[key].units[index];
+        if (!unit) return;
+        unit.pilot = pilot;
+        this.io.emit('gundam-pilot-pair', { player, index, pilot, timestamp: Date.now() });
+    }
+
+    setGundamBase(player, base) {
+        const key = `player${player}`;
+        if (!this.gundamMatch[key]) return;
+        this.gundamMatch[key].base = base;
+        this.io.emit('gundam-base-update', { player, base, timestamp: Date.now() });
+    }
+
+    setGundamBaseHp(player, currentHp, maxHp) {
+        const key = `player${player}`;
+        const base = this.gundamMatch[key] && this.gundamMatch[key].base;
+        if (!base) return;
+        base.currentHp = currentHp;
+        if (maxHp !== undefined) base.maxHp = maxHp;
+        this.io.emit('gundam-base-hp', { player, currentHp, maxHp: base.maxHp, timestamp: Date.now() });
+    }
+
+    setGundamResources(player, resources) {
+        const key = `player${player}`;
+        if (!this.gundamMatch[key]) return;
+        this.gundamMatch[key].resources = { ...this.gundamMatch[key].resources, ...resources };
+        this.io.emit('gundam-resource-update', { player, resources: this.gundamMatch[key].resources, timestamp: Date.now() });
+    }
+
+    // Toggle a shield as taken/restored (mirrors the prize-card take logic).
+    takeGundamShield(player, index) {
+        const p = this.gundamMatch[`player${player}`];
+        if (!p) return;
+        const i = p.shieldsTaken.indexOf(index);
+        if (i === -1) p.shieldsTaken.push(index);
+        else p.shieldsTaken.splice(i, 1);
+        p.shields = 6 - p.shieldsTaken.length;
+        this.io.emit('gundam-shield-taken', { player, index, shieldsTaken: p.shieldsTaken, shields: p.shields, timestamp: Date.now() });
+    }
+
+    setGundamShields(player, taken) {
+        const p = this.gundamMatch[`player${player}`];
+        if (!p) return;
+        p.shieldsTaken = Array.isArray(taken) ? taken : [];
+        p.shields = 6 - p.shieldsTaken.length;
+        this.io.emit('gundam-shield-taken', { player, index: null, shieldsTaken: p.shieldsTaken, shields: p.shields, timestamp: Date.now() });
+    }
+
+    resetGundamShields() {
+        this.gundamMatch.player1.shieldsTaken = [];
+        this.gundamMatch.player1.shields = 6;
+        this.gundamMatch.player2.shieldsTaken = [];
+        this.gundamMatch.player2.shields = 6;
+        this.io.emit('gundam-shields-reset', { timestamp: Date.now() });
+    }
+
+    updateGundamRecord(player, record) {
+        const key = `player${player}`;
+        if (this.gundamMatch[key]) this.gundamMatch[key].record = record;
+        this.io.emit('gundam-record-update', { player, record, timestamp: Date.now() });
+    }
+
+    updateGundamGamesWon(player, gamesWon) {
+        const key = `player${player}`;
+        if (this.gundamMatch[key]) this.gundamMatch[key].gamesWon = gamesWon;
+        this.io.emit('gundam-games-won-update', { player, gamesWon, timestamp: Date.now() });
+    }
+
+    resetGundamMatch() {
+        const p1 = this.gundamMatch.player1.name;
+        const p2 = this.gundamMatch.player2.name;
+        this.gundamMatch = {
+            player1: this.freshGundamPlayer(p1),
+            player2: this.freshGundamPlayer(p2),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: this.gundamMatch.matchFormat || 'Best of 3'
+        };
+        this.io.emit('gundam-match-reset', { timestamp: Date.now() });
+        console.log('Gundam match reset');
+    }
+
+    // ============ END GUNDAM METHODS ============
+
     updateDecklist(deckData) {
         if (deckData.deck) {
             this.decklist = { ...this.decklist, ...deckData.deck };
@@ -608,7 +750,8 @@ class OverlayServer {
             settings: this.overlaySettings,
             gameSettings: this.gameSettings,
             pokemonMatch: this.pokemonMatch,
-            mtgMatch: this.mtgMatch
+            mtgMatch: this.mtgMatch,
+            gundamMatch: this.gundamMatch
         };
     }
     

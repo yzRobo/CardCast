@@ -50,7 +50,10 @@ const mainFiles = [
     'index.html',
     'pokemon-match-control.html',
     'mtg-match-control.html',
-    'package.json'
+    'package.json',
+    // Documentation for optional API keys (examples only - never real secrets).
+    '.env.example',
+    'config.local.example.json'
 ];
 
 mainFiles.forEach(file => {
@@ -99,6 +102,7 @@ if (fs.existsSync(configPath)) {
             lorcana: { enabled: false, available: false, dataPath: null },
             onepiece: { enabled: false, available: false, dataPath: null },
             digimon: { enabled: false, available: false, dataPath: null },
+            gundam: { enabled: false, available: false, dataPath: null },
             fab: { enabled: false, available: false, dataPath: null },
             starwars: { enabled: false, available: false, dataPath: null }
         },

@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cardcast">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CardCast - Gundam Match Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gd-card-aspect { aspect-ratio: 5/7; }
+        .search-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 2rem; }
+        .search-overlay.active { display: flex; align-items: center; justify-content: center; }
+        .shield-btn { aspect-ratio: 5/7; }
+        .shield-btn.taken { opacity: 0.4; }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-base-100 via-base-200 to-base-100">
+    <div class="animated-bg"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <!-- Header -->
+    <div class="navbar glass-card border-b border-white/5 px-4 sm:px-6 fixed top-0 z-50 min-h-[3.75rem] gap-2">
+        <div class="navbar-start gap-2 sm:gap-3">
+            <a href="/" class="btn btn-ghost btn-sm gap-1.5 px-2" title="Back to Dashboard">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                <span class="hidden sm:inline">Dashboard</span>
+            </a>
+            <div class="h-6 w-px bg-white/10"></div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shadow" style="background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+                </div>
+                <div class="leading-tight">
+                    <div class="font-bold text-base">Gundam Match Control</div>
+                    <div class="text-[10px] uppercase tracking-[0.18em] text-base-content/40 font-medium">CardCast</div>
+                </div>
+            </div>
+        </div>
+        <div class="navbar-end">
+            <div class="badge badge-error gap-2 py-3 font-medium" id="overlayStatus">
+                <div class="w-2 h-2 rounded-full bg-current"></div>
+                <span>Overlay Not Connected</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 pt-20 pb-8">
+        <div class="grid lg:grid-cols-2 gap-6" id="playersGrid"></div>
+
+        <!-- Shared Match Controls -->
+        <div class="card bg-base-100 shadow-xl mt-6">
+            <div class="card-body">
+                <div class="border-b border-base-300 pb-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Match Setup</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-xs">Format</span></label>
+                            <select id="matchFormat" class="select select-bordered select-sm">
+                                <option value="Best of 1">Best of 1</option>
+                                <option value="Best of 3" selected>Best of 3</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-xs">Game</span></label>
+                            <select id="gameNumber" class="select select-bordered select-sm">
+                                <option value="1">Game 1</option>
+                                <option value="2">Game 2</option>
+                                <option value="3">Game 3</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-sm mt-6" onclick="applyMatchSettings()">Apply Settings</button>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Timer Control</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="text-5xl font-mono font-bold text-primary bg-base-200 px-6 py-3 rounded-lg" id="timerDisplay">50:00</div>
+                        <div class="flex gap-2">
+                            <button class="btn btn-success" onclick="startTimer()">Start</button>
+                            <button class="btn btn-warning" onclick="pauseTimer()">Pause</button>
+                            <button class="btn btn-neutral" onclick="resetTimer()">Reset</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-end gap-3 mt-4">
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Minutes</span></label>
+                            <input type="number" id="timerMinutes" class="input input-bordered input-sm w-20" value="50" min="0" max="999">
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Seconds</span></label>
+                            <input type="number" id="timerSeconds" class="input input-bordered input-sm w-20" value="0" min="0" max="59">
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="setTimer()">Set Timer</button>
+                        <div class="flex gap-1">
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(25)">25 min</button>
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(50)">50 min</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Turn Control</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="badge badge-lg badge-primary p-4" id="turnDisplay">Player 1's Turn</div>
+                        <button class="btn btn-primary" onclick="switchTurn()">Switch Turn</button>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Overlay Display</h3>
+                    <div class="flex gap-2">
+                        <button class="btn btn-success" onclick="showOverlay()">Show Overlay</button>
+                        <button class="btn btn-warning" onclick="hideOverlay()">Hide Overlay</button>
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Match Reset</h3>
+                    <div class="flex items-center gap-4">
+                        <button class="btn btn-error" onclick="resetMatch()">Reset Entire Match</button>
+                        <span class="text-xs text-error opacity-70 italic">Clears units, pilots, bases, shields, resources and timer</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search modal -->
+    <div class="search-overlay" id="searchOverlay">
+        <div class="card w-full max-w-5xl bg-base-100">
+            <div class="card-body">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="card-title" id="searchTitle">Select Card</h2>
+                    <button class="btn btn-circle btn-ghost btn-sm" onclick="closeSearch()" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-2 mb-4 items-center">
+                    <input type="text" id="cardSearch" placeholder="Search Gundam cards (name or GD01-001)..." class="input input-bordered flex-1 min-w-[12rem]">
+                    <label class="label cursor-pointer gap-2 hidden" id="deckOnlyLabel">
+                        <span class="label-text whitespace-nowrap">Deck only</span>
+                        <input type="checkbox" id="searchDeckOnly" class="toggle toggle-secondary" onchange="runSearch()">
+                    </label>
+                    <label class="label cursor-pointer gap-2">
+                        <span class="label-text whitespace-nowrap">All card types</span>
+                        <input type="checkbox" id="searchAllTypes" class="toggle toggle-primary" onchange="runSearch()">
+                    </label>
+                </div>
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 max-h-[600px] overflow-y-auto p-2" id="searchResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        function freshPlayer(name) {
+            return {
+                name, record: { wins: 0, losses: 0, ties: 0 }, gamesWon: 0,
+                shields: 6, shieldsTaken: [],
+                resources: { active: 0, total: 0, ex: false },
+                units: [null, null, null, null, null, null],
+                base: null
+            };
+        }
+        let state = {
+            player1: freshPlayer('Player 1'),
+            player2: freshPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            timerDuration: { minutes: 50, seconds: 0 },
+            timerInterval: null,
+            gameNumber: 1,
+            matchFormat: 'Best of 3'
+        };
+        let searchContext = null; // { player, slot:'unit'|'pilot'|'base', index }
+        let playerDecks = { 1: null, 2: null };   // loaded Gundam deck per player
+        let currentDeckCards = [];                 // resolved deck cards for the open modal
+        const categoryForSlot = { unit: 'Units', pilot: 'Pilots', base: 'Bases' };
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
+        function save() { localStorage.setItem('gundamMatchState', JSON.stringify({ ...state, timerInterval: null })); }
+
+        // ---------- Player board rendering ----------
+        function renderPlayers() {
+            document.getElementById('playersGrid').innerHTML = [1, 2].map(playerCardHtml).join('');
+            [1, 2].forEach(n => { renderShields(n); renderResources(n); renderUnits(n); renderBase(n); });
+            populateDeckSelectors();
+            updateTurnDisplay();
+        }
+
+        // ---------- Deck-aware control (Phase 3) ----------
+        function gundamDecks() {
+            try { return (JSON.parse(localStorage.getItem('savedDecks') || '{}').gundam) || []; }
+            catch (e) { return []; }
+        }
+        function populateDeckSelectors() {
+            const decks = gundamDecks();
+            [1, 2].forEach(n => {
+                const sel = document.getElementById(`p${n}Deck`);
+                if (!sel) return;
+                const current = state[`player${n}`].deckName || '';
+                sel.innerHTML = '<option value="">No deck (search all)</option>' +
+                    decks.map(d => `<option value="${esc(d.name)}">${esc(d.name)}</option>`).join('');
+                if (current && decks.find(d => d.name === current)) { sel.value = current; playerDecks[n] = decks.find(d => d.name === current); }
+                else { sel.value = ''; playerDecks[n] = null; }
+            });
+        }
+        function setPlayerDeck(n) {
+            const name = document.getElementById(`p${n}Deck`).value;
+            playerDecks[n] = name ? (gundamDecks().find(d => d.name === name) || null) : null;
+            state[`player${n}`].deckName = name || null;
+            save();
+        }
+        // Re-resolve a deck category to full DB cards (image/AP/HP) for quick-add.
+        async function resolveDeckCategory(deck, category) {
+            const cards = (deck && deck.categories && deck.categories[category]) || [];
+            const unique = [...new Map(cards.map(c => [c.number || c.name, c])).values()];
+            const resolved = await Promise.all(unique.map(async (c) => {
+                const q = c.number || c.name;
+                try {
+                    const arr = await (await fetch(`/api/search/gundam?q=${encodeURIComponent(q)}`)).json();
+                    if (c.number) { const e = arr.find(x => (x.card_number || '').toUpperCase() === c.number.toUpperCase()); if (e) return e; }
+                    const e2 = arr.find(x => (x.name || '').toLowerCase() === (c.name || '').toLowerCase());
+                    return e2 || arr[0] || null;
+                } catch (e) { return null; }
+            }));
+            return resolved.filter(Boolean);
+        }
+        async function populateDeckCards() {
+            if (!searchContext) return;
+            const deck = playerDecks[searchContext.player];
+            const category = categoryForSlot[searchContext.slot];
+            const cards = (deck && deck.categories && deck.categories[category]) || [];
+            const out = document.getElementById('searchResults');
+            if (!cards.length) { out.innerHTML = `<div class="col-span-full text-center text-base-content/50">No ${category} in this deck</div>`; return; }
+            out.innerHTML = `<div class="col-span-full text-center"><span class="loading loading-spinner loading-md"></span> Loading deck ${category}...</div>`;
+            currentDeckCards = await resolveDeckCategory(deck, category);
+            displayResults(currentDeckCards);
+        }
+
+        function playerCardHtml(n) {
+            const p = state[`player${n}`];
+            const border = n === 1 ? 'border-primary' : 'border-error';
+            return `
+            <div class="card bg-base-100 shadow-xl border-t-4 ${border}">
+                <div class="card-body gap-3">
+                    <div class="flex items-center justify-between">
+                        <input type="text" value="${esc(p.name)}" class="input input-ghost text-xl font-bold w-40" onchange="setName(${n}, this.value)">
+                        <div class="flex items-center gap-1">
+                            <span class="text-sm">Rec:</span>
+                            <input type="number" id="p${n}W" value="${p.record.wins}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                            <span>/</span>
+                            <input type="number" id="p${n}L" value="${p.record.losses}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                            <span>/</span>
+                            <input type="number" id="p${n}T" value="${p.record.ties}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm">Games Won:</span>
+                        <div class="join">
+                            <button class="btn btn-xs join-item" onclick="adjGamesWon(${n}, -1)">-</button>
+                            <span class="join-item bg-base-200 px-3 py-1 text-sm" id="p${n}GamesWon">${p.gamesWon}</span>
+                            <button class="btn btn-xs join-item" onclick="adjGamesWon(${n}, 1)">+</button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm whitespace-nowrap">Deck:</span>
+                        <select id="p${n}Deck" class="select select-bordered select-sm flex-1" onchange="setPlayerDeck(${n})">
+                            <option value="">No deck (search all)</option>
+                        </select>
+                    </div>
+
+                    <div class="divider my-0">Shields</div>
+                    <div class="grid grid-cols-6 gap-2" id="p${n}Shields"></div>
+
+                    <div class="divider my-0">Resources</div>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="flex items-center gap-1">
+                            <span class="text-xs">Active</span>
+                            <button class="btn btn-xs" onclick="adjResource(${n}, 'active', -1)">-</button>
+                            <span class="px-2 text-sm font-mono" id="p${n}ResActive">0</span>
+                            <button class="btn btn-xs" onclick="adjResource(${n}, 'active', 1)">+</button>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span class="text-xs">Total</span>
+                            <button class="btn btn-xs" onclick="adjResource(${n}, 'total', -1)">-</button>
+                            <span class="px-2 text-sm font-mono" id="p${n}ResTotal">0</span>
+                            <button class="btn btn-xs" onclick="adjResource(${n}, 'total', 1)">+</button>
+                        </div>
+                        <label class="label cursor-pointer gap-2 py-0">
+                            <span class="label-text text-xs">EX Resource</span>
+                            <input type="checkbox" id="p${n}Ex" class="toggle toggle-warning toggle-sm" onchange="toggleEx(${n})">
+                        </label>
+                    </div>
+
+                    <div class="divider my-0">Battle Area (6)</div>
+                    <div class="grid grid-cols-3 gap-2" id="p${n}Units"></div>
+
+                    <div class="divider my-0">Base</div>
+                    <div id="p${n}Base"></div>
+                </div>
+            </div>`;
+        }
+
+        function renderShields(n) {
+            const p = state[`player${n}`];
+            let html = '';
+            for (let i = 0; i < 6; i++) {
+                const taken = p.shieldsTaken.includes(i);
+                html += `<button class="shield-btn btn btn-sm ${taken ? 'btn-outline taken' : 'btn-primary'}" onclick="toggleShield(${n}, ${i})">${taken ? '✕' : (i + 1)}</button>`;
+            }
+            document.getElementById(`p${n}Shields`).innerHTML = html;
+        }
+
+        function renderResources(n) {
+            const r = state[`player${n}`].resources;
+            document.getElementById(`p${n}ResActive`).textContent = r.active;
+            document.getElementById(`p${n}ResTotal`).textContent = r.total;
+            const ex = document.getElementById(`p${n}Ex`); if (ex) ex.checked = !!r.ex;
+        }
+
+        function renderUnits(n) {
+            const p = state[`player${n}`];
+            let html = '';
+            for (let i = 0; i < 6; i++) {
+                const u = p.units[i];
+                if (!u) {
+                    html += `
+                    <div class="border-2 border-dashed border-base-content/20 rounded-lg p-2 flex flex-col items-center justify-center gd-card-aspect">
+                        <button class="btn btn-primary btn-xs" onclick="openSearch(${n}, 'unit', ${i})">+ Unit</button>
+                    </div>`;
+                    continue;
+                }
+                const pilot = u.pilot ? `
+                    <div class="flex items-center gap-1 mt-1">
+                        <span class="badge badge-warning badge-xs gap-1 truncate max-w-full">${esc(u.pilot.name)}</span>
+                        <button class="btn btn-ghost btn-xs text-error px-1" onclick="unpairPilot(${n}, ${i})">x</button>
+                    </div>`
+                    : `<button class="btn btn-outline btn-warning btn-xs w-full mt-1" onclick="openSearch(${n}, 'pilot', ${i})">+ Pilot</button>`;
+                html += `
+                <div class="bg-base-200 rounded-lg p-1.5">
+                    <div class="relative">
+                        <img src="${esc(u.image)}" class="w-full rounded gd-card-aspect object-cover" onerror="this.src='/images/card-back.png'">
+                        <button class="btn btn-circle btn-xs btn-error absolute top-0.5 right-0.5" onclick="removeUnit(${n}, ${i})">x</button>
+                    </div>
+                    <div class="text-[11px] font-semibold truncate mt-1" title="${esc(u.name)}">${esc(u.name)}</div>
+                    <div class="flex items-center gap-1 mt-1">
+                        <span class="text-[10px]">AP</span>
+                        <input type="number" value="${u.ap != null ? u.ap : 0}" class="input input-bordered input-xs w-12 px-1" onchange="setUnitAp(${n}, ${i}, this.value)">
+                    </div>
+                    <div class="flex items-center gap-1 mt-1">
+                        <span class="text-[10px]">HP</span>
+                        <button class="btn btn-xs btn-square" onclick="adjUnitHp(${n}, ${i}, -1)">-</button>
+                        <input type="number" value="${u.currentHp}" class="input input-bordered input-xs w-10 px-0 text-center" onchange="setUnitHp(${n}, ${i}, this.value)">
+                        <button class="btn btn-xs btn-square" onclick="adjUnitHp(${n}, ${i}, 1)">+</button>
+                        <span class="text-[10px]">/</span>
+                        <input type="number" value="${u.maxHp}" class="input input-bordered input-xs w-10 px-0 text-center" onchange="setUnitMaxHp(${n}, ${i}, this.value)">
+                    </div>
+                    ${pilot}
+                </div>`;
+            }
+            document.getElementById(`p${n}Units`).innerHTML = html;
+        }
+
+        function renderBase(n) {
+            const b = state[`player${n}`].base;
+            const el = document.getElementById(`p${n}Base`);
+            if (!b) {
+                el.innerHTML = `<button class="btn btn-primary btn-sm" onclick="openSearch(${n}, 'base', 0)">+ Assign Base</button>`;
+                return;
+            }
+            el.innerHTML = `
+            <div class="flex items-center gap-3 bg-base-200 rounded-lg p-2">
+                <img src="${esc(b.image)}" class="w-16 rounded gd-card-aspect object-cover" onerror="this.src='/images/card-back.png'">
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-sm truncate" title="${esc(b.name)}">${esc(b.name)}</div>
+                    <div class="flex items-center gap-1 mt-1">
+                        <span class="text-xs">HP</span>
+                        <button class="btn btn-xs btn-square" onclick="adjBaseHp(${n}, -1)">-</button>
+                        <input type="number" value="${b.currentHp}" class="input input-bordered input-xs w-12 text-center" onchange="setBaseHp(${n}, this.value)">
+                        <button class="btn btn-xs btn-square" onclick="adjBaseHp(${n}, 1)">+</button>
+                        <span class="text-xs">/</span>
+                        <input type="number" value="${b.maxHp}" class="input input-bordered input-xs w-12 text-center" onchange="setBaseMaxHp(${n}, this.value)">
+                    </div>
+                </div>
+                <button class="btn btn-error btn-xs" onclick="removeBase(${n})">Remove</button>
+            </div>`;
+        }
+
+        // ---------- Mutations (update state, emit, persist) ----------
+        function setName(n, v) {
+            state[`player${n}`].name = v || `Player ${n}`;
+            socket.emit('gundam-match-update', { [`player${n}`]: { name: state[`player${n}`].name } });
+            updateTurnDisplay(); save();
+        }
+        function setRecord(n) {
+            const r = {
+                wins: parseInt(document.getElementById(`p${n}W`).value) || 0,
+                losses: parseInt(document.getElementById(`p${n}L`).value) || 0,
+                ties: parseInt(document.getElementById(`p${n}T`).value) || 0
+            };
+            state[`player${n}`].record = r;
+            socket.emit('gundam-record-update', { player: n, record: r }); save();
+        }
+        function adjGamesWon(n, d) {
+            const g = Math.max(0, (state[`player${n}`].gamesWon || 0) + d);
+            state[`player${n}`].gamesWon = g;
+            document.getElementById(`p${n}GamesWon`).textContent = g;
+            socket.emit('gundam-games-won-update', { player: n, gamesWon: g }); save();
+        }
+        function toggleShield(n, i) {
+            const p = state[`player${n}`];
+            const idx = p.shieldsTaken.indexOf(i);
+            if (idx === -1) p.shieldsTaken.push(i); else p.shieldsTaken.splice(idx, 1);
+            p.shields = 6 - p.shieldsTaken.length;
+            renderShields(n);
+            socket.emit('gundam-shield-taken', { player: n, index: i }); save();
+        }
+        function adjResource(n, key, d) {
+            const r = state[`player${n}`].resources;
+            r[key] = Math.max(0, (r[key] || 0) + d);
+            if (key === 'active' && r.active > r.total) r.total = r.active;
+            renderResources(n);
+            socket.emit('gundam-resource-update', { player: n, resources: r }); save();
+        }
+        function toggleEx(n) {
+            const r = state[`player${n}`].resources;
+            r.ex = document.getElementById(`p${n}Ex`).checked;
+            socket.emit('gundam-resource-update', { player: n, resources: r }); save();
+        }
+        function setUnitAp(n, i, v) {
+            const u = state[`player${n}`].units[i]; if (!u) return;
+            u.ap = parseInt(v); if (isNaN(u.ap)) u.ap = 0;
+            socket.emit('gundam-unit-update', { player: n, index: i, unit: u }); save();
+        }
+        function clampHp(v, max) { let h = parseInt(v); if (isNaN(h) || h < 0) h = 0; if (max != null && h > max) h = max; return h; }
+        function setUnitHp(n, i, v) {
+            const u = state[`player${n}`].units[i]; if (!u) return;
+            u.currentHp = clampHp(v, u.maxHp); renderUnits(n);
+            socket.emit('gundam-unit-hp', { player: n, index: i, currentHp: u.currentHp, maxHp: u.maxHp }); save();
+        }
+        function adjUnitHp(n, i, d) {
+            const u = state[`player${n}`].units[i]; if (!u) return;
+            u.currentHp = clampHp((u.currentHp || 0) + d, u.maxHp); renderUnits(n);
+            socket.emit('gundam-unit-hp', { player: n, index: i, currentHp: u.currentHp, maxHp: u.maxHp }); save();
+        }
+        function setUnitMaxHp(n, i, v) {
+            const u = state[`player${n}`].units[i]; if (!u) return;
+            let m = parseInt(v); if (isNaN(m) || m < 1) m = 1; u.maxHp = m;
+            if (u.currentHp > m) u.currentHp = m; renderUnits(n);
+            socket.emit('gundam-unit-hp', { player: n, index: i, currentHp: u.currentHp, maxHp: u.maxHp }); save();
+        }
+        function removeUnit(n, i) {
+            state[`player${n}`].units[i] = null; renderUnits(n);
+            socket.emit('gundam-unit-update', { player: n, index: i, unit: null }); save();
+        }
+        function unpairPilot(n, i) {
+            const u = state[`player${n}`].units[i]; if (!u) return;
+            u.pilot = null; renderUnits(n);
+            socket.emit('gundam-pilot-pair', { player: n, index: i, pilot: null }); save();
+        }
+        function setBaseHp(n, v) {
+            const b = state[`player${n}`].base; if (!b) return;
+            b.currentHp = clampHp(v, b.maxHp); renderBase(n);
+            socket.emit('gundam-base-hp', { player: n, currentHp: b.currentHp, maxHp: b.maxHp }); save();
+        }
+        function adjBaseHp(n, d) {
+            const b = state[`player${n}`].base; if (!b) return;
+            b.currentHp = clampHp((b.currentHp || 0) + d, b.maxHp); renderBase(n);
+            socket.emit('gundam-base-hp', { player: n, currentHp: b.currentHp, maxHp: b.maxHp }); save();
+        }
+        function setBaseMaxHp(n, v) {
+            const b = state[`player${n}`].base; if (!b) return;
+            let m = parseInt(v); if (isNaN(m) || m < 1) m = 1; b.maxHp = m;
+            if (b.currentHp > m) b.currentHp = m; renderBase(n);
+            socket.emit('gundam-base-hp', { player: n, currentHp: b.currentHp, maxHp: b.maxHp }); save();
+        }
+        function removeBase(n) {
+            state[`player${n}`].base = null; renderBase(n);
+            socket.emit('gundam-base-update', { player: n, base: null }); save();
+        }
+
+        // ---------- Search + assignment ----------
+        function openSearch(player, slot, index) {
+            searchContext = { player, slot, index };
+            currentDeckCards = [];
+            const titles = { unit: 'Select Unit', pilot: 'Select Pilot', base: 'Select Base' };
+            document.getElementById('searchTitle').textContent = titles[slot] || 'Select Card';
+            document.getElementById('searchAllTypes').checked = false;
+            document.getElementById('cardSearch').value = '';
+
+            // Deck-only quick-add when the player's deck has cards in this slot's category.
+            const deck = playerDecks[player];
+            const hasDeckCat = !!(deck && deck.categories && (deck.categories[categoryForSlot[slot]] || []).length);
+            document.getElementById('deckOnlyLabel').classList.toggle('hidden', !hasDeckCat);
+            document.getElementById('searchDeckOnly').checked = hasDeckCat;
+
+            document.getElementById('searchOverlay').classList.add('active');
+            document.getElementById('cardSearch').focus();
+
+            if (hasDeckCat) populateDeckCards();
+            else document.getElementById('searchResults').innerHTML = '<div class="col-span-full text-center text-base-content/50">Search Gundam cards to assign...</div>';
+        }
+        function closeSearch() {
+            document.getElementById('searchOverlay').classList.remove('active');
+            searchContext = null;
+        }
+        const typeForSlot = { unit: 'UNIT', pilot: 'PILOT', base: 'BASE' };
+        async function runSearch() {
+            const q = document.getElementById('cardSearch').value.trim();
+            const deckOnly = document.getElementById('searchDeckOnly').checked &&
+                !document.getElementById('deckOnlyLabel').classList.contains('hidden');
+
+            if (deckOnly) {
+                if (!currentDeckCards.length) await populateDeckCards();
+                const ql = q.toLowerCase();
+                const list = q
+                    ? currentDeckCards.filter(c => (c.name || '').toLowerCase().includes(ql) || (c.card_number || '').toLowerCase().includes(ql))
+                    : currentDeckCards;
+                displayResults(list);
+                return;
+            }
+
+            if (q.length < 2) { document.getElementById('searchResults').innerHTML = '<div class="col-span-full text-center text-base-content/50">Type at least 2 characters...</div>'; return; }
+            const all = document.getElementById('searchAllTypes').checked;
+            try {
+                const res = await fetch(`/api/search/gundam?q=${encodeURIComponent(q)}`);
+                let cards = await res.json();
+                if (!all && searchContext) {
+                    const want = typeForSlot[searchContext.slot];
+                    if (want) cards = cards.filter(c => (c.card_type || '').toUpperCase().includes(want));
+                }
+                displayResults(cards);
+            } catch (e) { console.error('search error', e); }
+        }
+        function displayResults(cards) {
+            const c = document.getElementById('searchResults');
+            if (!cards.length) { c.innerHTML = '<div class="col-span-full text-center text-base-content/50">No cards found</div>'; return; }
+            const seen = new Set();
+            c.innerHTML = cards.filter(card => { if (seen.has(card.id)) return false; seen.add(card.id); return true; }).map(card => `
+                <div class="card bg-base-200 cursor-pointer hover:shadow-lg" onclick="pickCard('${card.id}')">
+                    <figure class="px-2 pt-2"><img src="${esc(card.display_image || card.image_url || card.local_image)}" class="rounded-lg gd-card-aspect object-cover w-full" onerror="this.src='/images/card-back.png'"></figure>
+                    <div class="card-body p-2">
+                        <p class="text-xs font-semibold truncate">${esc(card.name)}</p>
+                        <p class="text-[10px] opacity-70">${esc(card.card_type || '')}${(card.gd_ap != null && card.gd_ap !== '') ? ' • AP ' + card.gd_ap : ''}${(card.gd_hp != null && card.gd_hp !== '') ? ' • HP ' + card.gd_hp : ''}</p>
+                    </div>
+                </div>`).join('');
+        }
+        async function pickCard(id) {
+            if (!searchContext) return;
+            try {
+                const res = await fetch(`/api/card/gundam/${id}`);
+                const card = await res.json();
+                const image = card.display_image || card.image_url || card.local_image;
+                const { player, slot, index } = searchContext;
+                if (slot === 'unit') {
+                    const hp = parseInt(card.gd_hp); const ap = parseInt(card.gd_ap);
+                    const unit = { id: card.id, name: card.name, image, ap: isNaN(ap) ? 0 : ap, maxHp: isNaN(hp) ? 1 : hp, currentHp: isNaN(hp) ? 1 : hp, pilot: null };
+                    state[`player${player}`].units[index] = unit; renderUnits(player);
+                    socket.emit('gundam-unit-update', { player, index, unit });
+                } else if (slot === 'pilot') {
+                    const u = state[`player${player}`].units[index]; if (!u) { closeSearch(); return; }
+                    u.pilot = { name: card.name, image }; renderUnits(player);
+                    socket.emit('gundam-pilot-pair', { player, index, pilot: u.pilot });
+                } else if (slot === 'base') {
+                    const hp = parseInt(card.gd_hp);
+                    const base = { id: card.id, name: card.name, image, maxHp: isNaN(hp) ? 1 : hp, currentHp: isNaN(hp) ? 1 : hp };
+                    state[`player${player}`].base = base; renderBase(player);
+                    socket.emit('gundam-base-update', { player, base });
+                }
+                save(); closeSearch();
+            } catch (e) { console.error('pick error', e); }
+        }
+
+        // ---------- Shared match controls ----------
+        function applyMatchSettings() {
+            state.gameNumber = parseInt(document.getElementById('gameNumber').value);
+            state.matchFormat = document.getElementById('matchFormat').value;
+            socket.emit('match-settings', { gameNumber: state.gameNumber, matchFormat: state.matchFormat }); save();
+        }
+        function switchTurn() {
+            state.currentTurn = state.currentTurn === 1 ? 2 : 1;
+            socket.emit('turn-switch', { currentTurn: state.currentTurn });
+            updateTurnDisplay(); save();
+        }
+        function updateTurnDisplay() {
+            document.getElementById('turnDisplay').textContent = `${state[`player${state.currentTurn}`].name}'s Turn`;
+        }
+        function startTimer() {
+            if (state.timerInterval) return;
+            socket.emit('timer-start');
+            state.timerInterval = setInterval(() => {
+                if (state.timer.seconds > 0) state.timer.seconds--;
+                else if (state.timer.minutes > 0) { state.timer.minutes--; state.timer.seconds = 59; }
+                else { pauseTimer(); }
+                updateTimerDisplay();
+            }, 1000);
+        }
+        function pauseTimer() {
+            if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; socket.emit('timer-pause'); }
+        }
+        function resetTimer() {
+            pauseTimer();
+            const d = state.timerDuration || { minutes: 50, seconds: 0 };
+            state.timer = { minutes: d.minutes, seconds: d.seconds };
+            updateTimerDisplay(); socket.emit('timer-reset', d); save();
+        }
+        function setTimer() {
+            let m = parseInt(document.getElementById('timerMinutes').value); let s = parseInt(document.getElementById('timerSeconds').value);
+            if (isNaN(m) || m < 0) m = 0; if (isNaN(s) || s < 0) s = 0; if (s > 59) s = 59;
+            pauseTimer();
+            state.timerDuration = { minutes: m, seconds: s }; state.timer = { minutes: m, seconds: s };
+            updateTimerDisplay(); socket.emit('timer-set', { minutes: m, seconds: s }); save();
+        }
+        function setTimerPreset(m) { document.getElementById('timerMinutes').value = m; document.getElementById('timerSeconds').value = 0; setTimer(); }
+        function updateTimerDisplay() {
+            document.getElementById('timerDisplay').textContent = `${String(state.timer.minutes).padStart(2, '0')}:${String(state.timer.seconds).padStart(2, '0')}`;
+        }
+        function showOverlay() { socket.emit('toggle-gundam-match', { show: true }); pushFullState(); }
+        function hideOverlay() { socket.emit('toggle-gundam-match', { show: false }); }
+        function resetMatch() {
+            if (!confirm('Reset the entire Gundam match?')) return;
+            const p1 = state.player1.name, p2 = state.player2.name;
+            const dur = state.timerDuration || { minutes: 50, seconds: 0 };
+            if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+            state = {
+                player1: freshPlayer(p1), player2: freshPlayer(p2),
+                currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
+                timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: state.matchFormat
+            };
+            socket.emit('gundam-match-reset');
+            renderPlayers(); updateTimerDisplay(); save();
+        }
+
+        // Push the whole board to a freshly-shown / reconnected overlay.
+        function pushFullState() {
+            socket.emit('gundam-match-update', {
+                player1: state.player1, player2: state.player2,
+                currentTurn: state.currentTurn, gameNumber: state.gameNumber, matchFormat: state.matchFormat
+            });
+        }
+
+        function updateOverlayStatus(connected) {
+            const s = document.getElementById('overlayStatus');
+            s.className = 'badge gap-2 py-3 font-medium ' + (connected ? 'badge-success' : 'badge-error');
+            s.innerHTML = `<div class="w-2 h-2 rounded-full bg-current"></div><span>${connected ? 'Overlay Connected' : 'Overlay Not Connected'}</span>`;
+        }
+
+        function load() {
+            const saved = localStorage.getItem('gundamMatchState');
+            if (saved) {
+                try {
+                    const s = JSON.parse(saved);
+                    state = { ...state, ...s, timerInterval: null };
+                    state.player1 = { ...freshPlayer('Player 1'), ...s.player1 };
+                    state.player2 = { ...freshPlayer('Player 2'), ...s.player2 };
+                } catch (e) { console.error('load error', e); }
+            }
+            document.getElementById('matchFormat').value = state.matchFormat;
+            document.getElementById('gameNumber').value = state.gameNumber;
+            const d = state.timerDuration || { minutes: 50, seconds: 0 };
+            document.getElementById('timerMinutes').value = d.minutes;
+            document.getElementById('timerSeconds').value = d.seconds;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            load();
+            renderPlayers();
+            updateTimerDisplay();
+            document.getElementById('cardSearch').addEventListener('input', debounce(runSearch, 300));
+
+            socket.emit('register-control', 'gundam-match');
+            socket.on('connect', () => { socket.emit('register-control', 'gundam-match'); socket.emit('check-overlay-status', 'gundam-match'); });
+            socket.on('overlay-connected', (t) => { if (t === 'gundam-match') { updateOverlayStatus(true); pushFullState(); } });
+            socket.on('overlay-disconnected', (t) => { if (t === 'gundam-match') updateOverlayStatus(false); });
+
+            // Push current board to overlays already connected.
+            setTimeout(pushFullState, 600);
+        });
+
+        function debounce(fn, wait) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); }; }
+
+        // expose for inline handlers
+        Object.assign(window, {
+            setName, setRecord, adjGamesWon, toggleShield, adjResource, toggleEx, setPlayerDeck,
+            openSearch, closeSearch, runSearch, pickCard,
+            setUnitAp, setUnitHp, adjUnitHp, setUnitMaxHp, removeUnit, unpairPilot,
+            setBaseHp, adjBaseHp, setBaseMaxHp, removeBase,
+            applyMatchSettings, switchTurn, startTimer, pauseTimer, resetTimer, setTimer, setTimerPreset,
+            showOverlay, hideOverlay, resetMatch
+        });
+    </script>
+</body>
+</html>

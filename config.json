@@ -24,7 +24,11 @@
       "dataPath": null
     },
     "digimon": {
-      "enabled": false,
+      "enabled": true,
+      "dataPath": null
+    },
+    "gundam": {
+      "enabled": true,
       "dataPath": null
     },
     "fab": {

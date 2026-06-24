@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy this file to config.local.json (gitignored) to override committed config.json defaults and/or supply optional API keys. Anything here overrides config.json; environment variables override this file. API keys are read only from here or the environment - never from config.json - and are never written back to disk.",
+  "apiKeys": {
+    "pokemon": ""
+  }
+}

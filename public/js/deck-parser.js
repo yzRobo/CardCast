@@ -1,26 +1,32 @@
 /**
  * CardCast Deck Parser
  * Handles deck list parsing for multiple TCGs
- * Supports: Pokemon TCG, Magic: The Gathering
+ * Supports: Pokemon TCG, Magic: The Gathering, Gundam Card Game
  */
 
 /**
- * Main entry point - detects game type and parses accordingly
+ * Main entry point - detects game type and parses accordingly.
+ * Async because Gundam resolves card numbers against the local DB.
  * @param {string} text - Raw deck list text
- * @returns {Object} Parsed deck object with game-specific structure
+ * @returns {Promise<Object>} Parsed deck object with game-specific structure
  */
-function parseDeckList(text) {
+async function parseDeckList(text) {
     const lines = text.split('\n');
-    
+
     // Detect game type by looking at patterns
     const gameType = detectGameType(text);
     console.log('Detected game type:', gameType);
     console.log('First 3 lines:', lines.slice(0, 3));
-    
+
     if (gameType === 'magic') {
         const result = parseMTGDeckList(lines);
         console.log('MTG Parse result:', result);
         console.log('Total cards:', result.cards.length, 'Sideboard:', result.sideboard.length);
+        return result;
+    } else if (gameType === 'gundam') {
+        const result = await parseGundamDeckList(lines);
+        const cats = result.categories || {};
+        console.log('Gundam Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
         return result;
     } else {
         return parsePokemonDeckList(lines);
@@ -33,8 +39,15 @@ function parseDeckList(text) {
  * @returns {string} 'magic' or 'pokemon'
  */
 function detectGameType(text) {
+    // Gundam: card-number tokens like GD01-001 / ST01-012 / EB01-003 / EX01-001,
+    // or a "Resource Deck" section header (builder exports). Checked first because
+    // the GDxx-NNN token is unambiguous.
+    if (/\b(?:GD|ST|EB|EX)\d{2}-\d{3}/i.test(text) || /^\s*resource deck\s*$/mi.test(text)) {
+        return 'gundam';
+    }
+
     // Strong Pokemon indicators - check first
-    if (text.match(/Pokemon:\s*\d+/i) || 
+    if (text.match(/Pokemon:\s*\d+/i) ||
         text.match(/Trainer:\s*\d+/i) ||
         text.match(/Energy:\s*\d+/i)) {
         return 'pokemon';
@@ -306,9 +319,116 @@ function isTrainerCard(cardLine) {
         'Pokégear', 'Poké Ball', 'Super Rod', 'Counter Catcher'
     ];
     
-    return trainerKeywords.some(keyword => 
+    return trainerKeywords.some(keyword =>
         cardLine.toLowerCase().includes(keyword.toLowerCase())
     );
+}
+
+/**
+ * Gundam card_type -> deck category. Prefers the shared registry function
+ * (single source of truth); inlined fallback keeps the parser self-contained.
+ */
+function gundamCategory(cardType) {
+    if (typeof window !== 'undefined' && typeof window.gundamCategoryFromType === 'function') {
+        return window.gundamCategoryFromType(cardType);
+    }
+    const t = (cardType || '').toUpperCase().trim();
+    if (t.includes('PILOT')) return 'Pilots';
+    if (t.includes('COMMAND')) return 'Commands';
+    if (t.includes('RESOURCE')) return 'Resources';
+    if (t.includes('BASE')) return 'Bases';
+    return 'Units';
+}
+
+/**
+ * Resolve a Gundam deck-list token to a DB card via the local search endpoint.
+ * No new external calls - uses /api/search/gundam (search_text includes the
+ * card_number, so a number lookup like "GD01-001" resolves exactly).
+ * @param {{number?: string, name?: string}} token
+ * @returns {Promise<Object|null>} the matched card row, or null
+ */
+async function resolveGundamCard(token) {
+    const q = token.number || token.name;
+    if (!q) return null;
+    try {
+        const res = await fetch(`/api/search/gundam?q=${encodeURIComponent(q)}`);
+        if (!res.ok) return null;
+        const results = await res.json();
+        if (!Array.isArray(results) || results.length === 0) return null;
+
+        if (token.number) {
+            const want = token.number.toUpperCase();
+            const exact = results.find(c => (c.card_number || '').toUpperCase() === want);
+            if (exact) return exact;
+        }
+        if (token.name) {
+            const want = token.name.toLowerCase();
+            const exact = results.find(c => (c.name || '').toLowerCase() === want);
+            if (exact) return exact;
+        }
+        return results[0];
+    } catch (e) {
+        console.error('Gundam resolve error for', q, e);
+        return null;
+    }
+}
+
+/**
+ * Parse a Gundam deck list (ExBurst / EGMAN / official builder exports).
+ * Card-number-keyed and tolerant: each non-header line is matched for a leading
+ * quantity and a GDxx-NNN style number token, resolved against the DB, and
+ * bucketed by its card_type. Lines with no number fall back to a name lookup.
+ * @param {Array<string>} lines
+ * @returns {Promise<Object>} { categories: { Units, Pilots, Commands, Bases, Resources } }
+ */
+async function parseGundamDeckList(lines) {
+    const deck = { categories: { Units: [], Pilots: [], Commands: [], Bases: [], Resources: [] } };
+
+    const QTY = /^(\d+)\s*x?\s+/i;
+    const NUM = /([A-Z]{2,4}\d{2}-\d{3}[A-Za-z0-9_]*)/;
+    const HEADER = /^(resource deck|main deck|deck|sideboard|total cards|total|cards)\b/i;
+
+    for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+        if (line.startsWith('//') || line.startsWith('#')) continue;
+        if (HEADER.test(line)) continue;
+
+        const qtyM = line.match(QTY);
+        const quantity = qtyM ? parseInt(qtyM[1], 10) : 1;
+
+        const numM = line.match(NUM);
+        let resolved = null;
+        if (numM) {
+            resolved = await resolveGundamCard({ number: numM[1] });
+        }
+        if (!resolved) {
+            const name = line.replace(QTY, '').replace(NUM, '').replace(/\s+/g, ' ').trim();
+            if (name) resolved = await resolveGundamCard({ name });
+        }
+        if (!resolved) continue;
+
+        const category = gundamCategory(resolved.card_type);
+        if (!deck.categories[category]) deck.categories[category] = [];
+        const bucket = deck.categories[category];
+
+        const number = resolved.card_number || (numM ? numM[1] : '');
+        const existing = bucket.find(c => (number && c.number === number) || c.name === resolved.name);
+        if (existing) {
+            existing.quantity += quantity;
+        } else {
+            bucket.push({
+                quantity,
+                name: resolved.name,
+                setCode: resolved.set_abbreviation || resolved.set_code || '',
+                number,
+                cardType: resolved.card_type || '',
+                fullName: `${quantity} ${resolved.name} ${number}`.trim()
+            });
+        }
+    }
+
+    return deck;
 }
 
 // Export functions for use in other files
@@ -318,6 +438,7 @@ if (typeof module !== 'undefined' && module.exports) {
         parseDeckList,
         detectGameType,
         parseMTGDeckList,
-        parsePokemonDeckList
+        parsePokemonDeckList,
+        parseGundamDeckList
     };
 }

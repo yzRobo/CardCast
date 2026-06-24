@@ -44,24 +44,20 @@
     backdrop-filter: blur(10px);
   }
   
-  /* Fixed Game Items with Proper Spacing */
+  /* Game selector tiles (two-row layout: identity on top, actions below) */
   .game-item {
-    @apply flex items-center justify-between p-3 rounded-lg transition-all cursor-pointer border-2;
-    background: rgba(30, 41, 59, 0.6);
-    border-color: transparent;
-    min-height: 60px;
-    margin-bottom: 8px;
+    @apply flex flex-col gap-2.5 p-3 rounded-lg transition-colors cursor-pointer border;
+    background: rgba(30, 41, 59, 0.55);
+    border-color: rgba(255, 255, 255, 0.06);
   }
-  
+
   .game-item:hover {
-    @apply bg-base-300/80 border-primary/50;
-    transform: translateX(2px);
-    box-shadow: 0 4px 12px rgba(129, 140, 248, 0.2);
+    @apply bg-base-300/70 border-primary/40;
   }
-  
+
   .game-item.active {
-    @apply bg-primary/20 border-primary;
-    background: linear-gradient(135deg, rgba(129, 140, 248, 0.15) 0%, rgba(129, 140, 248, 0.05) 100%);
+    @apply border-primary;
+    background: linear-gradient(135deg, rgba(129, 140, 248, 0.16) 0%, rgba(129, 140, 248, 0.05) 100%);
   }
   
   /* Fix Game Icon positioning */
@@ -246,22 +242,18 @@
    SPACING FIXES FOR SIDEBAR
    ============================================ */
 
-/* Fix game item content layout */
-.game-item > div:first-child {
-  @apply flex items-center gap-3;
-  flex: 1;
-  min-width: 0;
-}
+/* Game tile rows are laid out via utility classes in main.js */
 
-/* Fix game title and subtitle */
+/* Game title and subtitle */
 .game-item .game-title {
-  @apply font-semibold text-sm;
+  @apply font-semibold text-sm text-base-content;
   line-height: 1.2;
 }
 
 .game-item .game-subtitle {
-  @apply text-xs opacity-60;
+  @apply text-xs text-base-content/50;
   line-height: 1.2;
+  margin-top: 2px;
 }
 
 /* Fix button spacing in game items */

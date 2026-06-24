@@ -4,16 +4,20 @@ const path = require('path');
 const fs = require('fs');
 
 class CardDatabase {
-    constructor() {
-        // Ensure data directory exists
-        const dataDir = path.join(__dirname, '..', 'data');
+    constructor(dbPath) {
+        // Resolve the database path. Defaults to data/cardcast.db; an explicit path
+        // is passed by tooling such as the seed-DB builder so it can target its own
+        // output file without touching the user's live database.
+        const resolvedPath = dbPath || path.join(__dirname, '..', 'data', 'cardcast.db');
+
+        // Ensure the parent directory exists
+        const dataDir = path.dirname(resolvedPath);
         if (!fs.existsSync(dataDir)) {
             fs.mkdirSync(dataDir, { recursive: true });
         }
-        
+
         // Initialize database
-        const dbPath = path.join(dataDir, 'cardcast.db');
-        this.db = new Database(dbPath);
+        this.db = new Database(resolvedPath);
         
         // Enable WAL mode for better performance
         this.db.pragma('journal_mode = WAL');
@@ -26,7 +30,13 @@ class CardDatabase {
         
         // Add set_abbreviation column if it doesn't exist
         this.addSetAbbreviationColumn();
-        
+
+        // Add source_image_url column (the remote CDN URL) if it doesn't exist
+        this.addSourceImageUrlColumn();
+
+        // Add Gundam-specific columns if they don't exist (migration for existing DBs)
+        this.addGundamColumns();
+
         // Initialize games
         this.initializeGames();
         
@@ -61,6 +71,7 @@ class CardDatabase {
                 card_number TEXT,
                 image_url TEXT,
                 local_image TEXT,
+                source_image_url TEXT,
                 rarity TEXT,
                 card_type TEXT,
                 card_text TEXT,
@@ -146,7 +157,20 @@ class CardDatabase {
                 sw_hp INTEGER,
                 aspect TEXT,
                 arena TEXT,
-                
+
+                -- Gundam Card Game specific fields
+                gd_level INTEGER,
+                gd_cost INTEGER,
+                gd_color TEXT,
+                gd_zone TEXT,
+                gd_trait TEXT,
+                gd_link TEXT,
+                gd_ap INTEGER,
+                gd_hp INTEGER,
+                gd_source_title TEXT,
+                gd_block_icon TEXT,
+                gd_sp TEXT,
+
                 -- Metadata
                 created_at INTEGER DEFAULT (strftime('%s', 'now')),
                 updated_at INTEGER DEFAULT (strftime('%s', 'now')),
@@ -164,6 +188,7 @@ class CardDatabase {
             CREATE INDEX IF NOT EXISTS idx_cards_set ON cards(game, set_code);
             CREATE INDEX IF NOT EXISTS idx_cards_number ON cards(game, card_number);
             CREATE INDEX IF NOT EXISTS idx_cards_set_abbrev ON cards(game, set_abbreviation);
+            CREATE INDEX IF NOT EXISTS idx_cards_image_url ON cards(game, image_url);
         `);
         
         // Recent cards table for quick access
@@ -205,7 +230,59 @@ class CardDatabase {
             console.error('Error adding set_abbreviation column:', error);
         }
     }
-    
+
+    addSourceImageUrlColumn() {
+        try {
+            // Check if column exists
+            const tableInfo = this.db.prepare("PRAGMA table_info(cards)").all();
+            const hasSourceImageUrl = tableInfo.some(col => col.name === 'source_image_url');
+
+            if (!hasSourceImageUrl) {
+                console.log('Adding source_image_url column to cards table...');
+                this.db.prepare('ALTER TABLE cards ADD COLUMN source_image_url TEXT').run();
+            }
+
+            // Index used by the lazy image-resolution middleware to map a /cache
+            // web path back to its card (IF NOT EXISTS makes this safe every start).
+            this.db.prepare('CREATE INDEX IF NOT EXISTS idx_cards_image_url ON cards(game, image_url)').run();
+        } catch (error) {
+            console.error('Error adding source_image_url column:', error);
+        }
+    }
+
+    // Add the Gundam Card Game columns to an existing cards table. CREATE TABLE
+    // IF NOT EXISTS never alters a table that already exists, so installs created
+    // before Gundam support need each gd_* column added here, the same way
+    // set_abbreviation and source_image_url were introduced.
+    addGundamColumns() {
+        try {
+            const gundamColumns = {
+                gd_level: 'INTEGER',
+                gd_cost: 'INTEGER',
+                gd_color: 'TEXT',
+                gd_zone: 'TEXT',
+                gd_trait: 'TEXT',
+                gd_link: 'TEXT',
+                gd_ap: 'INTEGER',
+                gd_hp: 'INTEGER',
+                gd_source_title: 'TEXT',
+                gd_block_icon: 'TEXT',
+                gd_sp: 'TEXT'
+            };
+            const existing = new Set(
+                this.db.prepare('PRAGMA table_info(cards)').all().map(col => col.name)
+            );
+            for (const [name, type] of Object.entries(gundamColumns)) {
+                if (!existing.has(name)) {
+                    console.log(`Adding ${name} column to cards table...`);
+                    this.db.prepare(`ALTER TABLE cards ADD COLUMN ${name} ${type}`).run();
+                }
+            }
+        } catch (error) {
+            console.error('Error adding Gundam columns:', error);
+        }
+    }
+
     initializeGames() {
         // Initialize all supported games
         const games = [
@@ -216,7 +293,8 @@ class CardDatabase {
             { id: 'onepiece', name: 'One Piece Card Game' },
             { id: 'digimon', name: 'Digimon Card Game' },
             { id: 'fab', name: 'Flesh and Blood' },
-            { id: 'starwars', name: 'Star Wars Unlimited' }
+            { id: 'starwars', name: 'Star Wars Unlimited' },
+            { id: 'gundam', name: 'Gundam Card Game' }
         ];
         
         const stmt = this.db.prepare(`
@@ -238,36 +316,36 @@ class CardDatabase {
         
         // Search statement
         this.searchStmt = this.db.prepare(`
-            SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type, 
-                   hp, mana_cost, attack, defense, cost
-            FROM cards 
+            SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type,
+                   hp, mana_cost, attack, defense, cost, gd_ap, gd_hp, gd_color
+            FROM cards
             WHERE game = ? AND search_text LIKE ?
-            ORDER BY 
+            ORDER BY
                 CASE WHEN name LIKE ? THEN 0 ELSE 1 END,
                 name
             LIMIT 50
         `);
-        
+
         // Search with set abbreviation
         this.searchWithSetStmt = this.db.prepare(`
-            SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type, 
-                   hp, mana_cost, attack, defense, cost
-            FROM cards 
-            WHERE game = ? 
-                AND name LIKE ? 
+            SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type,
+                   hp, mana_cost, attack, defense, cost, gd_ap, gd_hp, gd_color
+            FROM cards
+            WHERE game = ?
+                AND name LIKE ?
                 AND set_abbreviation = ?
                 AND card_number = ?
             ORDER BY name
             LIMIT 50
         `);
-        
+
         // Search with set abbreviation but no number
         this.searchWithSetNoNumberStmt = this.db.prepare(`
-            SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type, 
-                   hp, mana_cost, attack, defense, cost
-            FROM cards 
-            WHERE game = ? 
-                AND name LIKE ? 
+            SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type,
+                   hp, mana_cost, attack, defense, cost, gd_ap, gd_hp, gd_color
+            FROM cards
+            WHERE game = ?
+                AND name LIKE ?
                 AND set_abbreviation = ?
             ORDER BY name
             LIMIT 50
@@ -295,8 +373,8 @@ class CardDatabase {
         
         // Insert card statement - now with set_abbreviation
         this.insertCardStmt = this.db.prepare(`
-            INSERT OR REPLACE INTO cards 
-            (id, game, product_id, name, set_name, set_code, set_abbreviation, card_number, image_url, local_image,
+            INSERT OR REPLACE INTO cards
+            (id, game, product_id, name, set_name, set_code, set_abbreviation, card_number, image_url, local_image, source_image_url,
              rarity, card_type, card_text, search_text,
              hp, stage, evolves_from, weakness, resistance, retreat_cost,
              ability_name, ability_text, attack1_name, attack1_cost, attack1_damage, attack1_text,
@@ -309,8 +387,9 @@ class CardDatabase {
              play_cost, digivolve_cost, digivolve_color, dp, digimon_level, digimon_type, digimon_attribute,
              pitch_value, fab_defense, fab_attack, resource_cost,
              sw_cost, sw_power, sw_hp, aspect, arena,
+             gd_level, gd_cost, gd_color, gd_zone, gd_trait, gd_link, gd_ap, gd_hp, gd_source_title, gd_block_icon, gd_sp,
              updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -320,6 +399,7 @@ class CardDatabase {
                     ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     strftime('%s', 'now'))
         `);
         
@@ -516,6 +596,7 @@ class CardDatabase {
                 cardData.card_number,
                 cardData.image_url,
                 cardData.local_image || null,
+                cardData.source_image_url || null,
                 cardData.rarity,
                 cardData.card_type,
                 cardData.card_text,
@@ -600,7 +681,20 @@ class CardDatabase {
                 cardData.sw_power || null,
                 cardData.sw_hp || null,
                 cardData.aspect || null,
-                cardData.arena || null
+                cardData.arena || null,
+
+                // Gundam Card Game fields
+                cardData.gd_level || null,
+                cardData.gd_cost || null,
+                cardData.gd_color || null,
+                cardData.gd_zone || null,
+                cardData.gd_trait || null,
+                cardData.gd_link || null,
+                cardData.gd_ap || null,
+                cardData.gd_hp || null,
+                cardData.gd_source_title || null,
+                cardData.gd_block_icon || null,
+                cardData.gd_sp || null
             ];
             
             this.insertCardStmt.run(...params);
@@ -770,6 +864,59 @@ class CardDatabase {
         } catch (error) {
             console.error('Error getting cached image:', error);
             return null;
+        }
+    }
+
+    // Resolve the remote source URL for a card from its /cache web path. Used by
+    // the lazy image-resolution middleware to re-fetch an image that is not yet
+    // (or no longer) on disk. Backed by idx_cards_image_url, so this is a point
+    // lookup. Returns the remote URL string, or null if unknown.
+    getSourceImageUrl(game, imageUrl) {
+        try {
+            const row = this.db.prepare(`
+                SELECT source_image_url
+                FROM cards
+                WHERE game = ? AND image_url = ?
+                LIMIT 1
+            `).get(game, imageUrl);
+            return row ? row.source_image_url : null;
+        } catch (error) {
+            console.error('Error resolving source image url:', error);
+            return null;
+        }
+    }
+
+    // Count of cards for a game that have a cacheable image (a /cache web path and a
+    // remote source URL) - i.e. the total number of images that can be cached.
+    getImageManifestCount(game) {
+        try {
+            return this.db.prepare(`
+                SELECT COUNT(*) c
+                FROM cards
+                WHERE game = ?
+                  AND image_url IS NOT NULL
+                  AND source_image_url IS NOT NULL
+            `).get(game).c;
+        } catch (error) {
+            console.error(`Error counting image manifest for ${game}:`, error);
+            return 0;
+        }
+    }
+
+    // All cards for a game that have both a /cache web path and a remote source
+    // URL. Used by the optional "pre-download all images" action to warm the cache.
+    getImageManifest(game) {
+        try {
+            return this.db.prepare(`
+                SELECT image_url, source_image_url, set_code, product_id
+                FROM cards
+                WHERE game = ?
+                  AND image_url IS NOT NULL
+                  AND source_image_url IS NOT NULL
+            `).all(game);
+        } catch (error) {
+            console.error(`Error building image manifest for ${game}:`, error);
+            return [];
         }
     }
     
