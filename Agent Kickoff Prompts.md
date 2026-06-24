@@ -8,15 +8,36 @@ verify after each phase.
 Each prompt pairs with its `... Implementation Notes.md` file in this repo. The data layer
 is already complete for every game, so none of these touch scrapers/parsers/DB schema.
 
-The Main Page Game Switcher is already IN PROGRESS (kicked off 2026-06-23), so the
-GAME_REGISTRY will exist - each game should register its entry there (matchControls +
-overlays + deck) rather than hardcoding a button. Otherwise the games can run in any
-order. Magic is a refocus of existing code; Gundam and One Piece have the richest plans.
+The Main Page Game Switcher has LANDED and `public/js/game-registry.js` exists - each game
+registers its entry there (matchControls + overlays + deck.categories/categorize/rules +
+searchMeta) rather than hardcoding a button. Games can run in any order. Magic is a
+refocus of existing code; Gundam and One Piece have the richest plans.
 
 NOTE FOR EVERY GAME: the match phase builds BOTH the overlay (`overlays/<game>-match.html`)
 AND its own dedicated control page (`<game>-match-control.html`) - one control page per
 game, mirroring the Pokemon pair - and registers the game in the GAME_REGISTRY so the
 switcher surfaces that control page + overlay links when the game is selected.
+
+## Status after the Gundam build (2026-06-23)
+
+Gundam shipped first and established the pattern for every remaining game, committed as the
+2.0 baseline (`feat/gundam-support`). The next agents have LESS to do than their docs imply:
+
+- The deck-library generalization is DONE (Gundam's "Phase 0"): saved-deck counts,
+  show-on-overlay, clipboard export, deck-only search, and deck-view are now registry-driven.
+  Do NOT re-generalize them - just add your game's registry entry + parser + `CATEGORY_ORDER`.
+- `public/js/game-registry.js` is the single source of truth. Copy the `gundam` entry as a
+  worked example (categories, `<game>CategoryFromType`, rules, label-only formats, searchMeta).
+- Concrete reference to mirror (besides Pokemon): `overlays/gundam-match.html`,
+  `gundam-match-control.html`, the `gundamMatch` state + mutators in `src/overlay-server.js`,
+  the `gundam-match` wiring in `server.js`, `parseGundamDeckList` in `deck-parser.js` (NOTE:
+  `parseDeckList` is now async), and the `scripts/verify-gundam-*.mjs` harnesses.
+- Preserve legacy saved-deck shapes: Pokemon `{pokemon,trainers,energy}` and MTG
+  `{cards,sideboard}` are read by their control pages - do NOT migrate them to `.categories`.
+  New games use `.categories`.
+- Formats: label-only + an opt-in "legal only" filter is the standard for ALL games.
+- Build + verify on the current baseline, then HAND OFF to the architect chat for the commit
+  - do NOT commit yourself (the tree co-mingles concerns that need consolidated commits).
 
 ---
 
