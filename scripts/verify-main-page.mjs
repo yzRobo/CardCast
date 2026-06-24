@@ -51,7 +51,7 @@ try {
     // ===== Phase 1: panels rebuild from the registry, no leakage =====
     const pk = await panelsFor(page, 'pokemon');
     check('pokemon: shows Pokemon Match Control', pk.match.includes('Pokemon Match Control'), pk.match);
-    check('pokemon: OBS has pokemon-match + prizes', pk.obs.includes('/pokemon-match') && pk.obs.includes('/prizes'), pk.obs);
+    check('pokemon: OBS has pokemon-match, prizes retired', pk.obs.includes('/pokemon-match') && !pk.obs.includes('/prizes'), pk.obs);
     check('pokemon: OBS has no MTG link', !pk.obs.includes('/mtg-match'), pk.obs);
     check('pokemon: deck select synced', pk.deckSelect === 'pokemon', pk.deckSelect);
     check('pokemon: sidebar tile active', pk.activeTiles.length === 1 && pk.activeTiles[0] === 'pokemon', pk.activeTiles.join(','));

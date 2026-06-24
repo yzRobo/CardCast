@@ -97,7 +97,6 @@ if (fs.existsSync(configPath)) {
         },
         obs: {
             mainOverlayPort: 3888,
-            prizeOverlayPort: 3889,
             decklistPort: 3890
         }
     };

@@ -57,7 +57,6 @@ const defaultConfig = {
     },
     obs: {
         mainOverlayPort: 3888,
-        prizeOverlayPort: 3889,
         decklistPort: 3890
     }
 };
@@ -649,11 +648,6 @@ app.get('/overlay', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'main.html'));
 });
 
-// Prize cards overlay
-app.get('/prizes', (req, res) => {
-    res.sendFile(path.join(__dirname, 'overlays', 'prizes.html'));
-});
-
 // Deck list overlay
 app.get('/decklist', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'decklist.html'));
@@ -669,7 +663,6 @@ let overlaySocketType = new Map();
 let overlayTypeSockets = new Map();
 let overlayStates = {
     'pokemon-match': false,
-    'prizes': false,
     'decklist': false,
     'main': false,
     'mtg-match': false,
@@ -716,8 +709,6 @@ io.on('connection', (socket) => {
                 player2: state.pokemonMatch.player2,
                 stadium: state.pokemonMatch.stadium
             });
-        } else if (type === 'prizes') {
-            socket.emit('prizes-state', state);
         } else if (type === 'decklist') {
             socket.emit('decklist-state', state);
         } else if (type === 'mtg-match') {
@@ -804,14 +795,7 @@ io.on('connection', (socket) => {
         console.log(`State requested for ${type}`);
         const state = overlayServer.getState();
         
-        if (type === 'prizes') {
-            socket.emit('prizes-update', {
-                player1: state.prizeCards.player1,
-                player2: state.prizeCards.player2,
-                game: 'pokemon',
-                show: true
-            });
-        } else if (type === 'decklist') {
+        if (type === 'decklist') {
             socket.emit('decklist-update', {
                 deck: state.decklist,
                 show: true
@@ -1043,13 +1027,6 @@ io.on('connection', (socket) => {
         console.log('Bench size update for player', data.player, ':', data.size);
         overlayServer.updateBenchSize(data.player, data.size);
         io.emit('bench-size-update', data);
-    });
-    
-    // Prize card events (alternative handling)
-    socket.on('update-prizes', (data) => {
-        console.log('Update prizes:', data);
-        overlayServer.updatePrizes(data);
-        io.emit('prizes-update', data);
     });
     
     // Decklist events
@@ -1482,7 +1459,6 @@ Server running on http://localhost:${PORT}
 
 OBS Overlays:
   - Main: http://localhost:${PORT}/overlay
-  - Prizes: http://localhost:${PORT}/prizes  
   - Decklist: http://localhost:${PORT}/decklist
   - Pokemon Match: http://localhost:${PORT}/pokemon-match
   - MTG Match: http://localhost:${PORT}/mtg-match

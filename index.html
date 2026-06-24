@@ -451,45 +451,6 @@
                     </div>
                 </div>
 
-                <!-- Prize Tracker (drives /prizes overlay) -->
-                <div class="card bg-base-200">
-                    <div class="card-body p-4">
-                        <h2 class="text-sm font-semibold opacity-60 uppercase tracking-wider">Prize Tracker</h2>
-                        <p class="text-xs text-base-content/40 mt-1">Drives the Prize Cards overlay (/prizes).</p>
-
-                        <div class="mt-3 space-y-3">
-                            <div>
-                                <input id="prizeP1Name" class="input input-bordered input-sm w-full" value="Player 1" oninput="prizeSetName(1, this.value)" />
-                                <div class="flex items-center gap-2 mt-1.5">
-                                    <button class="btn btn-xs btn-error btn-outline" onclick="prizeAdjust(1, 1)" title="Take a prize (one closer to winning)">Take</button>
-                                    <div class="flex-1 text-center leading-none">
-                                        <span class="font-mono text-2xl font-bold align-middle" id="prizeP1Left">6</span>
-                                        <span class="text-xs text-base-content/50">left</span>
-                                    </div>
-                                    <button class="btn btn-xs btn-ghost border border-base-content/15" onclick="prizeAdjust(1, -1)" title="Give a prize back">Return</button>
-                                </div>
-                            </div>
-                            <div>
-                                <input id="prizeP2Name" class="input input-bordered input-sm w-full" value="Player 2" oninput="prizeSetName(2, this.value)" />
-                                <div class="flex items-center gap-2 mt-1.5">
-                                    <button class="btn btn-xs btn-error btn-outline" onclick="prizeAdjust(2, 1)" title="Take a prize (one closer to winning)">Take</button>
-                                    <div class="flex-1 text-center leading-none">
-                                        <span class="font-mono text-2xl font-bold align-middle" id="prizeP2Left">6</span>
-                                        <span class="text-xs text-base-content/50">left</span>
-                                    </div>
-                                    <button class="btn btn-xs btn-ghost border border-base-content/15" onclick="prizeAdjust(2, -1)" title="Give a prize back">Return</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2 mt-3">
-                            <button class="btn btn-sm btn-primary" onclick="prizeShow(true)">Show Overlay</button>
-                            <button class="btn btn-sm btn-ghost border border-base-content/15" onclick="prizeShow(false)">Hide</button>
-                        </div>
-                        <button class="btn btn-sm btn-ghost w-full mt-2" onclick="prizeReset()">Reset to 6 - 6</button>
-                    </div>
-                </div>
-
                 <!-- Saved Decks -->
                 <div class="card bg-base-200">
                     <div class="card-body p-4">
@@ -893,50 +854,6 @@
                 show: false
             });
             if (typeof showToast === 'function') showToast('Deck overlay hidden');
-        }
-
-        // ---- Prize Tracker (drives the /prizes overlay) ----
-        const prizeState = {
-            p1: { name: 'Player 1', taken: 0 },
-            p2: { name: 'Player 2', taken: 0 },
-            show: false
-        };
-
-        function prizeEmit() {
-            if (typeof socket === 'undefined') return;
-            const mk = (p) => ({ name: p.name, total: 6, taken: Array.from({ length: p.taken }, (_, i) => i) });
-            socket.emit('update-prizes', {
-                game: 'pokemon',
-                player1: mk(prizeState.p1),
-                player2: mk(prizeState.p2),
-                show: prizeState.show
-            });
-        }
-
-        window.prizeAdjust = function(player, delta) {
-            const p = prizeState['p' + player];
-            p.taken = Math.min(6, Math.max(0, p.taken + delta));
-            document.getElementById('prizeP' + player + 'Left').textContent = 6 - p.taken;
-            prizeEmit();
-        }
-
-        window.prizeSetName = function(player, name) {
-            prizeState['p' + player].name = (name && name.trim()) ? name.trim() : ('Player ' + player);
-            prizeEmit();
-        }
-
-        window.prizeShow = function(show) {
-            prizeState.show = show;
-            prizeEmit();
-            if (typeof showToast === 'function') showToast(show ? 'Prize overlay shown' : 'Prize overlay hidden');
-        }
-
-        window.prizeReset = function() {
-            prizeState.p1.taken = 0;
-            prizeState.p2.taken = 0;
-            document.getElementById('prizeP1Left').textContent = 6;
-            document.getElementById('prizeP2Left').textContent = 6;
-            prizeEmit();
         }
 
         // Delete a saved deck

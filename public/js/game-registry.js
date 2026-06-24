@@ -25,7 +25,6 @@ const GAME_REGISTRY = {
         overlays: [
             { label: 'Main Display', route: '/overlay' },
             { label: 'Pokemon Match', route: '/pokemon-match' },
-            { label: 'Prize Cards', route: '/prizes' },
             { label: 'Deck List', route: '/decklist' }
         ],
         deck: {

@@ -6,10 +6,6 @@ class OverlayServer {
             left: null,
             right: null
         };
-        this.prizeCards = {
-            player1: { total: 6, taken: [] },
-            player2: { total: 6, taken: [] }
-        };
         this.decklist = {
             title: 'My Deck',
             format: 'Standard',
@@ -255,29 +251,9 @@ class OverlayServer {
         });
     }
     
-    updatePrizes(data) {
-        if (data.player1) {
-            this.prizeCards.player1 = data.player1;
-        }
-        if (data.player2) {
-            this.prizeCards.player2 = data.player2;
-        }
-        
-        this.io.emit('prizes-update', {
-            ...this.prizeCards,
-            game: data.game,
-            show: data.show !== undefined ? data.show : true,
-            timestamp: Date.now()
-        });
-    }
-    
     takePrize(player, index) {
         const playerKey = `player${player}`;
-        
-        if (this.prizeCards[playerKey] && !this.prizeCards[playerKey].taken.includes(index)) {
-            this.prizeCards[playerKey].taken.push(index);
-        }
-        
+
         if (this.pokemonMatch[playerKey]) {
             if (!this.pokemonMatch[playerKey].prizesTaken.includes(index)) {
                 this.pokemonMatch[playerKey].prizesTaken.push(index);
@@ -294,18 +270,12 @@ class OverlayServer {
     }
     
     resetPrizes() {
-        this.prizeCards = {
-            player1: { total: 6, taken: [] },
-            player2: { total: 6, taken: [] }
-        };
-        
         this.pokemonMatch.player1.prizesTaken = [];
         this.pokemonMatch.player1.prizes = 6;
         this.pokemonMatch.player2.prizesTaken = [];
         this.pokemonMatch.player2.prizes = 6;
-        
+
         this.io.emit('prizes-reset', {
-            ...this.prizeCards,
             timestamp: Date.now()
         });
     }
@@ -1288,7 +1258,6 @@ class OverlayServer {
     getState() {
         return {
             currentCards: this.currentCards,
-            prizeCards: this.prizeCards,
             decklist: this.decklist,
             settings: this.overlaySettings,
             gameSettings: this.gameSettings,

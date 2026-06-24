@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - In-app update check (desktop app): on launch CardCast checks GitHub for a newer release and offers to open the download page; also available any time from the Help menu (press Alt to show the menu bar).
 
+### Removed
+- Retired the standalone Prize Tracker panel from the main page and its separate `/prizes` overlay. The main page is for card search, deck building, and the spotlight overlay; live match state (including each game's facedown resource) belongs on the per-game match control pages, which already own it. The panel was a Pokemon-only holdover that showed on every game even though only some games have an equivalent mechanic (Pokemon prizes, Gundam shields, Digimon security, One Piece life) and three have none (Magic, Yu-Gi-Oh, Lorcana). The full prize display inside the Pokemon match overlay is unchanged.
+
 ## [2.0.0] - 2026-06-24
 
 ### Added
