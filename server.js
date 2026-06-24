@@ -875,23 +875,6 @@ io.on('connection', (socket) => {
         }
     });
     
-    // Search handler - UPDATED FOR COMING SOON
-    socket.on('search', async (data) => {
-        const { game, query } = data;
-        
-        // Only allow search for set available games
-        if (!AVAILABLE_GAMES.includes(game)) {
-            socket.emit('search-error', {
-                error: `${getGameName(game)} support is coming soon!`,
-                comingSoon: true
-            });
-            return;
-        }
-        
-        const results = db.searchCards(game, query);
-        socket.emit('search-results', results);
-    });
-    
     // Display card event
     socket.on('display-card', (data) => {
         console.log('Display card:', data.card?.name);
@@ -1061,10 +1044,6 @@ io.on('connection', (socket) => {
 
     socket.on('mtg-permanent-remove', (data) => {
         overlayServer.removeFeaturedPermanent(data.player, data.index);
-    });
-
-    socket.on('mtg-permanents-clear', (data) => {
-        overlayServer.clearFeaturedPermanents(data.player);
     });
 
     socket.on('mtg-phase-update', (data) => {

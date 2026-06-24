@@ -388,20 +388,6 @@ class OverlayServer {
         }
     }
     
-    clearFeaturedPermanents(player) {
-        if (player !== 1 && player !== 2) return;
-        
-        const playerKey = `player${player}`;
-        this.mtgMatch[playerKey].featuredPermanents = [];
-        
-        this.io.emit('mtg-permanents-cleared', {
-            player: player,
-            timestamp: Date.now()
-        });
-        
-        console.log(`Cleared all featured permanents for Player ${player}`);
-    }
-    
     // MTG Phase Tracking
     updatePhase(phase) {
         this.mtgMatch.currentPhase = phase;

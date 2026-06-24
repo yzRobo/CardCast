@@ -411,7 +411,6 @@
             socket.on('mtg-player-switch', (d) => { currentActive = d.activePlayer; updateActivePlayerUI(); });
             socket.on('mtg-permanent-added', (d) => renderFeatured(d.player, d.featuredPermanents));
             socket.on('mtg-permanent-removed', (d) => renderFeatured(d.player, d.featuredPermanents));
-            socket.on('mtg-permanents-cleared', (d) => renderFeatured(d.player, []));
             socket.on('mtg-match-reset', () => { resetLocalTimer(); socket.emit('request-state', 'mtg-match'); });
         }
 

@@ -313,10 +313,6 @@
                 if (mtg) mtg[`player${d.player}`].featuredPermanents = d.featuredPermanents;
                 renderFeatured(d.player, d.featuredPermanents);
             });
-            socket.on('mtg-permanents-cleared', (d) => {
-                if (mtg) mtg[`player${d.player}`].featuredPermanents = [];
-                renderFeatured(d.player, []);
-            });
             socket.on('mtg-phase-update', (d) => {
                 if (mtg) mtg.currentPhase = d.phase;
                 renderPhase(d.phase);
