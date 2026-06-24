@@ -5,7 +5,7 @@
 // Express server in this process, then shows it in a window. The web UI, overlays,
 // and control pages are unchanged - they are still served over http://localhost so
 // OBS browser sources keep working exactly as before.
-const { app, BrowserWindow, shell, dialog, Menu } = require('electron');
+const { app, BrowserWindow, shell, dialog, Menu, ipcMain } = require('electron');
 const path = require('path');
 const http = require('http');
 const https = require('https');
@@ -204,7 +204,11 @@ function createWindow() {
         backgroundColor: '#0b0f17',
         title: 'CardCast',
         autoHideMenuBar: true,
-        webPreferences: { contextIsolation: true, nodeIntegration: false }
+        webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            preload: path.join(__dirname, 'preload.js')
+        }
     });
     // Open real external links in the system browser, not a second app window.
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -225,6 +229,11 @@ startServer();
 
 app.whenReady().then(async () => {
     buildAppMenu();
+    // Let the in-app "Check for Updates" button and the header version badge talk
+    // to the desktop shell (see preload.js). The manual check reuses the same
+    // dialog as the automatic launch check.
+    ipcMain.handle('cardcast:check-for-updates', () => checkForUpdates({ silent: false }));
+    ipcMain.handle('cardcast:get-version', () => app.getVersion());
     createWindow();
     try {
         await waitForServer();

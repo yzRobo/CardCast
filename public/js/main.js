@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadConfig();
     setupKeyboardShortcuts();
     initOBSConnection();
+    initVersionAndUpdates();
 
     // Auto-select a sensible default game once the list has ACTUALLY loaded.
     // loadGames() is async (it fetches /api/games, renders the tiles, and fills
@@ -83,6 +84,34 @@ function updateOBSStatus(connected) {
     } else {
         statusElement.classList.remove('connected');
         statusText.textContent = 'OBS Not Connected';
+    }
+}
+
+// Header version badge + "Check for Updates" button. In the desktop app these talk
+// to the Electron shell via the preload bridge (window.cardcastDesktop): the badge
+// shows the real app version and the button runs the same native update check used
+// automatically on launch. In the browser/portable build there is no shell, so the
+// badge reads /api/version and the button opens the Releases page.
+async function initVersionAndUpdates() {
+    const desktop = window.cardcastDesktop;
+    const badge = document.getElementById('appVersionBadge');
+    if (badge) {
+        try {
+            const version = desktop
+                ? await desktop.getVersion()
+                : (await (await fetch('/api/version')).json()).version;
+            if (version) badge.textContent = 'v' + version;
+        } catch (e) { /* keep the hardcoded fallback text */ }
+    }
+    const btn = document.getElementById('checkUpdatesBtn');
+    if (btn) {
+        btn.addEventListener('click', () => {
+            if (desktop) {
+                desktop.checkForUpdates();
+            } else {
+                window.open('https://github.com/yzRobo/CardCast/releases/latest', '_blank');
+            }
+        });
     }
 }
 

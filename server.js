@@ -13,6 +13,9 @@ const OverlayServer = require('./src/overlay-server');
 const { loadEnv, readJson, mergeConfig, resolveApiKeys } = require('./src/config');
 const { ensureSeedDatabase } = require('./src/seed-install');
 
+const APP_VERSION = require('./package.json').version;
+const GITHUB_REPO = 'yzRobo/CardCast';
+
 const AVAILABLE_GAMES = ['pokemon', 'magic', 'yugioh', 'lorcana', 'digimon', 'onepiece', 'gundam'];
 
 // Initialize Express app
@@ -190,6 +193,12 @@ function countCachedImages(game) {
 }
 
 // Get list of games - UPDATED FOR COMING SOON
+// App version + repo, used by the header version badge and the web/portable
+// "Check for Updates" affordance (the desktop app reads its version over IPC).
+app.get('/api/version', (req, res) => {
+    res.json({ version: APP_VERSION, repo: GITHUB_REPO });
+});
+
 app.get('/api/games', (req, res) => {
     const games = Object.keys(config.games)
         .filter(key => config.games[key].enabled)
@@ -1425,7 +1434,7 @@ bootstrap().then(() => {
 server.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════╗
-║          CardCast v2.0.1              ║
+║          CardCast v${APP_VERSION}              ║
 ║     TCG Streaming Overlay Tool        ║
 ╚═══════════════════════════════════════╝
 
