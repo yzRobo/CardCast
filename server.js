@@ -982,12 +982,7 @@ io.on('connection', (socket) => {
         console.log('Toggle pokemon match overlay:', data.show);
         io.emit('toggle-pokemon-match', data);
     });
-    
-    socket.on('toggle-prizes', (data) => {
-        console.log('Toggle prizes overlay:', data.show);
-        io.emit('toggle-prizes', data);
-    });
-    
+
     // Stadium events
     socket.on('stadium-update', (data) => {
         console.log('Stadium update:', data.stadium);
