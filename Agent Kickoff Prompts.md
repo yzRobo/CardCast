@@ -98,7 +98,7 @@ STEP 4 - IMPLEMENT PHASE BY PHASE per the doc (Phase 1 deck foundation first). T
 ```
 You are working in the CardCast repo (Node/Express + Socket.io, vanilla-JS frontend, better-sqlite3). Goal: add One Piece Card Game match-overlay + deck-building support.
 
-STEP 1 - READ THE PLAN. Read `One Piece Implementation Notes.md` in full. NOTE: the match-overlay design (section 2.2) is PROPOSED, not locked - featured Leader + 5-character row, variable Life from the Leader, DON!! attach UI, Stage slot. Confirm these with me before building Feature A (the match overlay).
+STEP 1 - READ THE PLAN. Read `One Piece Implementation Notes.md` in full. The match-overlay design (section 2.2) is LOCKED - build it as written, do NOT pause to ask: featured Leader + 5-character row, a variable-length Life pip-track seeded from the Leader, DON!! X/10 (active/rested) with per-character attach, a Stage slot, no turn-flag row, fixed P1 indigo / P2 red.
 
 STEP 2 - STUDY THE CURRENT CODE (do not edit yet), which you will mirror:
 - overlays/pokemon-match.html + pokemon-match-control.html
@@ -112,7 +112,7 @@ GUARDRAILS:
 - Data layer is DONE (OP cards + fields + colors populated). Do NOT modify scrapers/parsers/DB schema.
 - IGNORE dist-portable/ and seed-build/. No emojis.
 
-STEP 3 - CONFIRM UNDERSTANDING BEFORE CODING. Summarize the onePieceMatch state shape, files to touch, socket events, and confirm the PROPOSED design choices with me. No code until that's resolved.
+STEP 3 - CONFIRM UNDERSTANDING BEFORE CODING. Summarize the onePieceMatch state shape, files to touch, and socket events. No code until you've done that. (The design is already locked in section 2.2 - no design questions to raise.)
 
 STEP 4 - IMPLEMENT PHASE BY PHASE (Phase 1 deck foundation first). The match phase must build BOTH `overlays/onepiece-match.html` AND its dedicated control page `onepiece-match-control.html` (mirror the pokemon-match.html / pokemon-match-control.html pair), and register One Piece in the GAME_REGISTRY (matchControls -> /onepiece-match-control, plus overlays[]) so the switcher surfaces it. After each phase STOP, report, and verify BOTH the overlay and the control page.
 ```

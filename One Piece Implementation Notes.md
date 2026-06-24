@@ -4,8 +4,8 @@ Status as of 2026-06-23. Single source of truth for One Piece (OPTCG) support in
 CardCast. Produced from `CardCast Game Implementation Template.md`. Covers two features:
 the on-stream Match Overlay (Pokemon-style) and Deck Building. No code for these features
 has been written yet; the data layer (below) is already complete. Design decisions in
-Section 2.2 are PROPOSED - confirm with the user before building (unlike Gundam, which is
-locked).
+Section 2.2 are LOCKED (architect-decided 2026-06-23, since the repo owner does not play
+One Piece) - build them as written, like Gundam; do not pause to confirm.
 
 ---
 
@@ -18,9 +18,10 @@ Copy-paste this to an LLM coding agent working in the CardCast repo:
 > NOT modify scrapers/parsers/DB schema. Mirror the existing Pokemon implementation as the
 > pattern of record: `overlays/pokemon-match.html`, `pokemon-match-control.html`, the
 > `pokemonMatch` state in `src/overlay-server.js`, and the `server.js` socket wiring. The
-> match-overlay design in section 2.2 is PROPOSED, not locked - confirm those choices with
-> the user before building Feature A (featured Leader + 5-character row, variable Life from
-> the Leader, DON!! attach UI, Stage slot). Work phase by phase; after each phase, stop and
+> match-overlay design in section 2.2 is LOCKED - build it as written, do NOT pause to ask:
+> featured Leader + 5-character row, a variable-length Life pip-track seeded from the
+> Leader, DON!! X/10 (active/rested) with per-character attach, a Stage slot, no turn-flag
+> row, fixed P1 indigo / P2 red. Work phase by phase; after each phase, stop and
 > report what changed and how you verified it. No emojis anywhere. Start with Phase 1
 > (deck foundation) using its per-phase context.
 
@@ -88,19 +89,20 @@ Card data shape (real distributions from the DB):
 | Turn flags (Energy/Supporter/Retreat) | proposed: drop or single "DON!! added this turn" | Confirm with user. |
 | Bo3 / timer / turn indicator | same | Reuse verbatim. |
 
-### 2.2 Proposed design decisions (CONFIRM before building)
+### 2.2 Locked design decisions (build as written - do not ask)
 
-- Board: FEATURED LEADER slot (large, with Power) + Character Area row (up to 5). This
-  differs from Gundam's no-lead 6-grid because OP has a central Leader.
-- Life: parameterized count, auto-set from the selected Leader's `life` (default 4-5),
-  shown as a taken/remaining tracker (reuse the prize/shield grid, variable length).
-- DON!! counter: show `X/10` with active/rested split, and allow marking DON!! attached
-  to a specific Character (drives a +N000 power readout). More dynamic than Gundam
-  resources - this is the main new UI piece.
-- Stage: single slot per player (optional, can be empty).
-- Turn-flag row: proposed DROP (OP has no rigid per-turn limits beyond 1 DON!!/turn) -
-  or a single "DON!! added" flag. Confirm.
-- Color theming: optional accent by Leader color (OP leaders are strongly color-coded).
+- Board: FEATURED LEADER slot (large, with Power) + Character Area row (up to 5). OP has a
+  central Leader, unlike Gundam's no-lead 6-grid.
+- Life: a variable-length taken/remaining PIP tracker (reuse the Pokemon prize / Gundam
+  shield grid), its length seeded from the selected Leader's `life` (usually 4-5). Keep
+  the pip visual for cross-game consistency - not a bare number.
+- DON!!: a `X/10` counter showing active/rested, plus per-character attached-DON markers
+  that drive each character's +N000 power readout. This is the main new UI piece.
+- Stage: single slot per player (can be empty).
+- Turn-flag row: DROPPED (OP has no rigid per-turn limits worth showing; the 1 DON!!/turn
+  is already reflected in the DON counter).
+- Player colors: FIXED P1 indigo / P2 red (same as Gundam/Pokemon). The Leader's own color
+  shows on its card; do not theme the whole board by Leader color.
 
 ### 2.3 Per-player board layout (vertical side panel)
 
@@ -258,15 +260,18 @@ CSS note: overlays self-contained (no rebuild); control/index use compiled
 
 ## 7. Open decisions / questions
 
-1. Confirm the proposed match design (featured Leader + 5-char row; DON!! attach UI;
-   drop turn-flags).
-2. Life tracker visual: reuse the prize/shield grid at variable length, or a numeric
-   counter? (Leader life ranges 4-5, occasionally other.)
-3. DON!! display: active/rested split + per-character attach markers, or a single X/10?
+1. Match design: RESOLVED/LOCKED - featured Leader + 5-character row, DON!! X/10 with
+   per-character attach, Stage slot, no turn-flag row (see 2.2).
+2. Life tracker visual: RESOLVED - variable-length pip track (reuse prize/shield grid),
+   length seeded from the Leader's `life`.
+3. DON!! display: RESOLVED - `X/10` active/rested + per-character attach markers.
 4. Decklist overlay: RESOLVED - overlay is now generic; just register the One Piece
    categories in `CATEGORY_ORDER` (no footer-stats choice).
-5. Formats: enforce banned-pairs as a hard block or a warning? (Plan assumes warning.)
+5. Formats: RESOLVED - banned-pairs are a WARNING, not a hard block (label-only + opt-in
+   filter is the standard for all games).
 6. Color source: RESOLVED - optcgapi exposes `card_color`; mapped + backfilled 2026-06-23.
+
+All design questions are now resolved; the OP agent should build without pausing.
 
 ---
 
