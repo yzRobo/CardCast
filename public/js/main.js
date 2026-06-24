@@ -969,10 +969,13 @@ async function importDeck() {
     const rules = getGameConfig(game).deck?.rules;
     const target = rules?.main;
     if (target) {
-        const hasSideDecks = rules.extra !== undefined || rules.side !== undefined;
+        // Categories that form a SEPARATE deck and must not count toward the main-deck
+        // size: Yu-Gi-Oh Extra/Side, Digimon Digi-Egg, Gundam Resources, One Piece Leader.
+        const SECONDARY_CATS = new Set(['Extra', 'Side', 'Digi-Egg', 'Resources', 'Leader']);
+        const hasSideDecks = ['extra', 'side', 'egg', 'resources', 'leader'].some(k => rules[k] !== undefined);
         const mainCount = hasSideDecks
             ? Object.entries(categories)
-                .filter(([name]) => name !== 'Extra' && name !== 'Side')
+                .filter(([name]) => !SECONDARY_CATS.has(name))
                 .reduce((sum, [, arr]) => sum + catCount(arr), 0)
             : totalCards;
         const ok = Array.isArray(target)

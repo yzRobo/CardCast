@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>CardCast - Digimon Match Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            width: 1920px;
+            height: 1080px;
+            background: transparent;
+            font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Player boards - vertical panels on the sides */
+        .player-board {
+            position: absolute;
+            width: 400px;
+            height: 1010px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            top: 50%;
+            opacity: 0;
+            transition: all 0.5s ease;
+        }
+        .player-board.left { left: 20px; transform: translateX(-440px) translateY(-50%); }
+        .player-board.left.active { transform: translateX(0) translateY(-50%); }
+        .player-board.right { right: 20px; transform: translateX(440px) translateY(-50%); }
+        .player-board.right.active { transform: translateX(0) translateY(-50%); }
+        .player-board.active { opacity: 1; }
+
+        .panel {
+            background: linear-gradient(135deg, rgba(6,12,28,0.95) 0%, rgba(12,24,48,0.95) 100%);
+            border: 2px solid #2563eb;
+            border-radius: 12px;
+            padding: 11px;
+            backdrop-filter: blur(10px);
+        }
+        .player-board.right .panel { border-color: #ea580c; }
+        .panel.soft { border-color: rgba(37,99,235,0.5); }
+        .player-board.right .panel.soft { border-color: rgba(234,88,12,0.5); }
+
+        .section-title {
+            font-size: 12px;
+            color: #93c5fd;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .player-board.right .section-title { color: #fdba74; }
+
+        /* Header */
+        .player-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .player-name {
+            font-size: 22px; font-weight: 800; color: #fff;
+            text-transform: uppercase; letter-spacing: 1.2px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+        }
+        .player-record {
+            font-size: 15px; color: #bfdbfe; font-weight: 700;
+            background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+        }
+        .games-won {
+            background: rgba(234,88,12,0.2); border: 2px solid #ea580c; color: #fdba74;
+            padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; text-align: center;
+        }
+
+        /* SECURITY stack (the loss track - 5 face-down cards) */
+        .sec-head { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin-bottom: 10px; }
+        .sec-count { font-size: 46px; font-weight: 800; color: #38bdf8; line-height: 1; text-shadow: 0 0 20px rgba(56,189,248,0.5); }
+        .player-board.right .sec-count { color: #fb923c; text-shadow: 0 0 20px rgba(251,146,60,0.5); }
+        .sec-goal { font-size: 22px; font-weight: 700; color: #6b7280; }
+        .sec-track { display: flex; gap: 7px; justify-content: center; }
+        .sec-pip {
+            width: 50px; height: 70px; border-radius: 7px; position: relative;
+            background: linear-gradient(135deg, #1e3a8a 0%, #0c1a3a 100%);
+            border: 2px solid #3b82f6; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .player-board.right .sec-pip { background: linear-gradient(135deg, #7c2d12 0%, #3a0c0c 100%); border-color: #f97316; }
+        .sec-pip::before {
+            content: ''; width: 22px; height: 22px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, transparent 70%);
+        }
+        .sec-pip.taken { opacity: 0.22; background: #111827; border-color: #374151; box-shadow: none; }
+        .sec-pip.taken::after {
+            content: '\2715'; position: absolute; font-size: 26px; font-weight: 800; color: #ef4444;
+        }
+        .sec-pip.taken::before { display: none; }
+
+        /* Battle Area row - up to 6 digivolution stacks, 3-col grid */
+        .battle-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .battle-cell {
+            position: relative; aspect-ratio: 5/7;
+            background: rgba(255,255,255,0.04);
+            border: 2px solid rgba(255,255,255,0.1); border-radius: 7px;
+            overflow: hidden; transition: transform 0.25s ease;
+            border-left-width: 5px; border-left-color: var(--clr, rgba(255,255,255,0.1));
+        }
+        .battle-cell.empty { border-style: dashed; border-left-width: 2px; }
+        .battle-cell img.battle-art { width: 100%; height: 100%; object-fit: cover; }
+        .battle-stats {
+            position: absolute; top: 3px; left: 3px; right: 3px;
+            display: flex; gap: 3px; justify-content: flex-start; flex-wrap: wrap;
+        }
+        .stat {
+            font-size: 11px; font-weight: 800; color: #fff; line-height: 1;
+            padding: 2px 4px; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+            display: inline-flex; align-items: center; gap: 1px;
+        }
+        .stat .lbl { font-size: 7px; opacity: 0.85; font-weight: 700; }
+        .stat.dp { background: linear-gradient(135deg, rgba(56,189,248,0.95), rgba(12,74,110,0.95)); }
+        .stat.lv { background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(76,29,149,0.95)); }
+        /* Digivolution stack-depth badge (only when stacked > 1) */
+        .stack-badge {
+            position: absolute; top: 3px; right: 3px;
+            font-size: 11px; font-weight: 800; color: #fff;
+            background: linear-gradient(135deg, #f59e0b, #b45309);
+            padding: 1px 6px; border-radius: 999px; box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+        }
+        .battle-name {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            font-size: 10px; font-weight: 700; color: #fff; padding: 3px 4px;
+            background: linear-gradient(180deg, transparent, rgba(0,0,0,0.9));
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* Breeding Area - single egg-incubator slot */
+        .breed-wrap { display: flex; gap: 9px; align-items: center; }
+        .breed-cell {
+            position: relative; width: 74px; height: 104px; flex-shrink: 0;
+            background: rgba(255,255,255,0.04);
+            border: 2px solid rgba(34,197,94,0.5); border-radius: 7px; overflow: hidden;
+        }
+        .breed-cell.empty { border-style: dashed; border-color: rgba(255,255,255,0.12); }
+        .breed-cell img { width: 100%; height: 100%; object-fit: cover; }
+        .breed-meta { flex: 1; min-width: 0; }
+        .breed-name { font-size: 14px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .breed-sub { font-size: 12px; color: #9ca3af; margin-top: 3px; }
+        .breed-empty { font-size: 13px; color: #6b7280; font-style: italic; }
+
+        /* Tamers - compact chips */
+        .tamers-row { display: flex; gap: 6px; flex-wrap: wrap; }
+        .tamer-chip {
+            background: rgba(234,179,8,0.18); border: 1px solid rgba(234,179,8,0.55); color: #fde68a;
+            font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+            white-space: nowrap; max-width: 170px; overflow: hidden; text-overflow: ellipsis;
+        }
+        .tamers-empty { font-size: 12px; color: #6b7280; font-style: italic; }
+
+        /* Optional zone counts */
+        .counts-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .count-cell {
+            text-align: center; background: rgba(0,0,0,0.4); border-radius: 7px; padding: 5px 2px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .count-val { font-size: 19px; font-weight: 800; color: #e5edff; line-height: 1; }
+        .player-board.right .count-val { color: #ffe6d2; }
+        .count-lbl { font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+
+        /* SHARED MEMORY GAUGE (center, between players - the one Digimon-unique piece) */
+        .memory-gauge {
+            position: absolute; top: 96px; left: 50%; transform: translateX(-50%) translateY(-20px);
+            width: 660px; padding: 16px 22px 18px;
+            background: linear-gradient(135deg, rgba(6,12,28,0.96) 0%, rgba(12,24,48,0.96) 100%);
+            border: 2px solid rgba(148,163,184,0.4); border-radius: 16px;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.7);
+            opacity: 0; transition: all 0.5s ease; backdrop-filter: blur(10px);
+        }
+        .memory-gauge.active { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .mem-title {
+            text-align: center; font-size: 13px; font-weight: 700; letter-spacing: 3px;
+            text-transform: uppercase; color: #cbd5e1; margin-bottom: 6px;
+        }
+        .mem-readout { text-align: center; font-size: 15px; font-weight: 700; margin-bottom: 10px; height: 20px; }
+        .mem-readout .who { font-weight: 800; }
+        .mem-readout .val { font-family: 'Courier New', monospace; font-size: 22px; }
+        /* Player end-labels */
+        .mem-ends { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .mem-end {
+            font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;
+            white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+        }
+        .mem-end.p1 { color: #60a5fa; }
+        .mem-end.p2 { color: #fb923c; }
+        /* The track: 21 cells, -10 .. 0 .. +10 */
+        .mem-track { display: flex; gap: 3px; align-items: stretch; }
+        .mem-cell {
+            flex: 1; height: 30px; border-radius: 4px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+            position: relative; transition: all 0.2s ease;
+        }
+        .mem-cell.zero { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.35); }
+        .mem-cell.fill-p1 { background: linear-gradient(180deg, #60a5fa, #1d4ed8); border-color: #3b82f6; box-shadow: 0 0 7px rgba(59,130,246,0.5); }
+        .mem-cell.fill-p2 { background: linear-gradient(180deg, #fdba74, #c2410c); border-color: #f97316; box-shadow: 0 0 7px rgba(249,115,22,0.5); }
+        .mem-cell.marker { transform: scaleY(1.5); z-index: 2; box-shadow: 0 0 14px rgba(255,255,255,0.7); }
+        .mem-scale { display: flex; justify-content: space-between; margin-top: 5px; padding: 0 1px; }
+        .mem-scale span { font-size: 10px; color: #64748b; font-family: 'Courier New', monospace; }
+
+        /* Shared match-info bar */
+        .match-info {
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(6,12,28,0.98) 0%, rgba(12,24,48,0.98) 100%);
+            border: 2px solid #2563eb; border-radius: 12px; padding: 14px 30px;
+            display: flex; align-items: center; gap: 25px; backdrop-filter: blur(10px);
+            opacity: 0; transition: all 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+        .match-info.active { opacity: 1; }
+        .match-format { font-size: 14px; color: #93c5fd; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+        .timer { font-size: 36px; font-weight: bold; color: #38bdf8; font-family: 'Courier New', monospace; text-shadow: 0 0 15px rgba(56,189,248,0.5); }
+        .turn-indicator {
+            padding: 8px 16px; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            border-radius: 24px; color: #fff; font-weight: bold; font-size: 14px;
+            text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(37,99,235,0.4);
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <!-- Player 1 (Left) -->
+    <div class="player-board left" id="player1Board">
+        <div class="panel">
+            <div class="player-name-row">
+                <div class="player-name" id="p1Name">Player 1</div>
+                <div class="player-record" id="p1Record">0-0-0</div>
+            </div>
+            <div class="games-won" id="p1GamesWon">Games Won: 0</div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Security</div>
+            <div class="sec-head"><span class="sec-count" id="p1Sec">5</span><span class="sec-goal">/ 5</span></div>
+            <div class="sec-track" id="p1SecTrack"></div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Battle Area</div>
+            <div class="battle-grid" id="p1Battle"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Breeding Area</div>
+            <div class="breed-wrap" id="p1Breed"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Tamers</div>
+            <div class="tamers-row" id="p1Tamers"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Zones</div>
+            <div class="counts-grid" id="p1Counts"></div>
+        </div>
+    </div>
+
+    <!-- Shared MEMORY gauge (center) -->
+    <div class="memory-gauge" id="memoryGauge">
+        <div class="mem-title">Memory</div>
+        <div class="mem-readout" id="memReadout">Neutral</div>
+        <div class="mem-ends">
+            <span class="mem-end p1" id="memEndP1">Player 1</span>
+            <span class="mem-end p2" id="memEndP2">Player 2</span>
+        </div>
+        <div class="mem-track" id="memTrack"></div>
+        <div class="mem-scale"><span>10</span><span>5</span><span>0</span><span>5</span><span>10</span></div>
+    </div>
+
+    <!-- Player 2 (Right) -->
+    <div class="player-board right" id="player2Board">
+        <div class="panel">
+            <div class="player-name-row">
+                <div class="player-name" id="p2Name">Player 2</div>
+                <div class="player-record" id="p2Record">0-0-0</div>
+            </div>
+            <div class="games-won" id="p2GamesWon">Games Won: 0</div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Security</div>
+            <div class="sec-head"><span class="sec-count" id="p2Sec">5</span><span class="sec-goal">/ 5</span></div>
+            <div class="sec-track" id="p2SecTrack"></div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Battle Area</div>
+            <div class="battle-grid" id="p2Battle"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Breeding Area</div>
+            <div class="breed-wrap" id="p2Breed"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Tamers</div>
+            <div class="tamers-row" id="p2Tamers"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Zones</div>
+            <div class="counts-grid" id="p2Counts"></div>
+        </div>
+    </div>
+
+    <!-- Shared match-info bar -->
+    <div class="match-info" id="matchInfo">
+        <div class="match-format" id="matchFormat">BEST OF 3 &bull; GAME 1</div>
+        <div class="timer" id="matchTimer">50:00</div>
+        <div class="turn-indicator" id="turnIndicator">Player 1's Turn</div>
+    </div>
+
+    <script>
+        const socket = io('http://localhost:3888');
+
+        // Self-contained card back (no asset dependency) - broken-image fallback.
+        const CARD_BACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 59 86">' +
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+            '<stop offset="0" stop-color="#1d4ed8"/><stop offset="1" stop-color="#0c1a3a"/></linearGradient></defs>' +
+            '<rect width="59" height="86" rx="5" fill="url(#g)"/>' +
+            '<rect x="4" y="4" width="51" height="78" rx="4" fill="none" stroke="#60a5fa" stroke-width="1.5"/>' +
+            '<text x="29.5" y="48" font-family="sans-serif" font-size="8" fill="#93c5fd" text-anchor="middle">DIGIMON</text></svg>');
+        window.CARD_BACK = CARD_BACK;
+
+        // Digimon color -> accent for the battle-card left stripe (first color wins).
+        const COLOR_MAP = {
+            red: '#ef4444', blue: '#3b82f6', yellow: '#eab308', green: '#22c55e',
+            black: '#4b5563', purple: '#a855f7', white: '#e5e7eb', all: '#f59e0b'
+        };
+        function colorAccent(colors) {
+            const first = String(colors || '').split(/[\/\s]+/).filter(Boolean)[0];
+            return COLOR_MAP[(first || '').toLowerCase()] || '#6b7280';
+        }
+
+        function freshPlayer(name) {
+            return {
+                name, record: { wins: 0, losses: 0, ties: 0 }, gamesWon: 0,
+                security: 5, securityTaken: [],
+                battle: [null, null, null, null, null, null],
+                breeding: null,
+                tamers: [],
+                counts: { hand: 0, deck: 0, trash: 0, eggDeck: 0 }
+            };
+        }
+
+        let matchState = {
+            memory: 0,
+            player1: freshPlayer('Player 1'),
+            player2: freshPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            timerDuration: { minutes: 50, seconds: 0 },
+            timerInterval: null,
+            gameNumber: 1,
+            matchFormat: 'Best of 3',
+            visible: false
+        };
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+        const numOr = (v, d = 0) => { const n = parseInt(v); return isNaN(n) ? d : n; };
+
+        // ---- Socket handlers ----
+        socket.on('digimon-match-state', (state) => { if (state) { applyFullState(state); updateDisplay(); } });
+
+        socket.on('digimon-match-update', (data) => {
+            if (data.memory !== undefined) matchState.memory = data.memory;
+            if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
+            if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
+            if (data.currentTurn !== undefined) matchState.currentTurn = data.currentTurn;
+            if (data.gameNumber !== undefined) matchState.gameNumber = data.gameNumber;
+            if (data.matchFormat !== undefined) matchState.matchFormat = data.matchFormat;
+            updateDisplay();
+        });
+
+        socket.on('digimon-memory-update', (d) => { matchState.memory = d.memory; renderMemory(); });
+
+        socket.on('digimon-security-taken', (d) => {
+            const p = matchState[`player${d.player}`];
+            p.securityTaken = d.securityTaken || [];
+            p.security = (d.security != null) ? d.security : (5 - p.securityTaken.length);
+            renderSecurity(d.player);
+        });
+        socket.on('digimon-security-reset', () => {
+            [1, 2].forEach(n => { matchState[`player${n}`].securityTaken = []; matchState[`player${n}`].security = 5; renderSecurity(n); });
+        });
+
+        socket.on('digimon-battle-update', (d) => { matchState[`player${d.player}`].battle[d.index] = d.unit; renderBattle(d.player); });
+        socket.on('digimon-breeding-update', (d) => { matchState[`player${d.player}`].breeding = d.breeding; renderBreeding(d.player); });
+        socket.on('digimon-tamer-update', (d) => { matchState[`player${d.player}`].tamers = d.tamers || []; renderTamers(d.player); });
+        socket.on('digimon-counts-update', (d) => { matchState[`player${d.player}`].counts = d.counts; renderCounts(d.player); });
+        socket.on('digimon-record-update', (d) => { matchState[`player${d.player}`].record = d.record; renderHeader(d.player); updateMatchInfo(); });
+        socket.on('digimon-games-won-update', (d) => { matchState[`player${d.player}`].gamesWon = d.gamesWon; renderHeader(d.player); });
+
+        socket.on('digimon-match-reset', () => {
+            const wasVisible = matchState.visible;
+            const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            matchState = {
+                memory: 0,
+                player1: freshPlayer('Player 1'), player2: freshPlayer('Player 2'),
+                currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
+                timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: 'Best of 3', visible: wasVisible
+            };
+            updateDisplay();
+        });
+
+        socket.on('toggle-digimon-match', (d) => { matchState.visible = d.show; d.show ? showOverlay() : hideOverlay(); });
+
+        // Reused global match events
+        socket.on('turn-switch', (d) => { if (d && d.currentTurn) matchState.currentTurn = d.currentTurn; updateMatchInfo(); });
+        socket.on('match-settings', (d) => { if (d.gameNumber) matchState.gameNumber = d.gameNumber; if (d.matchFormat) matchState.matchFormat = d.matchFormat; updateMatchInfo(); });
+        socket.on('timer-start', startTimer);
+        socket.on('timer-pause', pauseTimer);
+        socket.on('timer-reset', (d) => {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            if (d && typeof d.minutes === 'number') matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds || 0 };
+            const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
+            matchState.timer = { minutes: dur.minutes, seconds: dur.seconds };
+            updateMatchInfo();
+        });
+        socket.on('timer-set', (d) => {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds };
+            matchState.timer = { minutes: d.minutes, seconds: d.seconds };
+            updateMatchInfo();
+        });
+
+        function applyFullState(s) {
+            if (s.memory !== undefined) matchState.memory = s.memory;
+            ['player1', 'player2'].forEach(k => {
+                if (s[k]) matchState[k] = { ...freshPlayer(s[k].name || (k === 'player1' ? 'Player 1' : 'Player 2')), ...s[k] };
+            });
+            if (s.currentTurn !== undefined) matchState.currentTurn = s.currentTurn;
+            if (s.gameNumber !== undefined) matchState.gameNumber = s.gameNumber;
+            if (s.matchFormat !== undefined) matchState.matchFormat = s.matchFormat;
+            if (s.timer) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
+        }
+
+        // ---- Rendering ----
+        function updateDisplay() {
+            [1, 2].forEach(n => { renderHeader(n); renderSecurity(n); renderBattle(n); renderBreeding(n); renderTamers(n); renderCounts(n); });
+            renderMemory();
+            updateMatchInfo();
+        }
+
+        function renderHeader(n) {
+            const p = matchState[`player${n}`];
+            document.getElementById(`p${n}Name`).textContent = p.name || `Player ${n}`;
+            const r = p.record || { wins: 0, losses: 0, ties: 0 };
+            document.getElementById(`p${n}Record`).textContent = `${r.wins}-${r.losses}-${r.ties}`;
+            document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${p.gamesWon || 0}`;
+        }
+
+        function renderSecurity(n) {
+            const p = matchState[`player${n}`];
+            const taken = p.securityTaken || [];
+            const remaining = 5 - taken.length;
+            document.getElementById(`p${n}Sec`).textContent = remaining;
+            let html = '';
+            for (let i = 0; i < 5; i++) html += `<div class="sec-pip${taken.includes(i) ? ' taken' : ''}"></div>`;
+            document.getElementById(`p${n}SecTrack`).innerHTML = html;
+        }
+
+        function renderBattle(n) {
+            const p = matchState[`player${n}`];
+            const grid = document.getElementById(`p${n}Battle`);
+            let html = '';
+            for (let i = 0; i < 6; i++) {
+                const u = p.battle[i];
+                if (!u) { html += '<div class="battle-cell empty"></div>'; continue; }
+                const stack = numOr(u.stack, 1);
+                const stat = (kind, lbl, v) => (v != null && v !== '') ? `<span class="stat ${kind}"><span class="lbl">${lbl}</span>${esc(v)}</span>` : '';
+                html += `
+                    <div class="battle-cell" style="--clr:${colorAccent(u.colors)}">
+                        <img class="battle-art" src="${esc(u.image)}" alt="${esc(u.name)}" onerror="this.src=window.CARD_BACK">
+                        <div class="battle-stats">
+                            ${stat('dp', 'DP', u.dp)}
+                            ${stat('lv', 'Lv', u.level)}
+                        </div>
+                        ${stack > 1 ? `<span class="stack-badge">x${stack}</span>` : ''}
+                        <div class="battle-name">${esc(u.name)}</div>
+                    </div>`;
+            }
+            grid.innerHTML = html;
+        }
+
+        function renderBreeding(n) {
+            const b = matchState[`player${n}`].breeding;
+            const wrap = document.getElementById(`p${n}Breed`);
+            if (!b) {
+                wrap.innerHTML = '<div class="breed-cell empty"></div><div class="breed-meta"><div class="breed-empty">Empty</div></div>';
+                return;
+            }
+            const sub = [];
+            if (b.dp != null && b.dp !== '') sub.push(`DP ${esc(b.dp)}`);
+            if (b.level != null && b.level !== '') sub.push(`Lv.${esc(b.level)}`);
+            wrap.innerHTML = `
+                <div class="breed-cell"><img src="${esc(b.image)}" alt="${esc(b.name)}" onerror="this.src=window.CARD_BACK"></div>
+                <div class="breed-meta">
+                    <div class="breed-name">${esc(b.name)}</div>
+                    <div class="breed-sub">${sub.join(' &bull; ')}</div>
+                </div>`;
+        }
+
+        function renderTamers(n) {
+            const tamers = matchState[`player${n}`].tamers || [];
+            const row = document.getElementById(`p${n}Tamers`);
+            row.innerHTML = tamers.length
+                ? tamers.map(t => `<span class="tamer-chip">${esc(t.name)}</span>`).join('')
+                : '<span class="tamers-empty">None in play</span>';
+        }
+
+        function renderCounts(n) {
+            const c = matchState[`player${n}`].counts || { hand: 0, deck: 0, trash: 0, eggDeck: 0 };
+            const cell = (lbl, v) => `<div class="count-cell"><div class="count-val">${numOr(v, 0)}</div><div class="count-lbl">${lbl}</div></div>`;
+            document.getElementById(`p${n}Counts`).innerHTML =
+                cell('Hand', c.hand) + cell('Deck', c.deck) + cell('Trash', c.trash) + cell('Egg', c.eggDeck);
+        }
+
+        // SHARED memory gauge: 21 cells (-10..0..+10), filled from center toward the
+        // current value on that player's side, with a marker on the value cell.
+        function renderMemory() {
+            const m = Math.max(-10, Math.min(10, numOr(matchState.memory, 0)));
+            document.getElementById('memEndP1').textContent = matchState.player1.name || 'Player 1';
+            document.getElementById('memEndP2').textContent = matchState.player2.name || 'Player 2';
+
+            const readout = document.getElementById('memReadout');
+            if (m === 0) {
+                readout.innerHTML = '<span class="who" style="color:#cbd5e1">Neutral</span> <span class="val">0</span>';
+            } else if (m < 0) {
+                readout.innerHTML = `<span class="who" style="color:#60a5fa">${esc(matchState.player1.name || 'Player 1')}</span> <span class="val" style="color:#60a5fa">${m}</span>`;
+            } else {
+                readout.innerHTML = `<span class="who" style="color:#fb923c">${esc(matchState.player2.name || 'Player 2')}</span> <span class="val" style="color:#fb923c">+${m}</span>`;
+            }
+
+            let html = '';
+            for (let v = -10; v <= 10; v++) {
+                let cls = 'mem-cell';
+                if (v === 0) cls += ' zero';
+                if (m < 0 && v >= m && v < 0) cls += ' fill-p1';
+                if (m > 0 && v <= m && v > 0) cls += ' fill-p2';
+                if (v === m && m !== 0) cls += ' marker';
+                html += `<div class="${cls}"></div>`;
+            }
+            document.getElementById('memTrack').innerHTML = html;
+        }
+
+        function updateMatchInfo() {
+            document.getElementById('matchTimer').textContent =
+                `${String(matchState.timer.minutes).padStart(2, '0')}:${String(matchState.timer.seconds).padStart(2, '0')}`;
+            const name = matchState[`player${matchState.currentTurn}`].name;
+            document.getElementById('turnIndicator').textContent = `${name}'s Turn`;
+            document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber}`;
+        }
+
+        function startTimer() {
+            if (matchState.timerInterval) return;
+            matchState.timerInterval = setInterval(() => {
+                if (matchState.timer.seconds > 0) matchState.timer.seconds--;
+                else if (matchState.timer.minutes > 0) { matchState.timer.minutes--; matchState.timer.seconds = 59; }
+                else { pauseTimer(); }
+                updateMatchInfo();
+            }, 1000);
+        }
+        function pauseTimer() {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+        }
+
+        function showOverlay() {
+            document.getElementById('player1Board').classList.add('active');
+            document.getElementById('player2Board').classList.add('active');
+            document.getElementById('memoryGauge').classList.add('active');
+            document.getElementById('matchInfo').classList.add('active');
+        }
+        function hideOverlay() {
+            document.getElementById('player1Board').classList.remove('active');
+            document.getElementById('player2Board').classList.remove('active');
+            document.getElementById('memoryGauge').classList.remove('active');
+            document.getElementById('matchInfo').classList.remove('active');
+        }
+
+        // Init
+        updateDisplay();
+        socket.emit('register-overlay', 'digimon-match');
+        setTimeout(() => { socket.emit('request-state', 'digimon-match'); showOverlay(); }, 500);
+        setInterval(() => socket.emit('register-overlay', 'digimon-match'), 5000);
+    </script>
+</body>
+</html>

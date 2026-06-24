@@ -628,6 +628,14 @@ app.get('/lorcana-match-control', (req, res) => {
     res.sendFile(path.join(__dirname, 'lorcana-match-control.html'));
 });
 
+app.get('/digimon-match', (req, res) => {
+    res.sendFile(path.join(__dirname, 'overlays', 'digimon-match.html'));
+});
+
+app.get('/digimon-match-control', (req, res) => {
+    res.sendFile(path.join(__dirname, 'digimon-match-control.html'));
+});
+
 // Main card-display overlay (dual card display controlled from the dashboard)
 app.get('/overlay', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'main.html'));
@@ -656,7 +664,8 @@ let overlayStates = {
     'gundam-match': false,
     'yugioh-match': false,
     'onepiece-match': false,
-    'lorcana-match': false
+    'lorcana-match': false,
+    'digimon-match': false
 };
 
 // Socket.io events
@@ -734,6 +743,18 @@ io.on('connection', (socket) => {
                 currentTurn: state.lorcanaMatch.currentTurn,
                 gameNumber: state.lorcanaMatch.gameNumber,
                 matchFormat: state.lorcanaMatch.matchFormat
+            });
+        } else if (type === 'digimon-match') {
+            socket.emit('digimon-match-state', state.digimonMatch);
+            // Also send as update so a freshly-loaded overlay renders immediately
+            // (memory is the SHARED gauge, sent at the top level).
+            socket.emit('digimon-match-update', {
+                memory: state.digimonMatch.memory,
+                player1: state.digimonMatch.player1,
+                player2: state.digimonMatch.player2,
+                currentTurn: state.digimonMatch.currentTurn,
+                gameNumber: state.digimonMatch.gameNumber,
+                matchFormat: state.digimonMatch.matchFormat
             });
         }
     });
@@ -823,6 +844,16 @@ io.on('connection', (socket) => {
                 currentTurn: state.lorcanaMatch.currentTurn,
                 gameNumber: state.lorcanaMatch.gameNumber,
                 matchFormat: state.lorcanaMatch.matchFormat
+            });
+        } else if (type === 'digimon-match') {
+            socket.emit('digimon-match-state', state.digimonMatch);
+            socket.emit('digimon-match-update', {
+                memory: state.digimonMatch.memory,
+                player1: state.digimonMatch.player1,
+                player2: state.digimonMatch.player2,
+                currentTurn: state.digimonMatch.currentTurn,
+                gameNumber: state.digimonMatch.gameNumber,
+                matchFormat: state.digimonMatch.matchFormat
             });
         }
     });
@@ -1299,6 +1330,60 @@ io.on('connection', (socket) => {
         io.emit('toggle-lorcana-match', data);
     });
 
+    // Digimon Match events (the overlay-server mutators re-broadcast to overlays)
+    socket.on('digimon-match-update', (data) => {
+        overlayServer.updateDigimonMatch(data);
+    });
+
+    // The SHARED memory gauge (single widget for both players).
+    socket.on('digimon-memory-update', (data) => {
+        overlayServer.setDigimonMemory(data.memory);
+    });
+
+    // Single take/set event: an array sets the whole taken-list, an index toggles one
+    // (mirrors gundam-shield-taken / onepiece-life-taken).
+    socket.on('digimon-security-taken', (data) => {
+        if (Array.isArray(data.securityTaken)) overlayServer.setDigimonSecurity(data.player, data.securityTaken);
+        else overlayServer.takeDigimonSecurity(data.player, data.index);
+    });
+
+    socket.on('digimon-security-reset', () => {
+        overlayServer.resetDigimonSecurity();
+    });
+
+    socket.on('digimon-battle-update', (data) => {
+        overlayServer.setDigimonBattle(data.player, data.index, data.unit);
+    });
+
+    socket.on('digimon-breeding-update', (data) => {
+        overlayServer.setDigimonBreeding(data.player, data.breeding);
+    });
+
+    socket.on('digimon-tamer-update', (data) => {
+        overlayServer.setDigimonTamers(data.player, data.tamers);
+    });
+
+    socket.on('digimon-counts-update', (data) => {
+        overlayServer.setDigimonCounts(data.player, data.counts);
+    });
+
+    socket.on('digimon-record-update', (data) => {
+        overlayServer.updateDigimonRecord(data.player, data.record);
+    });
+
+    socket.on('digimon-games-won-update', (data) => {
+        overlayServer.updateDigimonGamesWon(data.player, data.gamesWon);
+    });
+
+    socket.on('digimon-match-reset', () => {
+        overlayServer.resetDigimonMatch();
+    });
+
+    socket.on('toggle-digimon-match', (data) => {
+        console.log('Toggle digimon match overlay:', data.show);
+        io.emit('toggle-digimon-match', data);
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
@@ -1323,7 +1408,8 @@ io.on('connection', (socket) => {
             io.emit('overlay-disconnected', 'yugioh-match');
             io.emit('overlay-disconnected', 'onepiece-match');
             io.emit('overlay-disconnected', 'lorcana-match');
-            
+            io.emit('overlay-disconnected', 'digimon-match');
+
             // If no more overlays are connected, notify main clients
             if (overlayClients.size === 0) {
                 io.emit('obs-status', { connected: false });
@@ -1368,6 +1454,7 @@ OBS Overlays:
   - Yu-Gi-Oh Match: http://localhost:${PORT}/yugioh-match
   - One Piece Match: http://localhost:${PORT}/onepiece-match
   - Lorcana Match: http://localhost:${PORT}/lorcana-match
+  - Digimon Match: http://localhost:${PORT}/digimon-match
 
 Control Panels:
   - Pokemon: http://localhost:${PORT}/pokemon-match-control
@@ -1376,6 +1463,7 @@ Control Panels:
   - Yu-Gi-Oh: http://localhost:${PORT}/yugioh-match-control
   - One Piece: http://localhost:${PORT}/onepiece-match-control
   - Lorcana: http://localhost:${PORT}/lorcana-match-control
+  - Digimon: http://localhost:${PORT}/digimon-match-control
 
 Currently Available:
   ✓ Pokemon TCG (20,000+ cards)

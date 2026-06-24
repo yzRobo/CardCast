@@ -78,6 +78,32 @@ try {
         !lc.obs.includes('/pokemon-match') && !lc.obs.includes('/mtg-match') && !lc.obs.includes('/yugioh-match') && !lc.obs.includes('/prizes'), lc.obs);
     check('lorcana: deck select synced', lc.deckSelect === 'lorcana', lc.deckSelect);
 
+    const dg = await panelsFor(page, 'digimon');
+    check('digimon: shows Digimon Match Control', dg.match.includes('Digimon Match Control'), dg.match);
+    check('digimon: dropped Pokemon Match Control', !dg.match.includes('Pokemon Match Control'), dg.match);
+    check('digimon: OBS has digimon-match overlay + decklist', dg.obs.includes('/digimon-match') && dg.obs.includes('/decklist'), dg.obs);
+    check('digimon: OBS leaked no pokemon/mtg/lorcana/prizes',
+        !dg.obs.includes('/pokemon-match') && !dg.obs.includes('/mtg-match') && !dg.obs.includes('/lorcana-match') && !dg.obs.includes('/prizes'), dg.obs);
+    check('digimon: deck select synced', dg.deckSelect === 'digimon', dg.deckSelect);
+
+    // Digimon: Cost/DP/Lv meta + card_type categorize (incl Digi-Egg routing)
+    await page.evaluate(() => window.selectGame('digimon', true));
+    const dgMeta = await page.evaluate(() => {
+        const card = { id: 'd1', name: 'Agumon', play_cost: 3, dp: 2000, digimon_level: 3, card_type: 'Digimon', set_name: 'BT1', card_number: 'BT1-010' };
+        window.displaySearchResults([card]);
+        window.updateCardPreview(card);
+        return {
+            results: document.getElementById('searchResults').innerText,
+            preview: document.getElementById('cardPreview').innerText,
+            egg: window.getGameConfig('digimon').deck.categorize({ card_type: 'Digi-Egg' }),
+            tamer: window.getGameConfig('digimon').deck.categorize({ card_type: 'Tamer' })
+        };
+    });
+    check('digimon: results show DP meta', dgMeta.results.includes('DP 2000'), dgMeta.results);
+    check('digimon: preview shows DP meta', dgMeta.preview.includes('DP 2000'), dgMeta.preview);
+    check('digimon categorize -> Digi-Egg', dgMeta.egg === 'Digi-Egg', dgMeta.egg);
+    check('digimon categorize -> Tamers', dgMeta.tamer === 'Tamers', dgMeta.tamer);
+
     // ===== Phase 2: per-game search/preview meta =====
     // Pokemon: HP shown on results + preview
     await page.evaluate(() => window.selectGame('pokemon', true));

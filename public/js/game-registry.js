@@ -231,6 +231,44 @@ const GAME_REGISTRY = {
             if (parts.length) return parts.join(' / ');
             return card.colors || card.card_type || '';
         }
+    },
+
+    digimon: {
+        name: 'Digimon Card Game',
+        matchControls: [
+            { label: 'Digimon Match Control', route: '/digimon-match-control', style: 'btn-accent' }
+        ],
+        overlays: [
+            { label: 'Main Display', route: '/overlay' },
+            { label: 'Digimon Match', route: '/digimon-match' },
+            { label: 'Deck List', route: '/decklist' }
+        ],
+        deck: {
+            // Main deck = Digimon + Tamers + Options (exactly 50). The Digi-Egg deck
+            // (0-5) is a separate mini-deck, NOT part of the 50. Derived straight from
+            // card_type; Dual cards are played as Digimon so they bucket there.
+            categories: ['Digimon', 'Tamers', 'Options', 'Digi-Egg'],
+            categorize: (card) => digimonCategoryFromType(card.card_type),
+            rules: { main: 50, egg: 5, copyLimit: 4 },
+            // Color is informational only - multi-color decks are legal and there is no
+            // color-identity limit (unlike OP/Lorcana/Gundam). Label-only by default.
+            formats: ['Standard', 'Unlimited'],
+            // Bandai restriction snapshot. Seeded empty; fill from the official B&R list
+            // (world.digimoncard.com/rule/restriction_card). Label only until a filter opts in.
+            banlist: {
+                Standard: { banned: [], restricted: [] },
+                Unlimited: { banned: [], restricted: [] }
+            }
+        },
+        searchMeta: (card) => {
+            const has = (v) => v !== undefined && v !== null && v !== '';
+            const parts = [];
+            if (has(card.play_cost)) parts.push(`Cost ${card.play_cost}`);
+            if (has(card.dp)) parts.push(`DP ${card.dp}`);
+            if (has(card.digimon_level)) parts.push(`Lv.${card.digimon_level}`);
+            if (parts.length) return parts.join(' / ');
+            return card.colors || card.card_type || '';
+        }
     }
 };
 
@@ -253,6 +291,18 @@ function lorcanaInks(colorString) {
         .split(/[\/\s]+/)
         .map(c => c.trim())
         .filter(Boolean);
+}
+
+// Digimon card_type -> deck category. Shared by the registry categorize() above and
+// parseDigimonDeckList in deck-parser.js (single source of truth). DB card_type values
+// are title-case: Digimon / Tamer / Option / Digi-Egg / Dual. Digi-Egg cards form the
+// separate egg deck; Dual cards are played as Digimon, so they bucket into Digimon.
+function digimonCategoryFromType(cardType) {
+    const t = (cardType || '').toLowerCase().trim();
+    if (t.includes('egg')) return 'Digi-Egg';   // "Digi-Egg" -> the 0-5 egg deck
+    if (t.includes('tamer')) return 'Tamers';
+    if (t.includes('option')) return 'Options';
+    return 'Digimon';                            // Digimon + Dual + fallback
 }
 
 // One Piece card_type -> deck category. Shared by the registry categorize() above
@@ -471,6 +521,7 @@ if (typeof window !== 'undefined') {
     window.onePieceColors = onePieceColors;
     window.lorcanaCategoryFromType = lorcanaCategoryFromType;
     window.lorcanaInks = lorcanaInks;
+    window.digimonCategoryFromType = digimonCategoryFromType;
 }
 
 // Allow Node (tests/tooling) to require the registry + deck helpers.
@@ -480,6 +531,6 @@ if (typeof module !== 'undefined' && module.exports) {
         getDeckCategories, getDeckCategoryArray, getDeckSectionNames,
         deckCardCount, deckToText, getDeckCardNameSet, gundamCategoryFromType,
         yugiohCategoryFromType, onePieceCategoryFromType, onePieceColors,
-        lorcanaCategoryFromType, lorcanaInks
+        lorcanaCategoryFromType, lorcanaInks, digimonCategoryFromType
     };
 }

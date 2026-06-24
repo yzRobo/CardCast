@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cardcast">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CardCast - Digimon Match Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .dg-card-aspect { aspect-ratio: 5/7; }
+        .search-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 2rem; }
+        .search-overlay.active { display: flex; align-items: center; justify-content: center; }
+        .sec-pip {
+            width: 30px; height: 42px; border-radius: 5px; cursor: pointer; position: relative;
+            background: linear-gradient(135deg, #1e3a8a 0%, #0c1a3a 100%); border: 2px solid #3b82f6;
+            transition: all 0.15s ease;
+        }
+        .sec-pip:hover { transform: scale(1.08); }
+        .sec-pip.taken { opacity: 0.3; background: #111827; border-color: #374151; }
+        .sec-pip.taken::after { content: '\2715'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: #ef4444; }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-base-100 via-base-200 to-base-100">
+    <div class="animated-bg"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <!-- Header -->
+    <div class="navbar glass-card border-b border-white/5 px-4 sm:px-6 fixed top-0 z-50 min-h-[3.75rem] gap-2">
+        <div class="navbar-start gap-2 sm:gap-3">
+            <a href="/" class="btn btn-ghost btn-sm gap-1.5 px-2" title="Back to Dashboard">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                <span class="hidden sm:inline">Dashboard</span>
+            </a>
+            <div class="h-6 w-px bg-white/10"></div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shadow" style="background: linear-gradient(135deg, #2563eb 0%, #ea580c 100%);">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+                </div>
+                <div class="leading-tight">
+                    <div class="font-bold text-base">Digimon Match Control</div>
+                    <div class="text-[10px] uppercase tracking-[0.18em] text-base-content/40 font-medium">CardCast</div>
+                </div>
+            </div>
+        </div>
+        <div class="navbar-end">
+            <div class="badge badge-error gap-2 py-3 font-medium" id="overlayStatus">
+                <div class="w-2 h-2 rounded-full bg-current"></div>
+                <span>Overlay Not Connected</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 pt-20 pb-8">
+        <!-- SHARED Memory gauge (one widget for both players) -->
+        <div class="card bg-base-100 shadow-xl mb-6">
+            <div class="card-body py-4">
+                <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-2">Memory Gauge <span class="opacity-50 normal-case tracking-normal">(shared)</span></h3>
+                <div class="flex flex-wrap items-center gap-4">
+                    <span class="text-sm font-bold text-info w-32 truncate" id="memLabelP1">Player 1</span>
+                    <input type="range" min="-10" max="10" step="1" value="0" id="memorySlider" class="range range-primary flex-1 min-w-[16rem]" oninput="setMemory(this.value)">
+                    <span class="text-sm font-bold text-warning w-32 text-right truncate" id="memLabelP2">Player 2</span>
+                </div>
+                <div class="flex flex-wrap items-center justify-center gap-3 mt-2">
+                    <div class="join">
+                        <button class="btn btn-sm join-item" onclick="adjMemory(-1)">-1</button>
+                        <span class="join-item bg-base-200 px-5 py-1 text-2xl font-mono font-bold" id="memoryValue">0</span>
+                        <button class="btn btn-sm join-item" onclick="adjMemory(1)">+1</button>
+                    </div>
+                    <span class="text-sm" id="memoryWho">Neutral</span>
+                    <button class="btn btn-xs btn-ghost" onclick="setMemory(0)">Reset to 0</button>
+                </div>
+                <div class="text-[11px] text-base-content/50 text-center mt-1">Negative = Player 1's side, positive = Player 2's side. Spending memory passes initiative; crossing 0 ends the turn.</div>
+            </div>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-6" id="playersGrid"></div>
+
+        <!-- Shared Match Controls -->
+        <div class="card bg-base-100 shadow-xl mt-6">
+            <div class="card-body">
+                <div class="border-b border-base-300 pb-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Match Setup</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-xs">Format</span></label>
+                            <select id="matchFormat" class="select select-bordered select-sm">
+                                <option value="Best of 1">Best of 1</option>
+                                <option value="Best of 3" selected>Best of 3</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-xs">Game</span></label>
+                            <select id="gameNumber" class="select select-bordered select-sm">
+                                <option value="1">Game 1</option>
+                                <option value="2">Game 2</option>
+                                <option value="3">Game 3</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-sm mt-6" onclick="applyMatchSettings()">Apply Settings</button>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Timer Control</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="text-5xl font-mono font-bold text-primary bg-base-200 px-6 py-3 rounded-lg" id="timerDisplay">50:00</div>
+                        <div class="flex gap-2">
+                            <button class="btn btn-success" onclick="startTimer()">Start</button>
+                            <button class="btn btn-warning" onclick="pauseTimer()">Pause</button>
+                            <button class="btn btn-neutral" onclick="resetTimer()">Reset</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-end gap-3 mt-4">
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Minutes</span></label>
+                            <input type="number" id="timerMinutes" class="input input-bordered input-sm w-20" value="50" min="0" max="999">
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Seconds</span></label>
+                            <input type="number" id="timerSeconds" class="input input-bordered input-sm w-20" value="0" min="0" max="59">
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="setTimer()">Set Timer</button>
+                        <div class="flex gap-1">
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(40)">40 min</button>
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(50)">50 min</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Turn Control</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="badge badge-lg badge-primary p-4" id="turnDisplay">Player 1's Turn</div>
+                        <button class="btn btn-primary" onclick="switchTurn()">Switch Turn</button>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Overlay Display</h3>
+                    <div class="flex gap-2">
+                        <button class="btn btn-success" onclick="showOverlay()">Show Overlay</button>
+                        <button class="btn btn-warning" onclick="hideOverlay()">Hide Overlay</button>
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Match Reset</h3>
+                    <div class="flex items-center gap-4">
+                        <button class="btn btn-error" onclick="resetMatch()">Reset Entire Match</button>
+                        <span class="text-xs text-error opacity-70 italic">Clears memory, security, battle area, breeding, tamers, counts and timer</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search modal -->
+    <div class="search-overlay" id="searchOverlay">
+        <div class="card w-full max-w-5xl bg-base-100">
+            <div class="card-body">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="card-title" id="searchTitle">Select Card</h2>
+                    <button class="btn btn-circle btn-ghost btn-sm" onclick="closeSearch()" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-2 mb-4 items-center">
+                    <input type="text" id="cardSearch" placeholder="Search Digimon cards (name or number)..." class="input input-bordered flex-1 min-w-[12rem]">
+                    <label class="label cursor-pointer gap-2 hidden" id="deckOnlyLabel">
+                        <span class="label-text whitespace-nowrap">Deck only</span>
+                        <input type="checkbox" id="searchDeckOnly" class="toggle toggle-secondary" onchange="runSearch()">
+                    </label>
+                    <label class="label cursor-pointer gap-2">
+                        <span class="label-text whitespace-nowrap">All card types</span>
+                        <input type="checkbox" id="searchAllTypes" class="toggle toggle-primary" onchange="runSearch()">
+                    </label>
+                </div>
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 max-h-[600px] overflow-y-auto p-2" id="searchResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        function freshPlayer(name) {
+            return {
+                name, record: { wins: 0, losses: 0, ties: 0 }, gamesWon: 0,
+                security: 5, securityTaken: [],
+                battle: [null, null, null, null, null, null],
+                breeding: null,
+                tamers: [],
+                counts: { hand: 0, deck: 0, trash: 0, eggDeck: 0 }
+            };
+        }
+        let state = {
+            memory: 0,
+            player1: freshPlayer('Player 1'),
+            player2: freshPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            timerDuration: { minutes: 50, seconds: 0 },
+            timerInterval: null,
+            gameNumber: 1,
+            matchFormat: 'Best of 3'
+        };
+        let searchContext = null; // { player, slot:'battle'|'breeding'|'tamer', index }
+        let playerDecks = { 1: null, 2: null };
+        let currentDeckCards = [];
+        // Deck categories that make sense to quick-add into each board slot.
+        const categoriesForSlot = { battle: ['Digimon'], breeding: ['Digi-Egg', 'Digimon'], tamer: ['Tamers'] };
+        // Card-type substrings a normal search keeps for each slot (unless "All card types").
+        const typeForSlot = { battle: ['digimon', 'dual'], breeding: ['digi-egg', 'egg', 'digimon'], tamer: ['tamer'] };
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
+        function save() { localStorage.setItem('digimonMatchState', JSON.stringify({ ...state, timerInterval: null })); }
+        const num = (v, d = 0) => { const n = parseInt(v); return isNaN(n) ? d : n; };
+
+        // ---------- Player board rendering ----------
+        function renderPlayers() {
+            document.getElementById('playersGrid').innerHTML = [1, 2].map(playerCardHtml).join('');
+            [1, 2].forEach(n => { renderSecurity(n); renderBattle(n); renderBreeding(n); renderTamers(n); renderCounts(n); });
+            populateDeckSelectors();
+            updateTurnDisplay();
+        }
+
+        // ---------- Deck-aware control ----------
+        function digimonDecks() {
+            try { return (JSON.parse(localStorage.getItem('savedDecks') || '{}').digimon) || []; }
+            catch (e) { return []; }
+        }
+        function populateDeckSelectors() {
+            const decks = digimonDecks();
+            [1, 2].forEach(n => {
+                const sel = document.getElementById(`p${n}Deck`);
+                if (!sel) return;
+                const current = state[`player${n}`].deckName || '';
+                sel.innerHTML = '<option value="">No deck (search all)</option>' +
+                    decks.map(d => `<option value="${esc(d.name)}">${esc(d.name)}</option>`).join('');
+                if (current && decks.find(d => d.name === current)) { sel.value = current; playerDecks[n] = decks.find(d => d.name === current); }
+                else { sel.value = ''; playerDecks[n] = null; }
+            });
+        }
+        function setPlayerDeck(n) {
+            const name = document.getElementById(`p${n}Deck`).value;
+            playerDecks[n] = name ? (digimonDecks().find(d => d.name === name) || null) : null;
+            state[`player${n}`].deckName = name || null;
+            save();
+        }
+        function deckCardsForSlot(deck, slot) {
+            const cats = (deck && deck.categories) || {};
+            return (categoriesForSlot[slot] || []).flatMap(c => cats[c] || []);
+        }
+        // Re-resolve deck entries to full DB cards (image / stats) for quick-add.
+        async function resolveDeckCards(cards) {
+            const unique = [...new Map(cards.map(c => [c.name, c])).values()];
+            const resolved = await Promise.all(unique.map(async (c) => {
+                try {
+                    const q = c.number || c.name;
+                    const arr = await (await fetch(`/api/search/digimon?q=${encodeURIComponent(q)}`)).json();
+                    const e = arr.find(x => (c.number && (x.card_number || '').toUpperCase() === c.number.toUpperCase()))
+                        || arr.find(x => (x.name || '').toLowerCase() === (c.name || '').toLowerCase());
+                    return e || arr[0] || null;
+                } catch (e) { return null; }
+            }));
+            return resolved.filter(Boolean);
+        }
+        async function populateDeckCards() {
+            if (!searchContext) return;
+            const deck = playerDecks[searchContext.player];
+            const cards = deckCardsForSlot(deck, searchContext.slot);
+            const out = document.getElementById('searchResults');
+            if (!cards.length) { out.innerHTML = '<div class="col-span-full text-center text-base-content/50">No matching cards in this deck</div>'; return; }
+            out.innerHTML = '<div class="col-span-full text-center"><span class="loading loading-spinner loading-md"></span> Loading deck cards...</div>';
+            currentDeckCards = await resolveDeckCards(cards);
+            displayResults(currentDeckCards);
+        }
+
+        function playerCardHtml(n) {
+            const p = state[`player${n}`];
+            const border = n === 1 ? 'border-primary' : 'border-warning';
+            return `
+            <div class="card bg-base-100 shadow-xl border-t-4 ${border}">
+                <div class="card-body gap-3">
+                    <div class="flex items-center justify-between">
+                        <input type="text" value="${esc(p.name)}" class="input input-ghost text-xl font-bold w-40" onchange="setName(${n}, this.value)">
+                        <div class="flex items-center gap-1">
+                            <span class="text-sm">Rec:</span>
+                            <input type="number" id="p${n}W" value="${p.record.wins}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                            <span>/</span>
+                            <input type="number" id="p${n}L" value="${p.record.losses}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                            <span>/</span>
+                            <input type="number" id="p${n}T" value="${p.record.ties}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm">Games Won:</span>
+                        <div class="join">
+                            <button class="btn btn-xs join-item" onclick="adjGamesWon(${n}, -1)">-</button>
+                            <span class="join-item bg-base-200 px-3 py-1 text-sm" id="p${n}GamesWon">${p.gamesWon}</span>
+                            <button class="btn btn-xs join-item" onclick="adjGamesWon(${n}, 1)">+</button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm whitespace-nowrap">Deck:</span>
+                        <select id="p${n}Deck" class="select select-bordered select-sm flex-1" onchange="setPlayerDeck(${n})">
+                            <option value="">No deck (search all)</option>
+                        </select>
+                    </div>
+
+                    <div class="divider my-0">Security (loss track)</div>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <span class="text-2xl font-mono font-bold text-info" id="p${n}SecCount">5</span>
+                        <span class="text-sm opacity-60">/ 5</span>
+                        <div class="flex gap-1.5" id="p${n}SecPips"></div>
+                        <button class="btn btn-xs btn-ghost" onclick="resetSecurity(${n})">Reset</button>
+                    </div>
+
+                    <div class="divider my-0">Battle Area</div>
+                    <div class="grid grid-cols-3 gap-1.5" id="p${n}Battle"></div>
+
+                    <div class="divider my-0">Breeding Area</div>
+                    <div id="p${n}Breed"></div>
+
+                    <div class="divider my-0">Tamers</div>
+                    <div class="flex flex-wrap gap-1.5 items-center" id="p${n}Tamers"></div>
+
+                    <div class="divider my-0">Zone Counts</div>
+                    <div class="grid grid-cols-4 gap-2" id="p${n}Counts"></div>
+                </div>
+            </div>`;
+        }
+
+        function renderSecurity(n) {
+            const p = state[`player${n}`];
+            const taken = p.securityTaken || [];
+            const cnt = document.getElementById(`p${n}SecCount`);
+            if (cnt) cnt.textContent = 5 - taken.length;
+            const pips = document.getElementById(`p${n}SecPips`);
+            if (pips) {
+                let html = '';
+                for (let i = 0; i < 5; i++) html += `<div class="sec-pip${taken.includes(i) ? ' taken' : ''}" onclick="toggleSecurity(${n}, ${i})" title="Security ${i + 1}"></div>`;
+                pips.innerHTML = html;
+            }
+        }
+
+        function renderBattle(n) {
+            const p = state[`player${n}`];
+            let html = '';
+            for (let i = 0; i < 6; i++) {
+                const u = p.battle[i];
+                if (!u) {
+                    html += `
+                    <div class="border-2 border-dashed border-base-content/20 rounded-lg p-1 flex items-center justify-center dg-card-aspect">
+                        <button class="btn btn-primary btn-xs" onclick="openSearch(${n}, 'battle', ${i})">+ Digimon</button>
+                    </div>`;
+                    continue;
+                }
+                const stack = num(u.stack, 1);
+                html += `
+                <div class="bg-base-200 rounded-lg p-1">
+                    <div class="relative">
+                        <img src="${esc(u.image)}" class="w-full rounded dg-card-aspect object-cover" onerror="this.src=window.CARD_BACK">
+                        <button class="btn btn-circle btn-xs btn-error absolute top-0.5 right-0.5" onclick="removeBattle(${n}, ${i})">x</button>
+                        ${stack > 1 ? `<span class="absolute top-0.5 left-0.5 badge badge-warning badge-xs font-bold">x${stack}</span>` : ''}
+                    </div>
+                    <div class="text-[10px] font-semibold truncate mt-0.5" title="${esc(u.name)}">${esc(u.name)}</div>
+                    <div class="grid grid-cols-2 gap-0.5 mt-0.5">
+                        <div class="flex items-center gap-0.5"><span class="text-[9px] text-info font-bold">DP</span><input type="number" value="${num(u.dp, 0)}" step="1000" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setBattleStat(${n}, ${i}, 'dp', this.value)"></div>
+                        <div class="flex items-center gap-0.5"><span class="text-[9px] text-secondary font-bold">Lv</span><input type="number" value="${num(u.level, 0)}" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setBattleStat(${n}, ${i}, 'level', this.value)"></div>
+                    </div>
+                    <div class="flex items-center justify-between gap-0.5 mt-0.5">
+                        <span class="text-[9px] opacity-60 font-bold">Stack ${stack}</span>
+                        <div class="join">
+                            <button class="btn btn-xs join-item px-1" onclick="adjStack(${n}, ${i}, -1)" title="De-digivolve">-</button>
+                            <button class="btn btn-xs join-item px-1" onclick="adjStack(${n}, ${i}, 1)" title="Digivolve">+</button>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            document.getElementById(`p${n}Battle`).innerHTML = html;
+        }
+
+        function renderBreeding(n) {
+            const b = state[`player${n}`].breeding;
+            const wrap = document.getElementById(`p${n}Breed`);
+            if (!wrap) return;
+            if (!b) {
+                wrap.innerHTML = `
+                    <div class="border-2 border-dashed border-base-content/20 rounded-lg p-2 flex items-center justify-center" style="min-height:64px">
+                        <button class="btn btn-secondary btn-xs" onclick="openSearch(${n}, 'breeding', 0)">+ Egg / Rookie</button>
+                    </div>`;
+                return;
+            }
+            wrap.innerHTML = `
+                <div class="bg-base-200 rounded-lg p-2 flex gap-2 items-center">
+                    <div class="relative w-14 flex-shrink-0">
+                        <img src="${esc(b.image)}" class="w-full rounded dg-card-aspect object-cover" onerror="this.src=window.CARD_BACK">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-xs font-semibold truncate" title="${esc(b.name)}">${esc(b.name)}</div>
+                        <div class="grid grid-cols-2 gap-1 mt-1">
+                            <div class="flex items-center gap-0.5"><span class="text-[9px] text-info font-bold">DP</span><input type="number" value="${num(b.dp, 0)}" step="1000" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setBreedStat(${n}, 'dp', this.value)"></div>
+                            <div class="flex items-center gap-0.5"><span class="text-[9px] text-secondary font-bold">Lv</span><input type="number" value="${num(b.level, 0)}" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setBreedStat(${n}, 'level', this.value)"></div>
+                        </div>
+                    </div>
+                    <button class="btn btn-circle btn-xs btn-error" onclick="removeBreeding(${n})">x</button>
+                </div>`;
+        }
+
+        function renderTamers(n) {
+            const tamers = state[`player${n}`].tamers || [];
+            const chips = tamers.map((t, idx) => `
+                <span class="badge badge-lg gap-1 bg-base-200">
+                    ${esc(t.name)}
+                    <button class="text-error font-bold" onclick="removeTamer(${n}, ${idx})" title="Remove">x</button>
+                </span>`).join('');
+            document.getElementById(`p${n}Tamers`).innerHTML = chips +
+                `<button class="btn btn-xs btn-outline" onclick="openSearch(${n}, 'tamer', 0)">+ Tamer</button>`;
+        }
+
+        function renderCounts(n) {
+            const c = state[`player${n}`].counts || { hand: 0, deck: 0, trash: 0, eggDeck: 0 };
+            const cell = (lbl, field) => `
+                <div class="text-center">
+                    <div class="text-[10px] uppercase opacity-60">${lbl}</div>
+                    <div class="join mt-0.5">
+                        <button class="btn btn-xs join-item px-1" onclick="adjCount(${n}, '${field}', -1)">-</button>
+                        <span class="join-item bg-base-200 px-1.5 py-1 text-xs font-mono" id="p${n}Count_${field}">${num(c[field], 0)}</span>
+                        <button class="btn btn-xs join-item px-1" onclick="adjCount(${n}, '${field}', 1)">+</button>
+                    </div>
+                </div>`;
+            document.getElementById(`p${n}Counts`).innerHTML =
+                cell('Hand', 'hand') + cell('Deck', 'deck') + cell('Trash', 'trash') + cell('Egg', 'eggDeck');
+        }
+
+        // ---------- Mutations ----------
+        function setName(n, v) {
+            state[`player${n}`].name = v || `Player ${n}`;
+            socket.emit('digimon-match-update', { [`player${n}`]: { name: state[`player${n}`].name } });
+            updateTurnDisplay(); updateMemoryLabels(); save();
+        }
+        function setRecord(n) {
+            const r = {
+                wins: num(document.getElementById(`p${n}W`).value),
+                losses: num(document.getElementById(`p${n}L`).value),
+                ties: num(document.getElementById(`p${n}T`).value)
+            };
+            state[`player${n}`].record = r;
+            socket.emit('digimon-record-update', { player: n, record: r }); save();
+        }
+        function adjGamesWon(n, d) {
+            const g = Math.max(0, (state[`player${n}`].gamesWon || 0) + d);
+            state[`player${n}`].gamesWon = g;
+            document.getElementById(`p${n}GamesWon`).textContent = g;
+            socket.emit('digimon-games-won-update', { player: n, gamesWon: g }); save();
+        }
+
+        // Memory (SHARED gauge)
+        function setMemory(v) {
+            state.memory = Math.max(-10, Math.min(10, num(v, state.memory)));
+            renderMemoryControl();
+            socket.emit('digimon-memory-update', { memory: state.memory }); save();
+        }
+        function adjMemory(d) { setMemory((state.memory || 0) + d); }
+        function renderMemoryControl() {
+            const m = state.memory || 0;
+            document.getElementById('memorySlider').value = m;
+            document.getElementById('memoryValue').textContent = m > 0 ? `+${m}` : m;
+            const who = document.getElementById('memoryWho');
+            if (m === 0) { who.textContent = 'Neutral'; who.className = 'text-sm opacity-70'; }
+            else if (m < 0) { who.textContent = `${state.player1.name}'s side`; who.className = 'text-sm font-bold text-info'; }
+            else { who.textContent = `${state.player2.name}'s side`; who.className = 'text-sm font-bold text-warning'; }
+        }
+        function updateMemoryLabels() {
+            document.getElementById('memLabelP1').textContent = state.player1.name || 'Player 1';
+            document.getElementById('memLabelP2').textContent = state.player2.name || 'Player 2';
+            renderMemoryControl();
+        }
+
+        // Security
+        function toggleSecurity(n, i) {
+            const p = state[`player${n}`];
+            const taken = p.securityTaken || [];
+            const idx = taken.indexOf(i);
+            if (idx === -1) taken.push(i); else taken.splice(idx, 1);
+            p.securityTaken = taken; p.security = 5 - taken.length;
+            renderSecurity(n);
+            socket.emit('digimon-security-taken', { player: n, index: i }); save();
+        }
+        function resetSecurity(n) {
+            const p = state[`player${n}`];
+            p.securityTaken = []; p.security = 5;
+            renderSecurity(n);
+            socket.emit('digimon-security-taken', { player: n, securityTaken: [] }); save();
+        }
+
+        // Battle area
+        function setBattleStat(n, i, field, v) {
+            const u = state[`player${n}`].battle[i]; if (!u) return;
+            u[field] = num(v);
+            renderBattle(n);
+            socket.emit('digimon-battle-update', { player: n, index: i, unit: u }); save();
+        }
+        function adjStack(n, i, d) {
+            const u = state[`player${n}`].battle[i]; if (!u) return;
+            u.stack = Math.max(1, num(u.stack, 1) + d);
+            renderBattle(n);
+            socket.emit('digimon-battle-update', { player: n, index: i, unit: u }); save();
+        }
+        function removeBattle(n, i) {
+            state[`player${n}`].battle[i] = null; renderBattle(n);
+            socket.emit('digimon-battle-update', { player: n, index: i, unit: null }); save();
+        }
+
+        // Breeding
+        function setBreedStat(n, field, v) {
+            const b = state[`player${n}`].breeding; if (!b) return;
+            b[field] = num(v);
+            socket.emit('digimon-breeding-update', { player: n, breeding: b }); save();
+        }
+        function removeBreeding(n) {
+            state[`player${n}`].breeding = null; renderBreeding(n);
+            socket.emit('digimon-breeding-update', { player: n, breeding: null }); save();
+        }
+
+        // Tamers
+        function removeTamer(n, idx) {
+            const tamers = state[`player${n}`].tamers || [];
+            tamers.splice(idx, 1);
+            state[`player${n}`].tamers = tamers;
+            renderTamers(n);
+            socket.emit('digimon-tamer-update', { player: n, tamers }); save();
+        }
+
+        // Counts
+        function adjCount(n, field, d) {
+            const c = state[`player${n}`].counts || { hand: 0, deck: 0, trash: 0, eggDeck: 0 };
+            c[field] = Math.max(0, num(c[field], 0) + d);
+            state[`player${n}`].counts = c;
+            const el = document.getElementById(`p${n}Count_${field}`); if (el) el.textContent = c[field];
+            socket.emit('digimon-counts-update', { player: n, counts: c }); save();
+        }
+
+        // ---------- Search + assignment ----------
+        function openSearch(player, slot, index) {
+            searchContext = { player, slot, index };
+            currentDeckCards = [];
+            const titles = { battle: 'Select Digimon', breeding: 'Select Egg / Rookie', tamer: 'Select Tamer' };
+            document.getElementById('searchTitle').textContent = titles[slot] || 'Select Card';
+            document.getElementById('searchAllTypes').checked = false;
+            document.getElementById('cardSearch').value = '';
+
+            const deck = playerDecks[player];
+            const hasDeckCat = !!(deck && deckCardsForSlot(deck, slot).length);
+            document.getElementById('deckOnlyLabel').classList.toggle('hidden', !hasDeckCat);
+            document.getElementById('searchDeckOnly').checked = hasDeckCat;
+
+            document.getElementById('searchOverlay').classList.add('active');
+            document.getElementById('cardSearch').focus();
+
+            if (hasDeckCat) populateDeckCards();
+            else document.getElementById('searchResults').innerHTML = '<div class="col-span-full text-center text-base-content/50">Search Digimon cards to assign...</div>';
+        }
+        function closeSearch() {
+            document.getElementById('searchOverlay').classList.remove('active');
+            searchContext = null;
+        }
+        function matchesSlotType(card, slot) {
+            const t = (card.card_type || '').toLowerCase();
+            return (typeForSlot[slot] || []).some(k => t.includes(k));
+        }
+        async function runSearch() {
+            const q = document.getElementById('cardSearch').value.trim();
+            const deckOnly = document.getElementById('searchDeckOnly').checked &&
+                !document.getElementById('deckOnlyLabel').classList.contains('hidden');
+
+            if (deckOnly) {
+                if (!currentDeckCards.length) await populateDeckCards();
+                const ql = q.toLowerCase();
+                const list = q ? currentDeckCards.filter(c => (c.name || '').toLowerCase().includes(ql)) : currentDeckCards;
+                displayResults(list);
+                return;
+            }
+
+            if (q.length < 2) { document.getElementById('searchResults').innerHTML = '<div class="col-span-full text-center text-base-content/50">Type at least 2 characters...</div>'; return; }
+            const all = document.getElementById('searchAllTypes').checked;
+            try {
+                const res = await fetch(`/api/search/digimon?q=${encodeURIComponent(q)}`);
+                let cards = await res.json();
+                if (!all && searchContext) cards = cards.filter(c => matchesSlotType(c, searchContext.slot));
+                displayResults(cards);
+            } catch (e) { console.error('search error', e); }
+        }
+        function displayResults(cards) {
+            const c = document.getElementById('searchResults');
+            if (!cards.length) { c.innerHTML = '<div class="col-span-full text-center text-base-content/50">No cards found</div>'; return; }
+            const seen = new Set();
+            c.innerHTML = cards.filter(card => { if (seen.has(card.id)) return false; seen.add(card.id); return true; }).map(card => {
+                const has = (v) => v !== undefined && v !== null && v !== '';
+                const bits = [];
+                if (has(card.play_cost)) bits.push(`Cost ${card.play_cost}`);
+                if (has(card.dp)) bits.push(`DP ${card.dp}`);
+                if (has(card.digimon_level)) bits.push(`Lv.${card.digimon_level}`);
+                const meta = bits.length ? bits.join(' / ') : esc(card.colors || card.card_type || '');
+                return `
+                <div class="card bg-base-200 cursor-pointer hover:shadow-lg" onclick="pickCard('${card.id}')">
+                    <figure class="px-2 pt-2"><img src="${esc(card.display_image || card.image_url || card.local_image)}" class="rounded-lg dg-card-aspect object-cover w-full" onerror="this.src=window.CARD_BACK"></figure>
+                    <div class="card-body p-2">
+                        <p class="text-xs font-semibold truncate">${esc(card.name)}</p>
+                        <p class="text-[10px] opacity-70">${meta}</p>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        async function pickCard(id) {
+            if (!searchContext) return;
+            try {
+                const res = await fetch(`/api/card/digimon/${id}`);
+                const card = await res.json();
+                const image = card.display_image || card.image_url || card.local_image;
+                const { player, slot, index } = searchContext;
+                if (slot === 'battle') {
+                    const unit = {
+                        id: card.id, name: card.name, image,
+                        dp: num(card.dp, 0),
+                        level: num(card.digimon_level, 0),
+                        colors: card.colors || '',
+                        stack: 1
+                    };
+                    state[`player${player}`].battle[index] = unit; renderBattle(player);
+                    socket.emit('digimon-battle-update', { player, index, unit });
+                } else if (slot === 'breeding') {
+                    const breeding = {
+                        id: card.id, name: card.name, image,
+                        dp: num(card.dp, 0),
+                        level: num(card.digimon_level, 0),
+                        colors: card.colors || ''
+                    };
+                    state[`player${player}`].breeding = breeding; renderBreeding(player);
+                    socket.emit('digimon-breeding-update', { player, breeding });
+                } else if (slot === 'tamer') {
+                    const tamer = { id: card.id, name: card.name, image };
+                    const tamers = state[`player${player}`].tamers || [];
+                    tamers.push(tamer);
+                    state[`player${player}`].tamers = tamers; renderTamers(player);
+                    socket.emit('digimon-tamer-update', { player, tamers });
+                }
+                save(); closeSearch();
+            } catch (e) { console.error('pick error', e); }
+        }
+
+        // ---------- Shared match controls ----------
+        function applyMatchSettings() {
+            state.gameNumber = parseInt(document.getElementById('gameNumber').value);
+            state.matchFormat = document.getElementById('matchFormat').value;
+            socket.emit('match-settings', { gameNumber: state.gameNumber, matchFormat: state.matchFormat }); save();
+        }
+        function switchTurn() {
+            state.currentTurn = state.currentTurn === 1 ? 2 : 1;
+            socket.emit('turn-switch', { currentTurn: state.currentTurn });
+            updateTurnDisplay(); save();
+        }
+        function updateTurnDisplay() {
+            document.getElementById('turnDisplay').textContent = `${state[`player${state.currentTurn}`].name}'s Turn`;
+        }
+        function startTimer() {
+            if (state.timerInterval) return;
+            socket.emit('timer-start');
+            state.timerInterval = setInterval(() => {
+                if (state.timer.seconds > 0) state.timer.seconds--;
+                else if (state.timer.minutes > 0) { state.timer.minutes--; state.timer.seconds = 59; }
+                else { pauseTimer(); }
+                updateTimerDisplay();
+            }, 1000);
+        }
+        function pauseTimer() {
+            if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; socket.emit('timer-pause'); }
+        }
+        function resetTimer() {
+            pauseTimer();
+            const d = state.timerDuration || { minutes: 50, seconds: 0 };
+            state.timer = { minutes: d.minutes, seconds: d.seconds };
+            updateTimerDisplay(); socket.emit('timer-reset', d); save();
+        }
+        function setTimer() {
+            let m = num(document.getElementById('timerMinutes').value); let s = num(document.getElementById('timerSeconds').value);
+            if (m < 0) m = 0; if (s < 0) s = 0; if (s > 59) s = 59;
+            pauseTimer();
+            state.timerDuration = { minutes: m, seconds: s }; state.timer = { minutes: m, seconds: s };
+            updateTimerDisplay(); socket.emit('timer-set', { minutes: m, seconds: s }); save();
+        }
+        function setTimerPreset(m) { document.getElementById('timerMinutes').value = m; document.getElementById('timerSeconds').value = 0; setTimer(); }
+        function updateTimerDisplay() {
+            document.getElementById('timerDisplay').textContent = `${String(state.timer.minutes).padStart(2, '0')}:${String(state.timer.seconds).padStart(2, '0')}`;
+        }
+        function showOverlay() { socket.emit('toggle-digimon-match', { show: true }); pushFullState(); }
+        function hideOverlay() { socket.emit('toggle-digimon-match', { show: false }); }
+        function resetMatch() {
+            if (!confirm('Reset the entire Digimon match?')) return;
+            const p1 = state.player1.name, p2 = state.player2.name;
+            const dur = state.timerDuration || { minutes: 50, seconds: 0 };
+            if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+            state = {
+                memory: 0,
+                player1: freshPlayer(p1), player2: freshPlayer(p2),
+                currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
+                timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: state.matchFormat
+            };
+            socket.emit('digimon-match-reset');
+            renderPlayers(); renderMemoryControl(); updateTimerDisplay(); save();
+        }
+
+        // Push the whole board to a freshly-shown / reconnected overlay.
+        function pushFullState() {
+            socket.emit('digimon-match-update', {
+                memory: state.memory,
+                player1: state.player1, player2: state.player2,
+                currentTurn: state.currentTurn,
+                gameNumber: state.gameNumber, matchFormat: state.matchFormat
+            });
+        }
+
+        function updateOverlayStatus(connected) {
+            const s = document.getElementById('overlayStatus');
+            s.className = 'badge gap-2 py-3 font-medium ' + (connected ? 'badge-success' : 'badge-error');
+            s.innerHTML = `<div class="w-2 h-2 rounded-full bg-current"></div><span>${connected ? 'Overlay Connected' : 'Overlay Not Connected'}</span>`;
+        }
+
+        function load() {
+            const saved = localStorage.getItem('digimonMatchState');
+            if (saved) {
+                try {
+                    const s = JSON.parse(saved);
+                    state = { ...state, ...s, timerInterval: null };
+                    state.player1 = { ...freshPlayer('Player 1'), ...s.player1 };
+                    state.player2 = { ...freshPlayer('Player 2'), ...s.player2 };
+                } catch (e) { console.error('load error', e); }
+            }
+            document.getElementById('matchFormat').value = state.matchFormat;
+            document.getElementById('gameNumber').value = state.gameNumber;
+            const d = state.timerDuration || { minutes: 50, seconds: 0 };
+            document.getElementById('timerMinutes').value = d.minutes;
+            document.getElementById('timerSeconds').value = d.seconds;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            load();
+            renderPlayers();
+            updateMemoryLabels();
+            updateTimerDisplay();
+            document.getElementById('cardSearch').addEventListener('input', debounce(runSearch, 300));
+
+            socket.emit('register-control', 'digimon-match');
+            socket.on('connect', () => { socket.emit('register-control', 'digimon-match'); socket.emit('check-overlay-status', 'digimon-match'); });
+            socket.on('overlay-connected', (t) => { if (t === 'digimon-match') { updateOverlayStatus(true); pushFullState(); } });
+            socket.on('overlay-disconnected', (t) => { if (t === 'digimon-match') updateOverlayStatus(false); });
+
+            setTimeout(pushFullState, 600);
+        });
+
+        function debounce(fn, wait) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); }; }
+
+        // Self-contained card back fallback (matches the overlay's).
+        window.CARD_BACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 59 86">' +
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+            '<stop offset="0" stop-color="#1d4ed8"/><stop offset="1" stop-color="#0c1a3a"/></linearGradient></defs>' +
+            '<rect width="59" height="86" rx="5" fill="url(#g)"/>' +
+            '<rect x="4" y="4" width="51" height="78" rx="4" fill="none" stroke="#60a5fa" stroke-width="1.5"/>' +
+            '<text x="29.5" y="48" font-family="sans-serif" font-size="8" fill="#93c5fd" text-anchor="middle">DIGIMON</text></svg>');
+
+        // expose for inline handlers
+        Object.assign(window, {
+            setName, setRecord, adjGamesWon, setPlayerDeck,
+            openSearch, closeSearch, runSearch, pickCard,
+            setMemory, adjMemory,
+            toggleSecurity, resetSecurity,
+            setBattleStat, adjStack, removeBattle,
+            setBreedStat, removeBreeding,
+            removeTamer, adjCount,
+            applyMatchSettings, switchTurn, startTimer, pauseTimer, resetTimer, setTimer, setTimerPreset,
+            showOverlay, hideOverlay, resetMatch
+        });
+    </script>
+</body>
+</html>

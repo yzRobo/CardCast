@@ -319,7 +319,8 @@ class CardDatabase {
             SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type,
                    hp, mana_cost, attack, defense, cost, gd_ap, gd_hp, gd_color,
                    op_power, counter, life, colors,
-                   ink_cost, strength, willpower, lore_value, inkable
+                   ink_cost, strength, willpower, lore_value, inkable,
+                   play_cost, digivolve_cost, digivolve_color, dp, digimon_level
             FROM cards
             WHERE game = ? AND search_text LIKE ?
             ORDER BY
@@ -333,7 +334,8 @@ class CardDatabase {
             SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type,
                    hp, mana_cost, attack, defense, cost, gd_ap, gd_hp, gd_color,
                    op_power, counter, life, colors,
-                   ink_cost, strength, willpower, lore_value, inkable
+                   ink_cost, strength, willpower, lore_value, inkable,
+                   play_cost, digivolve_cost, digivolve_color, dp, digimon_level
             FROM cards
             WHERE game = ?
                 AND name LIKE ?
@@ -348,7 +350,8 @@ class CardDatabase {
             SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type,
                    hp, mana_cost, attack, defense, cost, gd_ap, gd_hp, gd_color,
                    op_power, counter, life, colors,
-                   ink_cost, strength, willpower, lore_value, inkable
+                   ink_cost, strength, willpower, lore_value, inkable,
+                   play_cost, digivolve_cost, digivolve_color, dp, digimon_level
             FROM cards
             WHERE game = ?
                 AND name LIKE ?

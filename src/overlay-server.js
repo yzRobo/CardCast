@@ -117,6 +117,40 @@ class OverlayServer {
             gameNumber: 1,
             matchFormat: 'Best of 3'
         };
+
+        // Digimon Match State (mirrors gundamMatch/lorcanaMatch). TWO Digimon-unique
+        // mechanics drive the design: a per-player 5-card SECURITY stack (the loss
+        // track, mirrors Gundam shields) and a SINGLE SHARED MEMORY gauge in the
+        // center running -10 (P1 side) .. 0 .. +10 (P2 side) - NOT a per-player value.
+        // Plus a Battle Area row (Digimon shown as digivolution stacks with DP+level),
+        // a Breeding Area slot, Tamer chips, and optional zone counts.
+        this.digimonMatch = {
+            memory: 0, // SHARED, -10 (P1 side) .. 0 .. +10 (P2 side)
+            player1: this.freshDigimonPlayer('Player 1'),
+            player2: this.freshDigimonPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: 'Best of 3'
+        };
+    }
+
+    // A blank Digimon player board. security is the fixed 5-pip loss track (mirrors
+    // Gundam shields). battle is a fixed 6-slot row (null = empty); each entry is a
+    // digivolution stack rendered as one card with DP/level and a stack-depth badge.
+    // breeding is the single egg-incubator slot; tamers is a free chip list.
+    freshDigimonPlayer(name) {
+        return {
+            name,
+            record: { wins: 0, losses: 0, ties: 0 },
+            gamesWon: 0,
+            security: 5,
+            securityTaken: [],
+            battle: [null, null, null, null, null, null], // {id,name,image,dp,level,colors,stack}
+            breeding: null,                                // {id,name,image,dp,level,colors}|null
+            tamers: [],                                    // {id,name,image}
+            counts: { hand: 0, deck: 0, trash: 0, eggDeck: 0 }
+        };
     }
 
     // A blank Lorcana player board. lore counts UP toward loreGoal (20 = win) - it
@@ -969,6 +1003,115 @@ class OverlayServer {
 
     // ============ END DISNEY LORCANA METHODS ============
 
+    // ============ DIGIMON MATCH METHODS ============
+
+    // Bulk update (shared memory / player boards / turn / game / format) - control
+    // load + show. memory is the SHARED gauge, so it lives at the top level.
+    updateDigimonMatch(data) {
+        if (data.memory !== undefined) this.digimonMatch.memory = Math.max(-10, Math.min(10, data.memory | 0));
+        if (data.player1) this.digimonMatch.player1 = { ...this.digimonMatch.player1, ...data.player1 };
+        if (data.player2) this.digimonMatch.player2 = { ...this.digimonMatch.player2, ...data.player2 };
+        if (data.currentTurn !== undefined) this.digimonMatch.currentTurn = data.currentTurn;
+        if (data.gameNumber !== undefined) this.digimonMatch.gameNumber = data.gameNumber;
+        if (data.matchFormat !== undefined) this.digimonMatch.matchFormat = data.matchFormat;
+        this.io.emit('digimon-match-update', data);
+    }
+
+    // The SHARED memory gauge (one widget for both players). Clamped to [-10, 10];
+    // negative = Player 1's side, positive = Player 2's side, 0 = neutral center.
+    setDigimonMemory(value) {
+        this.digimonMatch.memory = Math.max(-10, Math.min(10, value | 0));
+        this.io.emit('digimon-memory-update', { memory: this.digimonMatch.memory, timestamp: Date.now() });
+    }
+
+    // Toggle a security card as taken/restored (mirrors the prize/shield take logic).
+    takeDigimonSecurity(player, index) {
+        const p = this.digimonMatch[`player${player}`];
+        if (!p) return;
+        const i = p.securityTaken.indexOf(index);
+        if (i === -1) p.securityTaken.push(index);
+        else p.securityTaken.splice(i, 1);
+        p.security = 5 - p.securityTaken.length;
+        this.io.emit('digimon-security-taken', { player, index, securityTaken: p.securityTaken, security: p.security, timestamp: Date.now() });
+    }
+
+    setDigimonSecurity(player, taken) {
+        const p = this.digimonMatch[`player${player}`];
+        if (!p) return;
+        p.securityTaken = Array.isArray(taken) ? taken : [];
+        p.security = 5 - p.securityTaken.length;
+        this.io.emit('digimon-security-taken', { player, index: null, securityTaken: p.securityTaken, security: p.security, timestamp: Date.now() });
+    }
+
+    resetDigimonSecurity() {
+        this.digimonMatch.player1.securityTaken = [];
+        this.digimonMatch.player1.security = 5;
+        this.digimonMatch.player2.securityTaken = [];
+        this.digimonMatch.player2.security = 5;
+        this.io.emit('digimon-security-reset', { timestamp: Date.now() });
+    }
+
+    // Set, clear (unit=null), or edit (full object incl dp/level/stack) a Battle Area
+    // slot (0-5). A digivolution stack is one unit with a stack-depth count.
+    setDigimonBattle(player, index, unit) {
+        const key = `player${player}`;
+        if (!this.digimonMatch[key] || index < 0 || index > 5) return;
+        this.digimonMatch[key].battle[index] = unit;
+        this.io.emit('digimon-battle-update', { player, index, unit, timestamp: Date.now() });
+    }
+
+    setDigimonBreeding(player, breeding) {
+        const key = `player${player}`;
+        if (!this.digimonMatch[key]) return;
+        this.digimonMatch[key].breeding = breeding;
+        this.io.emit('digimon-breeding-update', { player, breeding, timestamp: Date.now() });
+    }
+
+    // Replace the Tamer chip list wholesale.
+    setDigimonTamers(player, tamers) {
+        const key = `player${player}`;
+        if (!this.digimonMatch[key]) return;
+        this.digimonMatch[key].tamers = Array.isArray(tamers) ? tamers : [];
+        this.io.emit('digimon-tamer-update', { player, tamers: this.digimonMatch[key].tamers, timestamp: Date.now() });
+    }
+
+    setDigimonCounts(player, counts) {
+        const key = `player${player}`;
+        if (!this.digimonMatch[key]) return;
+        this.digimonMatch[key].counts = { ...this.digimonMatch[key].counts, ...counts };
+        this.io.emit('digimon-counts-update', { player, counts: this.digimonMatch[key].counts, timestamp: Date.now() });
+    }
+
+    updateDigimonRecord(player, record) {
+        const key = `player${player}`;
+        if (this.digimonMatch[key]) this.digimonMatch[key].record = record;
+        this.io.emit('digimon-record-update', { player, record, timestamp: Date.now() });
+    }
+
+    updateDigimonGamesWon(player, gamesWon) {
+        const key = `player${player}`;
+        if (this.digimonMatch[key]) this.digimonMatch[key].gamesWon = gamesWon;
+        this.io.emit('digimon-games-won-update', { player, gamesWon, timestamp: Date.now() });
+    }
+
+    resetDigimonMatch() {
+        const p1 = this.digimonMatch.player1.name;
+        const p2 = this.digimonMatch.player2.name;
+        this.digimonMatch = {
+            memory: 0,
+            player1: this.freshDigimonPlayer(p1),
+            player2: this.freshDigimonPlayer(p2),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: this.digimonMatch.matchFormat || 'Best of 3'
+        };
+        this.io.emit('digimon-match-reset', { timestamp: Date.now() });
+        console.log('Digimon match reset');
+    }
+
+    // ============ END DIGIMON MATCH METHODS ============
+
     updateDecklist(deckData) {
         if (deckData.deck) {
             this.decklist = { ...this.decklist, ...deckData.deck };
@@ -1154,7 +1297,8 @@ class OverlayServer {
             gundamMatch: this.gundamMatch,
             yugiohMatch: this.yugiohMatch,
             onePieceMatch: this.onePieceMatch,
-            lorcanaMatch: this.lorcanaMatch
+            lorcanaMatch: this.lorcanaMatch,
+            digimonMatch: this.digimonMatch
         };
     }
     
@@ -1208,7 +1352,7 @@ class OverlayServer {
                 showBreedingArea: true,
                 showSecurity: true,
                 securityCount: 5,
-                categories: ['Digimon', 'Tamers', 'Options']
+                categories: ['Digimon', 'Tamers', 'Options', 'Digi-Egg']
             },
             fab: {
                 showLife: true,

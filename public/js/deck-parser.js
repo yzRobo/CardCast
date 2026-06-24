@@ -44,6 +44,11 @@ async function parseDeckList(text) {
         const cats = result.categories || {};
         console.log('Lorcana Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
         return result;
+    } else if (gameType === 'digimon') {
+        const result = await parseDigimonDeckList(lines);
+        const cats = result.categories || {};
+        console.log('Digimon Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
+        return result;
     } else {
         return parsePokemonDeckList(lines);
     }
@@ -62,6 +67,17 @@ function detectGameType(text) {
     // falls through to the Gundam branch below.
     if (/\b(?:OP|PRB)\d{2}-\d{3}/i.test(text)) {
         return 'onepiece';
+    }
+
+    // Digimon: the BT (Booster) prefix is unique to Digimon - no other game uses it
+    // (Gundam/One Piece use GD/OP/PRB; ST/EB/EX are SHARED). A real Digimon deck is
+    // dominated by BTxx-NNN cards, so detecting on the BT token routes correctly and
+    // is checked before Gundam (whose ST/EX checks would otherwise swallow a Digimon
+    // deck's shared-prefix cards). Digimon numbers run 1-2 digits before the dash and
+    // 2-3 after (BT7-112, BT19-096, ST3-06). KNOWN LIMIT: a pure starter deck with no
+    // BT card (all ST/EX) can fall through to Gundam - same edge case as One Piece.
+    if (/\bBT\d{1,2}-\d{2,3}\b/i.test(text)) {
+        return 'digimon';
     }
 
     // Gundam: card-number tokens like GD01-001 / ST01-012 / EB01-003 / EX01-001,
@@ -835,6 +851,120 @@ async function parseLorcanaDeckList(lines) {
     return deck;
 }
 
+/**
+ * Digimon card_type -> deck category. Prefers the shared registry function
+ * (single source of truth); inlined fallback keeps the parser self-contained.
+ */
+function digimonCategory(cardType) {
+    if (typeof window !== 'undefined' && typeof window.digimonCategoryFromType === 'function') {
+        return window.digimonCategoryFromType(cardType);
+    }
+    const t = (cardType || '').toLowerCase().trim();
+    if (t.includes('egg')) return 'Digi-Egg';
+    if (t.includes('tamer')) return 'Tamers';
+    if (t.includes('option')) return 'Options';
+    return 'Digimon';
+}
+
+/**
+ * Resolve a Digimon deck-list token to a DB card via the local search endpoint
+ * (no new external calls). search_text includes the card_number, so a number
+ * lookup like "BT7-112" resolves exactly; names fall back to a name match.
+ * @param {{number?: string, name?: string}} token
+ * @returns {Promise<Object|null>} the matched card row, or null
+ */
+async function resolveDigimonCard(token) {
+    const q = token.number || token.name;
+    if (!q) return null;
+    try {
+        const res = await fetch(`/api/search/digimon?q=${encodeURIComponent(q)}`);
+        if (!res.ok) return null;
+        const results = await res.json();
+        if (!Array.isArray(results) || results.length === 0) return null;
+
+        if (token.number) {
+            const want = token.number.toUpperCase();
+            const exact = results.find(c => (c.card_number || '').toUpperCase() === want);
+            if (exact) return exact;
+        }
+        if (token.name) {
+            const want = token.name.toLowerCase();
+            const exact = results.find(c => (c.name || '').toLowerCase() === want);
+            if (exact) return exact;
+        }
+        return results[0];
+    } catch (e) {
+        console.error('Digimon resolve error for', q, e);
+        return null;
+    }
+}
+
+/**
+ * Parse a Digimon deck list (digimoncard.io / digimonmeta / untap / official sim
+ * exports). Card-number-keyed and tolerant: each non-header line is matched for a
+ * leading quantity and a Digimon-style number token (BT/EX/ST/P/LM/AD/RB; 1-2 digits
+ * before the dash and 2-3 after, e.g. BT7-112 / ST3-06 / P-050), resolved against the
+ * DB, and bucketed by its card_type. Digi-Egg cards route to the separate egg deck;
+ * the main deck is Digimon + Tamers + Options. Lines with no number fall back to a
+ * name lookup.
+ * @param {Array<string>} lines
+ * @returns {Promise<Object>} { game:'digimon', categories: { Digimon, Tamers, Options, 'Digi-Egg' } }
+ */
+async function parseDigimonDeckList(lines) {
+    const deck = { game: 'digimon', categories: { Digimon: [], Tamers: [], Options: [], 'Digi-Egg': [] } };
+
+    const QTY = /^(\d+)\s*x?\s+/i;
+    // Digimon numbers: optional 1-2 digit set index before the dash, 2-3 digit number
+    // after (BT7-112, BT19-096, EX3-062, ST3-06, P-050, LM-064, AD1-..., RB1-...).
+    const NUM = /\b([A-Z]{1,3}\d{0,2}-\d{2,3}[A-Za-z]?)\b/;
+    const HEADER = /^(digimon|tamers?|options?|digi-?egg(?:\s*deck)?|egg deck|main deck|deck|total cards|total|cards)\s*:?\s*\d*\s*$/i;
+
+    for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+        if (line.startsWith('//') || line.startsWith('#')) continue;
+        if (HEADER.test(line)) continue;
+
+        const qtyM = line.match(QTY);
+        const quantity = qtyM ? parseInt(qtyM[1], 10) : 1;
+
+        const numM = line.match(NUM);
+        let resolved = null;
+        if (numM) {
+            resolved = await resolveDigimonCard({ number: numM[1] });
+        }
+        if (!resolved) {
+            const name = line.replace(QTY, '').replace(NUM, '').replace(/\s+/g, ' ').trim();
+            if (name) resolved = await resolveDigimonCard({ name });
+        }
+        if (!resolved) continue;
+
+        const category = digimonCategory(resolved.card_type);
+        if (!deck.categories[category]) deck.categories[category] = [];
+        const bucket = deck.categories[category];
+
+        const number = resolved.card_number || (numM ? numM[1] : '');
+        const image = resolved.display_image || resolved.image_url || resolved.local_image || '';
+        const existing = bucket.find(c => (number && c.number === number) || c.name === resolved.name);
+        if (existing) {
+            existing.quantity += quantity;
+        } else {
+            bucket.push({
+                quantity,
+                name: resolved.name,
+                setCode: resolved.set_abbreviation || resolved.set_code || '',
+                number,
+                cardType: resolved.card_type || '',
+                colors: resolved.colors || '',
+                image,
+                fullName: `${quantity} ${resolved.name} ${number}`.trim()
+            });
+        }
+    }
+
+    return deck;
+}
+
 // Export functions for use in other files
 if (typeof module !== 'undefined' && module.exports) {
     // Node.js environment
@@ -846,6 +976,7 @@ if (typeof module !== 'undefined' && module.exports) {
         parseGundamDeckList,
         parseYugiohDeckList,
         parseOnePieceDeckList,
-        parseLorcanaDeckList
+        parseLorcanaDeckList,
+        parseDigimonDeckList
     };
 }
