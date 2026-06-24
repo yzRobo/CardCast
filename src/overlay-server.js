@@ -102,6 +102,38 @@ class OverlayServer {
             gameNumber: 1,
             matchFormat: 'Best of 3'
         };
+
+        // Disney Lorcana Match State (mirrors onePieceMatch; locked design: NO life
+        // total - the headline is a LORE race counting UP to 20 (first to 20 wins).
+        // Each player also has an Ink resource (available/total), a row of up to 6
+        // Characters (Strength/Willpower/Lore + accumulated damage toward Willpower +
+        // ready/exerted), up to 3 Locations (Willpower + Lore/turn), and optional
+        // Items. No turn-flag row.
+        this.lorcanaMatch = {
+            player1: this.freshLorcanaPlayer('Player 1'),
+            player2: this.freshLorcanaPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: 'Best of 3'
+        };
+    }
+
+    // A blank Lorcana player board. lore counts UP toward loreGoal (20 = win) - it
+    // is NOT a depleting life total. characters is a fixed 6-slot row and locations
+    // a fixed 3-slot row (null = empty); items is a free list of chips.
+    freshLorcanaPlayer(name) {
+        return {
+            name,
+            record: { wins: 0, losses: 0, ties: 0 },
+            gamesWon: 0,
+            lore: 0,
+            loreGoal: 20,
+            ink: { available: 0, total: 0 },
+            characters: [null, null, null, null, null, null], // {id,name,image,strength,willpower,lore,damage,exerted}
+            locations: [null, null, null],                     // {id,name,image,willpower,lore}
+            items: []                                          // {id,name,image}
+        };
     }
 
     // A blank One Piece player board. characters is a fixed 5-slot row (null =
@@ -835,6 +867,108 @@ class OverlayServer {
 
     // ============ END ONE PIECE METHODS ============
 
+    // ============ DISNEY LORCANA MATCH METHODS ============
+
+    // Bulk update (player boards / turn / game / format) - control load + show.
+    updateLorcanaMatch(data) {
+        if (data.player1) this.lorcanaMatch.player1 = { ...this.lorcanaMatch.player1, ...data.player1 };
+        if (data.player2) this.lorcanaMatch.player2 = { ...this.lorcanaMatch.player2, ...data.player2 };
+        if (data.currentTurn !== undefined) this.lorcanaMatch.currentTurn = data.currentTurn;
+        if (data.gameNumber !== undefined) this.lorcanaMatch.gameNumber = data.gameNumber;
+        if (data.matchFormat !== undefined) this.lorcanaMatch.matchFormat = data.matchFormat;
+        this.io.emit('lorcana-match-update', data);
+    }
+
+    // The LORE race headline: counts UP toward loreGoal (20 = win). Clamped to
+    // [0, loreGoal]; never a depleting life total.
+    setLorcanaLore(player, lore) {
+        const p = this.lorcanaMatch[`player${player}`];
+        if (!p) return;
+        const goal = p.loreGoal || 20;
+        p.lore = Math.max(0, Math.min(goal, lore | 0));
+        this.io.emit('lorcana-lore-update', { player, lore: p.lore, loreGoal: goal, timestamp: Date.now() });
+    }
+
+    // Ink resource readout: { available, total }. Partial updates merge; available
+    // is clamped to total.
+    setLorcanaInk(player, ink) {
+        const p = this.lorcanaMatch[`player${player}`];
+        if (!p) return;
+        p.ink = { ...p.ink, ...ink };
+        p.ink.total = Math.max(0, p.ink.total | 0);
+        p.ink.available = Math.max(0, Math.min(p.ink.total, p.ink.available | 0));
+        this.io.emit('lorcana-ink-update', { player, ink: p.ink, timestamp: Date.now() });
+    }
+
+    // Set or clear (character=null) a Character row slot (0-5).
+    setLorcanaCharacter(player, index, character) {
+        const key = `player${player}`;
+        if (!this.lorcanaMatch[key] || index < 0 || index > 5) return;
+        this.lorcanaMatch[key].characters[index] = character;
+        this.io.emit('lorcana-character-update', { player, index, character, timestamp: Date.now() });
+    }
+
+    // Accumulated damage toward Willpower (banished when damage >= willpower).
+    setLorcanaCharacterDamage(player, index, damage) {
+        const c = this.lorcanaMatch[`player${player}`] && this.lorcanaMatch[`player${player}`].characters[index];
+        if (!c) return;
+        c.damage = Math.max(0, damage | 0);
+        this.io.emit('lorcana-character-damage', { player, index, damage: c.damage, timestamp: Date.now() });
+    }
+
+    // Ready/exerted (upright/tilted) state - quested or challenged this turn.
+    setLorcanaCharacterExert(player, index, exerted) {
+        const c = this.lorcanaMatch[`player${player}`] && this.lorcanaMatch[`player${player}`].characters[index];
+        if (!c) return;
+        c.exerted = !!exerted;
+        this.io.emit('lorcana-character-exert', { player, index, exerted: c.exerted, timestamp: Date.now() });
+    }
+
+    // Set or clear (location=null) a Location row slot (0-2).
+    setLorcanaLocation(player, index, location) {
+        const key = `player${player}`;
+        if (!this.lorcanaMatch[key] || index < 0 || index > 2) return;
+        this.lorcanaMatch[key].locations[index] = location;
+        this.io.emit('lorcana-location-update', { player, index, location, timestamp: Date.now() });
+    }
+
+    // Replace the optional Items chip list wholesale.
+    setLorcanaItems(player, items) {
+        const key = `player${player}`;
+        if (!this.lorcanaMatch[key]) return;
+        this.lorcanaMatch[key].items = Array.isArray(items) ? items : [];
+        this.io.emit('lorcana-item-update', { player, items: this.lorcanaMatch[key].items, timestamp: Date.now() });
+    }
+
+    updateLorcanaRecord(player, record) {
+        const key = `player${player}`;
+        if (this.lorcanaMatch[key]) this.lorcanaMatch[key].record = record;
+        this.io.emit('lorcana-record-update', { player, record, timestamp: Date.now() });
+    }
+
+    updateLorcanaGamesWon(player, gamesWon) {
+        const key = `player${player}`;
+        if (this.lorcanaMatch[key]) this.lorcanaMatch[key].gamesWon = gamesWon;
+        this.io.emit('lorcana-games-won-update', { player, gamesWon, timestamp: Date.now() });
+    }
+
+    resetLorcanaMatch() {
+        const p1 = this.lorcanaMatch.player1.name;
+        const p2 = this.lorcanaMatch.player2.name;
+        this.lorcanaMatch = {
+            player1: this.freshLorcanaPlayer(p1),
+            player2: this.freshLorcanaPlayer(p2),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: this.lorcanaMatch.matchFormat || 'Best of 3'
+        };
+        this.io.emit('lorcana-match-reset', { timestamp: Date.now() });
+        console.log('Lorcana match reset');
+    }
+
+    // ============ END DISNEY LORCANA METHODS ============
+
     updateDecklist(deckData) {
         if (deckData.deck) {
             this.decklist = { ...this.decklist, ...deckData.deck };
@@ -1019,7 +1153,8 @@ class OverlayServer {
             mtgMatch: this.mtgMatch,
             gundamMatch: this.gundamMatch,
             yugiohMatch: this.yugiohMatch,
-            onePieceMatch: this.onePieceMatch
+            onePieceMatch: this.onePieceMatch,
+            lorcanaMatch: this.lorcanaMatch
         };
     }
     

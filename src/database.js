@@ -318,7 +318,8 @@ class CardDatabase {
         this.searchStmt = this.db.prepare(`
             SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type,
                    hp, mana_cost, attack, defense, cost, gd_ap, gd_hp, gd_color,
-                   op_power, counter, life, colors
+                   op_power, counter, life, colors,
+                   ink_cost, strength, willpower, lore_value, inkable
             FROM cards
             WHERE game = ? AND search_text LIKE ?
             ORDER BY
@@ -331,7 +332,8 @@ class CardDatabase {
         this.searchWithSetStmt = this.db.prepare(`
             SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type,
                    hp, mana_cost, attack, defense, cost, gd_ap, gd_hp, gd_color,
-                   op_power, counter, life, colors
+                   op_power, counter, life, colors,
+                   ink_cost, strength, willpower, lore_value, inkable
             FROM cards
             WHERE game = ?
                 AND name LIKE ?
@@ -345,7 +347,8 @@ class CardDatabase {
         this.searchWithSetNoNumberStmt = this.db.prepare(`
             SELECT id, name, set_name, set_abbreviation, card_number, image_url, local_image, rarity, card_type,
                    hp, mana_cost, attack, defense, cost, gd_ap, gd_hp, gd_color,
-                   op_power, counter, life, colors
+                   op_power, counter, life, colors,
+                   ink_cost, strength, willpower, lore_value, inkable
             FROM cards
             WHERE game = ?
                 AND name LIKE ?

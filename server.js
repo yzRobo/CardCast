@@ -620,6 +620,14 @@ app.get('/onepiece-match-control', (req, res) => {
     res.sendFile(path.join(__dirname, 'onepiece-match-control.html'));
 });
 
+app.get('/lorcana-match', (req, res) => {
+    res.sendFile(path.join(__dirname, 'overlays', 'lorcana-match.html'));
+});
+
+app.get('/lorcana-match-control', (req, res) => {
+    res.sendFile(path.join(__dirname, 'lorcana-match-control.html'));
+});
+
 // Main card-display overlay (dual card display controlled from the dashboard)
 app.get('/overlay', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'main.html'));
@@ -647,7 +655,8 @@ let overlayStates = {
     'mtg-match': false,
     'gundam-match': false,
     'yugioh-match': false,
-    'onepiece-match': false
+    'onepiece-match': false,
+    'lorcana-match': false
 };
 
 // Socket.io events
@@ -715,6 +724,16 @@ io.on('connection', (socket) => {
                 currentTurn: state.onePieceMatch.currentTurn,
                 gameNumber: state.onePieceMatch.gameNumber,
                 matchFormat: state.onePieceMatch.matchFormat
+            });
+        } else if (type === 'lorcana-match') {
+            socket.emit('lorcana-match-state', state.lorcanaMatch);
+            // Also send as update so a freshly-loaded overlay renders immediately
+            socket.emit('lorcana-match-update', {
+                player1: state.lorcanaMatch.player1,
+                player2: state.lorcanaMatch.player2,
+                currentTurn: state.lorcanaMatch.currentTurn,
+                gameNumber: state.lorcanaMatch.gameNumber,
+                matchFormat: state.lorcanaMatch.matchFormat
             });
         }
     });
@@ -795,6 +814,15 @@ io.on('connection', (socket) => {
                 currentTurn: state.onePieceMatch.currentTurn,
                 gameNumber: state.onePieceMatch.gameNumber,
                 matchFormat: state.onePieceMatch.matchFormat
+            });
+        } else if (type === 'lorcana-match') {
+            socket.emit('lorcana-match-state', state.lorcanaMatch);
+            socket.emit('lorcana-match-update', {
+                player1: state.lorcanaMatch.player1,
+                player2: state.lorcanaMatch.player2,
+                currentTurn: state.lorcanaMatch.currentTurn,
+                gameNumber: state.lorcanaMatch.gameNumber,
+                matchFormat: state.lorcanaMatch.matchFormat
             });
         }
     });
@@ -1221,6 +1249,56 @@ io.on('connection', (socket) => {
         io.emit('toggle-onepiece-match', data);
     });
 
+    // Disney Lorcana Match events (the overlay-server mutators re-broadcast to overlays)
+    socket.on('lorcana-match-update', (data) => {
+        overlayServer.updateLorcanaMatch(data);
+    });
+
+    socket.on('lorcana-lore-update', (data) => {
+        overlayServer.setLorcanaLore(data.player, data.lore);
+    });
+
+    socket.on('lorcana-ink-update', (data) => {
+        overlayServer.setLorcanaInk(data.player, data.ink);
+    });
+
+    socket.on('lorcana-character-update', (data) => {
+        overlayServer.setLorcanaCharacter(data.player, data.index, data.character);
+    });
+
+    socket.on('lorcana-character-damage', (data) => {
+        overlayServer.setLorcanaCharacterDamage(data.player, data.index, data.damage);
+    });
+
+    socket.on('lorcana-character-exert', (data) => {
+        overlayServer.setLorcanaCharacterExert(data.player, data.index, data.exerted);
+    });
+
+    socket.on('lorcana-location-update', (data) => {
+        overlayServer.setLorcanaLocation(data.player, data.index, data.location);
+    });
+
+    socket.on('lorcana-item-update', (data) => {
+        overlayServer.setLorcanaItems(data.player, data.items);
+    });
+
+    socket.on('lorcana-record-update', (data) => {
+        overlayServer.updateLorcanaRecord(data.player, data.record);
+    });
+
+    socket.on('lorcana-games-won-update', (data) => {
+        overlayServer.updateLorcanaGamesWon(data.player, data.gamesWon);
+    });
+
+    socket.on('lorcana-match-reset', () => {
+        overlayServer.resetLorcanaMatch();
+    });
+
+    socket.on('toggle-lorcana-match', (data) => {
+        console.log('Toggle lorcana match overlay:', data.show);
+        io.emit('toggle-lorcana-match', data);
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
@@ -1244,6 +1322,7 @@ io.on('connection', (socket) => {
             io.emit('overlay-disconnected', 'gundam-match');
             io.emit('overlay-disconnected', 'yugioh-match');
             io.emit('overlay-disconnected', 'onepiece-match');
+            io.emit('overlay-disconnected', 'lorcana-match');
             
             // If no more overlays are connected, notify main clients
             if (overlayClients.size === 0) {
@@ -1288,6 +1367,7 @@ OBS Overlays:
   - Gundam Match: http://localhost:${PORT}/gundam-match
   - Yu-Gi-Oh Match: http://localhost:${PORT}/yugioh-match
   - One Piece Match: http://localhost:${PORT}/onepiece-match
+  - Lorcana Match: http://localhost:${PORT}/lorcana-match
 
 Control Panels:
   - Pokemon: http://localhost:${PORT}/pokemon-match-control
@@ -1295,6 +1375,7 @@ Control Panels:
   - Gundam: http://localhost:${PORT}/gundam-match-control
   - Yu-Gi-Oh: http://localhost:${PORT}/yugioh-match-control
   - One Piece: http://localhost:${PORT}/onepiece-match-control
+  - Lorcana: http://localhost:${PORT}/lorcana-match-control
 
 Currently Available:
   ✓ Pokemon TCG (20,000+ cards)

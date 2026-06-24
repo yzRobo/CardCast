@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>CardCast - Disney Lorcana Match Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            width: 1920px;
+            height: 1080px;
+            background: transparent;
+            font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Player boards - vertical panels on the sides */
+        .player-board {
+            position: absolute;
+            width: 400px;
+            height: 1010px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            top: 50%;
+            opacity: 0;
+            transition: all 0.5s ease;
+        }
+        .player-board.left { left: 20px; transform: translateX(-440px) translateY(-50%); }
+        .player-board.left.active { transform: translateX(0) translateY(-50%); }
+        .player-board.right { right: 20px; transform: translateX(440px) translateY(-50%); }
+        .player-board.right.active { transform: translateX(0) translateY(-50%); }
+        .player-board.active { opacity: 1; }
+
+        .panel {
+            background: linear-gradient(135deg, rgba(8,6,20,0.95) 0%, rgba(24,18,46,0.95) 100%);
+            border: 2px solid #7c3aed;
+            border-radius: 12px;
+            padding: 11px;
+            backdrop-filter: blur(10px);
+        }
+        .player-board.right .panel { border-color: #d97706; }
+        .panel.soft { border-color: rgba(124,58,237,0.5); }
+        .player-board.right .panel.soft { border-color: rgba(217,119,6,0.5); }
+
+        .section-title {
+            font-size: 12px;
+            color: #b9a7e6;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .player-board.right .section-title { color: #e6c79a; }
+
+        /* Header */
+        .player-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .player-name {
+            font-size: 22px; font-weight: 800; color: #fff;
+            text-transform: uppercase; letter-spacing: 1.2px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+        }
+        .player-record {
+            font-size: 15px; color: #cbb8f0; font-weight: 700;
+            background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+        }
+        .games-won {
+            background: rgba(245,158,11,0.2); border: 2px solid #f59e0b; color: #f5b94b;
+            padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; text-align: center;
+        }
+
+        /* LORE race (headline - counts UP to 20, first to 20 wins) */
+        .lore-panel { position: relative; }
+        .lore-head { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin-bottom: 10px; }
+        .lore-count { font-size: 52px; font-weight: 800; color: #fbbf24; line-height: 1; text-shadow: 0 0 22px rgba(251,191,36,0.5); }
+        .lore-goal { font-size: 26px; font-weight: 700; color: #6b7280; }
+        .lore-bar {
+            display: grid; grid-template-columns: repeat(20, 1fr); gap: 2px;
+            height: 22px; padding: 3px; border-radius: 7px;
+            background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.08);
+        }
+        .lore-seg { border-radius: 2px; background: rgba(255,255,255,0.06); transition: background 0.25s ease; }
+        .lore-seg.filled { background: linear-gradient(180deg, #fde68a, #f59e0b); box-shadow: 0 0 6px rgba(251,191,36,0.5); }
+        /* The 20th segment glows as the win marker. */
+        .lore-seg.goal { box-shadow: inset 0 0 0 1px rgba(251,191,36,0.6); }
+        .lead-badge {
+            display: none; position: absolute; top: 9px; right: 11px;
+            background: linear-gradient(135deg, #f59e0b, #b45309); color: #fff;
+            font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+            padding: 2px 8px; border-radius: 999px; box-shadow: 0 2px 8px rgba(245,158,11,0.5);
+        }
+        .lore-panel.leading .lead-badge { display: block; }
+        .lore-panel.leading { border-color: #f59e0b; box-shadow: 0 0 22px rgba(245,158,11,0.25); }
+
+        /* Ink resource (available / total) */
+        .ink-head { display: flex; align-items: baseline; justify-content: center; gap: 6px; margin-bottom: 8px; }
+        .ink-avail { font-size: 30px; font-weight: 800; color: #38bdf8; font-family: 'Inter', monospace; text-shadow: 0 0 12px rgba(56,189,248,0.4); }
+        .ink-total { font-size: 18px; font-weight: 700; color: #6b7280; }
+        .ink-label { font-size: 12px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .ink-track { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+        .ink-pip { width: 18px; height: 24px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); transform: rotate(8deg); }
+        .ink-pip.ready { background: radial-gradient(circle at 35% 30%, #7dd3fc, #0369a1); border-color: #38bdf8; box-shadow: 0 0 8px rgba(56,189,248,0.5); }
+        .ink-pip.spent { background: #1f2937; border-color: #374151; opacity: 0.6; }
+
+        /* Characters: up to 6, 3-col grid */
+        .chars-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .char-cell {
+            position: relative; aspect-ratio: 5/7;
+            background: rgba(255,255,255,0.04);
+            border: 2px solid rgba(255,255,255,0.1); border-radius: 7px;
+            overflow: hidden; transition: transform 0.25s ease;
+        }
+        .char-cell.empty { border-style: dashed; }
+        .char-cell.exerted { transform: rotate(9deg) scale(0.94); }
+        .char-cell.exerted::after {
+            content: 'EXERTED'; position: absolute; bottom: 22px; left: 0; right: 0; text-align: center;
+            font-size: 9px; font-weight: 800; letter-spacing: 1px; color: #fbbf24; text-shadow: 0 1px 3px #000;
+        }
+        .char-cell.banished { filter: grayscale(0.7) brightness(0.6); border-color: #ef4444; }
+        .char-cell.banished::before {
+            content: 'BANISHED'; position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%);
+            text-align: center; font-size: 11px; font-weight: 800; letter-spacing: 1px; color: #fca5a5; z-index: 3; text-shadow: 0 1px 4px #000;
+        }
+        .char-cell img.char-art { width: 100%; height: 100%; object-fit: cover; }
+        .char-stats {
+            position: absolute; top: 3px; left: 3px; right: 3px;
+            display: flex; gap: 3px; justify-content: flex-start;
+        }
+        .stat {
+            font-size: 11px; font-weight: 800; color: #fff; line-height: 1;
+            padding: 2px 4px; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+            display: inline-flex; align-items: center; gap: 1px;
+        }
+        .stat .lbl { font-size: 7px; opacity: 0.85; font-weight: 700; }
+        .stat.str { background: linear-gradient(135deg, rgba(239,68,68,0.95), rgba(127,29,29,0.95)); }
+        .stat.wil { background: linear-gradient(135deg, rgba(56,189,248,0.95), rgba(12,74,110,0.95)); }
+        .stat.lore { background: linear-gradient(135deg, rgba(251,191,36,0.95), rgba(146,64,14,0.95)); }
+        /* Damage bar = remaining Willpower (depletes like a Pokemon HP bar) */
+        .dmg-wrap {
+            position: absolute; bottom: 3px; left: 3px; right: 3px; height: 6px;
+            background: rgba(0,0,0,0.7); border-radius: 3px; overflow: hidden; border: 1px solid rgba(255,255,255,0.15);
+        }
+        .dmg-bar { height: 100%; width: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); transition: width 0.3s ease; }
+        .dmg-bar.warn { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .dmg-bar.crit { background: linear-gradient(90deg, #ef4444, #b91c1c); }
+        .dmg-text {
+            position: absolute; bottom: 11px; right: 3px;
+            font-size: 9px; font-weight: 800; color: #fff; background: rgba(0,0,0,0.75);
+            padding: 0 4px; border-radius: 4px;
+        }
+
+        /* Locations: up to 3 */
+        .locs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .loc-cell {
+            position: relative; aspect-ratio: 7/5;
+            background: rgba(255,255,255,0.04);
+            border: 2px solid rgba(16,185,129,0.4); border-radius: 7px; overflow: hidden;
+        }
+        .loc-cell.empty { border-style: dashed; border-color: rgba(255,255,255,0.1); }
+        .loc-cell img.loc-art { width: 100%; height: 100%; object-fit: cover; }
+        .loc-name {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            font-size: 9px; font-weight: 700; color: #fff; padding: 2px 4px;
+            background: linear-gradient(180deg, transparent, rgba(0,0,0,0.85));
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .loc-stats { position: absolute; top: 3px; left: 3px; display: flex; gap: 3px; }
+
+        /* Items chips */
+        .items-row { display: flex; gap: 6px; flex-wrap: wrap; }
+        .item-chip {
+            background: rgba(148,163,184,0.18); border: 1px solid rgba(148,163,184,0.5); color: #e2e8f0;
+            font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+            white-space: nowrap; max-width: 170px; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* Shared match-info bar */
+        .match-info {
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(8,6,20,0.98) 0%, rgba(24,18,46,0.98) 100%);
+            border: 2px solid #7c3aed; border-radius: 12px; padding: 14px 30px;
+            display: flex; align-items: center; gap: 25px; backdrop-filter: blur(10px);
+            opacity: 0; transition: all 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+        .match-info.active { opacity: 1; }
+        .match-format { font-size: 14px; color: #b9a7e6; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+        .timer { font-size: 36px; font-weight: bold; color: #fbbf24; font-family: 'Courier New', monospace; text-shadow: 0 0 15px rgba(251,191,36,0.5); }
+        .turn-indicator {
+            padding: 8px 16px; background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            border-radius: 24px; color: #fff; font-weight: bold; font-size: 14px;
+            text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(124,58,237,0.4);
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <!-- Player 1 (Left) -->
+    <div class="player-board left" id="player1Board">
+        <div class="panel">
+            <div class="player-name-row">
+                <div class="player-name" id="p1Name">Player 1</div>
+                <div class="player-record" id="p1Record">0-0-0</div>
+            </div>
+            <div class="games-won" id="p1GamesWon">Games Won: 0</div>
+        </div>
+        <div class="panel lore-panel" id="p1LorePanel">
+            <div class="lead-badge">Leading</div>
+            <div class="section-title">Lore &mdash; Race to 20</div>
+            <div class="lore-head"><span class="lore-count" id="p1Lore">0</span><span class="lore-goal" id="p1LoreGoal">/ 20</span></div>
+            <div class="lore-bar" id="p1LoreBar"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Ink</div>
+            <div class="ink-head">
+                <span class="ink-avail" id="p1InkAvail">0</span>
+                <span class="ink-total" id="p1InkTotal">/0</span>
+                <span class="ink-label">available</span>
+            </div>
+            <div class="ink-track" id="p1InkTrack"></div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Characters in Play</div>
+            <div class="chars-grid" id="p1Chars"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Locations</div>
+            <div class="locs-grid" id="p1Locs"></div>
+        </div>
+        <div class="panel soft" id="p1ItemsPanel" style="display:none">
+            <div class="section-title">Items</div>
+            <div class="items-row" id="p1Items"></div>
+        </div>
+    </div>
+
+    <!-- Player 2 (Right) -->
+    <div class="player-board right" id="player2Board">
+        <div class="panel">
+            <div class="player-name-row">
+                <div class="player-name" id="p2Name">Player 2</div>
+                <div class="player-record" id="p2Record">0-0-0</div>
+            </div>
+            <div class="games-won" id="p2GamesWon">Games Won: 0</div>
+        </div>
+        <div class="panel lore-panel" id="p2LorePanel">
+            <div class="lead-badge">Leading</div>
+            <div class="section-title">Lore &mdash; Race to 20</div>
+            <div class="lore-head"><span class="lore-count" id="p2Lore">0</span><span class="lore-goal" id="p2LoreGoal">/ 20</span></div>
+            <div class="lore-bar" id="p2LoreBar"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Ink</div>
+            <div class="ink-head">
+                <span class="ink-avail" id="p2InkAvail">0</span>
+                <span class="ink-total" id="p2InkTotal">/0</span>
+                <span class="ink-label">available</span>
+            </div>
+            <div class="ink-track" id="p2InkTrack"></div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Characters in Play</div>
+            <div class="chars-grid" id="p2Chars"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Locations</div>
+            <div class="locs-grid" id="p2Locs"></div>
+        </div>
+        <div class="panel soft" id="p2ItemsPanel" style="display:none">
+            <div class="section-title">Items</div>
+            <div class="items-row" id="p2Items"></div>
+        </div>
+    </div>
+
+    <!-- Shared match-info bar -->
+    <div class="match-info" id="matchInfo">
+        <div class="match-format" id="matchFormat">BEST OF 3 &bull; GAME 1</div>
+        <div class="timer" id="matchTimer">50:00</div>
+        <div class="turn-indicator" id="turnIndicator">Player 1's Turn</div>
+    </div>
+
+    <script>
+        const socket = io('http://localhost:3888');
+
+        // Self-contained card back (no asset dependency) - broken-image fallback.
+        const CARD_BACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 59 86">' +
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+            '<stop offset="0" stop-color="#5b21b6"/><stop offset="1" stop-color="#1e1b4b"/></linearGradient></defs>' +
+            '<rect width="59" height="86" rx="5" fill="url(#g)"/>' +
+            '<rect x="4" y="4" width="51" height="78" rx="4" fill="none" stroke="#a78bfa" stroke-width="1.5"/>' +
+            '<text x="29.5" y="48" font-family="sans-serif" font-size="9" fill="#c4b5fd" text-anchor="middle">LORCANA</text></svg>');
+        window.CARD_BACK = CARD_BACK;
+
+        function freshPlayer(name) {
+            return {
+                name, record: { wins: 0, losses: 0, ties: 0 }, gamesWon: 0,
+                lore: 0, loreGoal: 20,
+                ink: { available: 0, total: 0 },
+                characters: [null, null, null, null, null, null],
+                locations: [null, null, null],
+                items: []
+            };
+        }
+
+        let matchState = {
+            player1: freshPlayer('Player 1'),
+            player2: freshPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            timerDuration: { minutes: 50, seconds: 0 },
+            timerInterval: null,
+            gameNumber: 1,
+            matchFormat: 'Best of 3',
+            visible: false
+        };
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+        const numOr = (v, d = 0) => { const n = parseInt(v); return isNaN(n) ? d : n; };
+
+        // ---- Socket handlers ----
+        socket.on('lorcana-match-state', (state) => { if (state) { applyFullState(state); updateDisplay(); } });
+
+        socket.on('lorcana-match-update', (data) => {
+            if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
+            if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
+            if (data.currentTurn !== undefined) matchState.currentTurn = data.currentTurn;
+            if (data.gameNumber !== undefined) matchState.gameNumber = data.gameNumber;
+            if (data.matchFormat !== undefined) matchState.matchFormat = data.matchFormat;
+            updateDisplay();
+        });
+
+        socket.on('lorcana-lore-update', (d) => {
+            const p = matchState[`player${d.player}`];
+            p.lore = d.lore;
+            if (d.loreGoal !== undefined) p.loreGoal = d.loreGoal;
+            renderLore(d.player); updateLoreLeader();
+        });
+        socket.on('lorcana-ink-update', (d) => { matchState[`player${d.player}`].ink = d.ink; renderInk(d.player); });
+        socket.on('lorcana-character-update', (d) => { matchState[`player${d.player}`].characters[d.index] = d.character; renderChars(d.player); });
+        socket.on('lorcana-character-damage', (d) => {
+            const c = matchState[`player${d.player}`].characters[d.index];
+            if (c) { c.damage = d.damage; renderChars(d.player); }
+        });
+        socket.on('lorcana-character-exert', (d) => {
+            const c = matchState[`player${d.player}`].characters[d.index];
+            if (c) { c.exerted = d.exerted; renderChars(d.player); }
+        });
+        socket.on('lorcana-location-update', (d) => { matchState[`player${d.player}`].locations[d.index] = d.location; renderLocs(d.player); });
+        socket.on('lorcana-item-update', (d) => { matchState[`player${d.player}`].items = d.items || []; renderItems(d.player); });
+        socket.on('lorcana-record-update', (d) => { matchState[`player${d.player}`].record = d.record; renderHeader(d.player); updateMatchInfo(); });
+        socket.on('lorcana-games-won-update', (d) => { matchState[`player${d.player}`].gamesWon = d.gamesWon; renderHeader(d.player); });
+
+        socket.on('lorcana-match-reset', () => {
+            const wasVisible = matchState.visible;
+            const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            matchState = {
+                player1: freshPlayer('Player 1'), player2: freshPlayer('Player 2'),
+                currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
+                timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: 'Best of 3', visible: wasVisible
+            };
+            updateDisplay();
+        });
+
+        socket.on('toggle-lorcana-match', (d) => { matchState.visible = d.show; d.show ? showOverlay() : hideOverlay(); });
+
+        // Reused global match events
+        socket.on('turn-switch', (d) => { if (d && d.currentTurn) matchState.currentTurn = d.currentTurn; updateMatchInfo(); });
+        socket.on('match-settings', (d) => { if (d.gameNumber) matchState.gameNumber = d.gameNumber; if (d.matchFormat) matchState.matchFormat = d.matchFormat; updateMatchInfo(); });
+        socket.on('timer-start', startTimer);
+        socket.on('timer-pause', pauseTimer);
+        socket.on('timer-reset', (d) => {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            if (d && typeof d.minutes === 'number') matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds || 0 };
+            const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
+            matchState.timer = { minutes: dur.minutes, seconds: dur.seconds };
+            updateMatchInfo();
+        });
+        socket.on('timer-set', (d) => {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds };
+            matchState.timer = { minutes: d.minutes, seconds: d.seconds };
+            updateMatchInfo();
+        });
+
+        function applyFullState(s) {
+            ['player1', 'player2'].forEach(k => {
+                if (s[k]) matchState[k] = { ...freshPlayer(s[k].name || (k === 'player1' ? 'Player 1' : 'Player 2')), ...s[k] };
+            });
+            if (s.currentTurn !== undefined) matchState.currentTurn = s.currentTurn;
+            if (s.gameNumber !== undefined) matchState.gameNumber = s.gameNumber;
+            if (s.matchFormat !== undefined) matchState.matchFormat = s.matchFormat;
+            if (s.timer) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
+        }
+
+        // ---- Rendering ----
+        function updateDisplay() {
+            [1, 2].forEach(n => { renderHeader(n); renderLore(n); renderInk(n); renderChars(n); renderLocs(n); renderItems(n); });
+            updateLoreLeader();
+            updateMatchInfo();
+        }
+
+        function renderHeader(n) {
+            const p = matchState[`player${n}`];
+            document.getElementById(`p${n}Name`).textContent = p.name || `Player ${n}`;
+            const r = p.record || { wins: 0, losses: 0, ties: 0 };
+            document.getElementById(`p${n}Record`).textContent = `${r.wins}-${r.losses}-${r.ties}`;
+            document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${p.gamesWon || 0}`;
+        }
+
+        function renderLore(n) {
+            const p = matchState[`player${n}`];
+            const goal = p.loreGoal || 20;
+            const lore = Math.max(0, Math.min(goal, p.lore || 0));
+            document.getElementById(`p${n}Lore`).textContent = lore;
+            document.getElementById(`p${n}LoreGoal`).textContent = `/ ${goal}`;
+            let html = '';
+            for (let i = 0; i < goal; i++) {
+                const filled = i < lore ? ' filled' : '';
+                const goalSeg = i === goal - 1 ? ' goal' : '';
+                html += `<div class="lore-seg${filled}${goalSeg}"></div>`;
+            }
+            document.getElementById(`p${n}LoreBar`).innerHTML = html;
+        }
+
+        // Highlight whichever player is ahead in the LORE race (no badge when tied).
+        function updateLoreLeader() {
+            const l1 = matchState.player1.lore || 0;
+            const l2 = matchState.player2.lore || 0;
+            const p1 = document.getElementById('p1LorePanel');
+            const p2 = document.getElementById('p2LorePanel');
+            p1.classList.toggle('leading', l1 > l2);
+            p2.classList.toggle('leading', l2 > l1);
+        }
+
+        function renderInk(n) {
+            const ink = matchState[`player${n}`].ink || { available: 0, total: 0 };
+            const total = Math.max(0, ink.total || 0);
+            const avail = Math.max(0, Math.min(total, ink.available || 0));
+            document.getElementById(`p${n}InkAvail`).textContent = avail;
+            document.getElementById(`p${n}InkTotal`).textContent = `/${total}`;
+            let html = '';
+            for (let i = 0; i < total; i++) html += `<div class="ink-pip ${i < avail ? 'ready' : 'spent'}"></div>`;
+            document.getElementById(`p${n}InkTrack`).innerHTML = html;
+        }
+
+        function renderChars(n) {
+            const p = matchState[`player${n}`];
+            const grid = document.getElementById(`p${n}Chars`);
+            let html = '';
+            for (let i = 0; i < 6; i++) {
+                const c = p.characters[i];
+                if (!c) { html += '<div class="char-cell empty"></div>'; continue; }
+                const wp = numOr(c.willpower, 0);
+                const dmg = Math.max(0, numOr(c.damage, 0));
+                const banished = wp > 0 && dmg >= wp;
+                const remain = wp > 0 ? Math.max(0, wp - dmg) : 0;
+                const pct = wp > 0 ? Math.round((remain / wp) * 100) : 100;
+                let barCls = 'dmg-bar';
+                if (wp > 0) { const ratio = remain / wp; if (ratio <= 0.34) barCls += ' crit'; else if (ratio <= 0.67) barCls += ' warn'; }
+                const cls = `char-cell${c.exerted ? ' exerted' : ''}${banished ? ' banished' : ''}`;
+                const stat = (kind, lbl, v) => `<span class="stat ${kind}"><span class="lbl">${lbl}</span>${esc(v)}</span>`;
+                html += `
+                    <div class="${cls}">
+                        <img class="char-art" src="${esc(c.image)}" alt="${esc(c.name)}" onerror="this.src=window.CARD_BACK">
+                        <div class="char-stats">
+                            ${stat('str', 'S', numOr(c.strength, 0))}
+                            ${stat('wil', 'W', wp)}
+                            ${stat('lore', 'L', numOr(c.lore, 0))}
+                        </div>
+                        ${dmg > 0 ? `<div class="dmg-text">${dmg}/${wp}</div>` : ''}
+                        <div class="dmg-wrap"><div class="${barCls}" style="width:${pct}%"></div></div>
+                    </div>`;
+            }
+            grid.innerHTML = html;
+        }
+
+        function renderLocs(n) {
+            const p = matchState[`player${n}`];
+            const grid = document.getElementById(`p${n}Locs`);
+            let html = '';
+            for (let i = 0; i < 3; i++) {
+                const l = p.locations[i];
+                if (!l) { html += '<div class="loc-cell empty"></div>'; continue; }
+                const stat = (kind, lbl, v) => (v != null && v !== '') ? `<span class="stat ${kind}"><span class="lbl">${lbl}</span>${esc(v)}</span>` : '';
+                html += `
+                    <div class="loc-cell">
+                        <img class="loc-art" src="${esc(l.image)}" alt="${esc(l.name)}" onerror="this.src=window.CARD_BACK">
+                        <div class="loc-stats">
+                            ${stat('wil', 'W', l.willpower)}
+                            ${stat('lore', 'L', l.lore)}
+                        </div>
+                        <div class="loc-name">${esc(l.name)}</div>
+                    </div>`;
+            }
+            grid.innerHTML = html;
+        }
+
+        function renderItems(n) {
+            const items = matchState[`player${n}`].items || [];
+            const panel = document.getElementById(`p${n}ItemsPanel`);
+            const row = document.getElementById(`p${n}Items`);
+            panel.style.display = items.length ? '' : 'none';
+            row.innerHTML = items.map(it => `<span class="item-chip">${esc(it.name)}</span>`).join('');
+        }
+
+        function updateMatchInfo() {
+            document.getElementById('matchTimer').textContent =
+                `${String(matchState.timer.minutes).padStart(2, '0')}:${String(matchState.timer.seconds).padStart(2, '0')}`;
+            const name = matchState[`player${matchState.currentTurn}`].name;
+            document.getElementById('turnIndicator').textContent = `${name}'s Turn`;
+            document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber}`;
+        }
+
+        function startTimer() {
+            if (matchState.timerInterval) return;
+            matchState.timerInterval = setInterval(() => {
+                if (matchState.timer.seconds > 0) matchState.timer.seconds--;
+                else if (matchState.timer.minutes > 0) { matchState.timer.minutes--; matchState.timer.seconds = 59; }
+                else { pauseTimer(); }
+                updateMatchInfo();
+            }, 1000);
+        }
+        function pauseTimer() {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+        }
+
+        function showOverlay() {
+            document.getElementById('player1Board').classList.add('active');
+            document.getElementById('player2Board').classList.add('active');
+            document.getElementById('matchInfo').classList.add('active');
+        }
+        function hideOverlay() {
+            document.getElementById('player1Board').classList.remove('active');
+            document.getElementById('player2Board').classList.remove('active');
+            document.getElementById('matchInfo').classList.remove('active');
+        }
+
+        // Init
+        updateDisplay();
+        socket.emit('register-overlay', 'lorcana-match');
+        setTimeout(() => { socket.emit('request-state', 'lorcana-match'); showOverlay(); }, 500);
+        setInterval(() => socket.emit('register-overlay', 'lorcana-match'), 5000);
+    </script>
+</body>
+</html>

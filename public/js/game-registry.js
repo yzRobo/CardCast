@@ -189,8 +189,71 @@ const GAME_REGISTRY = {
             if (parts.length) return parts.join(' / ');
             return card.colors || card.card_type || '';
         }
+    },
+
+    lorcana: {
+        name: 'Disney Lorcana',
+        matchControls: [
+            { label: 'Lorcana Match Control', route: '/lorcana-match-control', style: 'btn-secondary' }
+        ],
+        overlays: [
+            { label: 'Main Display', route: '/overlay' },
+            { label: 'Lorcana Match', route: '/lorcana-match' },
+            { label: 'Deck List', route: '/decklist' }
+        ],
+        deck: {
+            // Derived straight from card_type. Action + Action / Song both bucket
+            // into Actions; Item -> Items; Location -> Locations.
+            categories: ['Characters', 'Actions', 'Items', 'Locations'],
+            categorize: (card) => lorcanaCategoryFromType(card.card_type),
+            // 60-card minimum, max 4 copies per full name, up to 2 inks per deck
+            // (ink identity from the shared colors, split on "/"). maxInks is a
+            // build-time warning, enforced in main.js deck stats, not here.
+            rules: { main: 60, copyLimit: 4, maxInks: 2 },
+            // Core = current rotation (default competitive); Infinity = all sets.
+            // Label-only by default; an opt-in legality filter can use banlist later.
+            formats: ['Core', 'Infinity'],
+            // Ravensburger banned/restricted snapshot. Seeded empty; fill from the
+            // official list (disneylorcana.com). Label only until a filter opts in.
+            banlist: {
+                Core: { banned: [], restricted: [] },
+                Infinity: { banned: [], restricted: [] }
+            }
+        },
+        searchMeta: (card) => {
+            const has = (v) => v !== undefined && v !== null && v !== '';
+            const parts = [];
+            if (has(card.ink_cost)) parts.push(`Ink ${card.ink_cost}`);
+            if (has(card.strength) || has(card.willpower)) {
+                parts.push(`${has(card.strength) ? card.strength : '-'}/${has(card.willpower) ? card.willpower : '-'}`);
+            }
+            if (has(card.lore_value)) parts.push(`Lore ${card.lore_value}`);
+            if (parts.length) return parts.join(' / ');
+            return card.colors || card.card_type || '';
+        }
     }
 };
+
+// Lorcana card_type -> deck category. Shared by the registry categorize() above
+// and parseLorcanaDeckList in deck-parser.js (single source of truth). DB values
+// are title-case: Character / Action / Action / Song / Item / Location.
+function lorcanaCategoryFromType(cardType) {
+    const t = (cardType || '').toLowerCase().trim();
+    if (t.includes('location')) return 'Locations';
+    if (t.includes('item')) return 'Items';
+    if (t.includes('action') || t.includes('song')) return 'Actions';
+    return 'Characters'; // Character + fallback
+}
+
+// Split a Lorcana ink (color) string into its component inks. Lorcast joins
+// dual-ink with "/" (e.g. "Amethyst/Sapphire"); splitting on "/" and whitespace
+// keeps the 2-ink deckbuilding constraint correct either way.
+function lorcanaInks(colorString) {
+    return String(colorString || '')
+        .split(/[\/\s]+/)
+        .map(c => c.trim())
+        .filter(Boolean);
+}
 
 // One Piece card_type -> deck category. Shared by the registry categorize() above
 // and parseOnePieceDeckList in deck-parser.js (single source of truth). DB values
@@ -406,6 +469,8 @@ if (typeof window !== 'undefined') {
     window.yugiohCategoryFromType = yugiohCategoryFromType;
     window.onePieceCategoryFromType = onePieceCategoryFromType;
     window.onePieceColors = onePieceColors;
+    window.lorcanaCategoryFromType = lorcanaCategoryFromType;
+    window.lorcanaInks = lorcanaInks;
 }
 
 // Allow Node (tests/tooling) to require the registry + deck helpers.
@@ -414,6 +479,7 @@ if (typeof module !== 'undefined' && module.exports) {
         GAME_REGISTRY, getGameConfig,
         getDeckCategories, getDeckCategoryArray, getDeckSectionNames,
         deckCardCount, deckToText, getDeckCardNameSet, gundamCategoryFromType,
-        yugiohCategoryFromType, onePieceCategoryFromType, onePieceColors
+        yugiohCategoryFromType, onePieceCategoryFromType, onePieceColors,
+        lorcanaCategoryFromType, lorcanaInks
     };
 }

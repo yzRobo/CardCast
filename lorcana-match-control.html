@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cardcast">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CardCast - Disney Lorcana Match Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .lc-card-aspect { aspect-ratio: 5/7; }
+        .search-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 2rem; }
+        .search-overlay.active { display: flex; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-base-100 via-base-200 to-base-100">
+    <div class="animated-bg"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <!-- Header -->
+    <div class="navbar glass-card border-b border-white/5 px-4 sm:px-6 fixed top-0 z-50 min-h-[3.75rem] gap-2">
+        <div class="navbar-start gap-2 sm:gap-3">
+            <a href="/" class="btn btn-ghost btn-sm gap-1.5 px-2" title="Back to Dashboard">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                <span class="hidden sm:inline">Dashboard</span>
+            </a>
+            <div class="h-6 w-px bg-white/10"></div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shadow" style="background: linear-gradient(135deg, #7c3aed 0%, #f59e0b 100%);">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+                </div>
+                <div class="leading-tight">
+                    <div class="font-bold text-base">Disney Lorcana Match Control</div>
+                    <div class="text-[10px] uppercase tracking-[0.18em] text-base-content/40 font-medium">CardCast</div>
+                </div>
+            </div>
+        </div>
+        <div class="navbar-end">
+            <div class="badge badge-error gap-2 py-3 font-medium" id="overlayStatus">
+                <div class="w-2 h-2 rounded-full bg-current"></div>
+                <span>Overlay Not Connected</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 pt-20 pb-8">
+        <div class="grid lg:grid-cols-2 gap-6" id="playersGrid"></div>
+
+        <!-- Shared Match Controls -->
+        <div class="card bg-base-100 shadow-xl mt-6">
+            <div class="card-body">
+                <div class="border-b border-base-300 pb-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Match Setup</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-xs">Format</span></label>
+                            <select id="matchFormat" class="select select-bordered select-sm">
+                                <option value="Best of 1">Best of 1</option>
+                                <option value="Best of 3" selected>Best of 3</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-xs">Game</span></label>
+                            <select id="gameNumber" class="select select-bordered select-sm">
+                                <option value="1">Game 1</option>
+                                <option value="2">Game 2</option>
+                                <option value="3">Game 3</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-sm mt-6" onclick="applyMatchSettings()">Apply Settings</button>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Timer Control</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="text-5xl font-mono font-bold text-primary bg-base-200 px-6 py-3 rounded-lg" id="timerDisplay">50:00</div>
+                        <div class="flex gap-2">
+                            <button class="btn btn-success" onclick="startTimer()">Start</button>
+                            <button class="btn btn-warning" onclick="pauseTimer()">Pause</button>
+                            <button class="btn btn-neutral" onclick="resetTimer()">Reset</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-end gap-3 mt-4">
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Minutes</span></label>
+                            <input type="number" id="timerMinutes" class="input input-bordered input-sm w-20" value="50" min="0" max="999">
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Seconds</span></label>
+                            <input type="number" id="timerSeconds" class="input input-bordered input-sm w-20" value="0" min="0" max="59">
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="setTimer()">Set Timer</button>
+                        <div class="flex gap-1">
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(40)">40 min</button>
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(50)">50 min</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Turn Control</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="badge badge-lg badge-primary p-4" id="turnDisplay">Player 1's Turn</div>
+                        <button class="btn btn-primary" onclick="switchTurn()">Switch Turn</button>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Overlay Display</h3>
+                    <div class="flex gap-2">
+                        <button class="btn btn-success" onclick="showOverlay()">Show Overlay</button>
+                        <button class="btn btn-warning" onclick="hideOverlay()">Hide Overlay</button>
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Match Reset</h3>
+                    <div class="flex items-center gap-4">
+                        <button class="btn btn-error" onclick="resetMatch()">Reset Entire Match</button>
+                        <span class="text-xs text-error opacity-70 italic">Clears lore, ink, characters, locations, items and timer</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search modal -->
+    <div class="search-overlay" id="searchOverlay">
+        <div class="card w-full max-w-5xl bg-base-100">
+            <div class="card-body">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="card-title" id="searchTitle">Select Card</h2>
+                    <button class="btn btn-circle btn-ghost btn-sm" onclick="closeSearch()" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-2 mb-4 items-center">
+                    <input type="text" id="cardSearch" placeholder="Search Lorcana cards (name)..." class="input input-bordered flex-1 min-w-[12rem]">
+                    <label class="label cursor-pointer gap-2 hidden" id="deckOnlyLabel">
+                        <span class="label-text whitespace-nowrap">Deck only</span>
+                        <input type="checkbox" id="searchDeckOnly" class="toggle toggle-secondary" onchange="runSearch()">
+                    </label>
+                    <label class="label cursor-pointer gap-2">
+                        <span class="label-text whitespace-nowrap">All card types</span>
+                        <input type="checkbox" id="searchAllTypes" class="toggle toggle-primary" onchange="runSearch()">
+                    </label>
+                </div>
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 max-h-[600px] overflow-y-auto p-2" id="searchResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        function freshPlayer(name) {
+            return {
+                name, record: { wins: 0, losses: 0, ties: 0 }, gamesWon: 0,
+                lore: 0, loreGoal: 20,
+                ink: { available: 0, total: 0 },
+                characters: [null, null, null, null, null, null],
+                locations: [null, null, null],
+                items: []
+            };
+        }
+        let state = {
+            player1: freshPlayer('Player 1'),
+            player2: freshPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            timerDuration: { minutes: 50, seconds: 0 },
+            timerInterval: null,
+            gameNumber: 1,
+            matchFormat: 'Best of 3'
+        };
+        let searchContext = null; // { player, slot:'character'|'location'|'item', index }
+        let playerDecks = { 1: null, 2: null };
+        let currentDeckCards = [];
+        // Deck categories that make sense to quick-add into each board slot.
+        const categoriesForSlot = { character: ['Characters'], location: ['Locations'], item: ['Items'] };
+        // Card-type substrings a normal search keeps for each slot (unless "All card types").
+        const typeForSlot = { character: ['character'], location: ['location'], item: ['item'] };
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
+        function save() { localStorage.setItem('lorcanaMatchState', JSON.stringify({ ...state, timerInterval: null })); }
+        const num = (v, d = 0) => { const n = parseInt(v); return isNaN(n) ? d : n; };
+
+        // ---------- Player board rendering ----------
+        function renderPlayers() {
+            document.getElementById('playersGrid').innerHTML = [1, 2].map(playerCardHtml).join('');
+            [1, 2].forEach(n => { renderLore(n); renderInk(n); renderChars(n); renderLocs(n); renderItems(n); });
+            populateDeckSelectors();
+            updateTurnDisplay();
+        }
+
+        // ---------- Deck-aware control ----------
+        function lorcanaDecks() {
+            try { return (JSON.parse(localStorage.getItem('savedDecks') || '{}').lorcana) || []; }
+            catch (e) { return []; }
+        }
+        function populateDeckSelectors() {
+            const decks = lorcanaDecks();
+            [1, 2].forEach(n => {
+                const sel = document.getElementById(`p${n}Deck`);
+                if (!sel) return;
+                const current = state[`player${n}`].deckName || '';
+                sel.innerHTML = '<option value="">No deck (search all)</option>' +
+                    decks.map(d => `<option value="${esc(d.name)}">${esc(d.name)}</option>`).join('');
+                if (current && decks.find(d => d.name === current)) { sel.value = current; playerDecks[n] = decks.find(d => d.name === current); }
+                else { sel.value = ''; playerDecks[n] = null; }
+            });
+        }
+        function setPlayerDeck(n) {
+            const name = document.getElementById(`p${n}Deck`).value;
+            playerDecks[n] = name ? (lorcanaDecks().find(d => d.name === name) || null) : null;
+            state[`player${n}`].deckName = name || null;
+            save();
+        }
+        function deckCardsForSlot(deck, slot) {
+            const cats = (deck && deck.categories) || {};
+            return (categoriesForSlot[slot] || []).flatMap(c => cats[c] || []);
+        }
+        // Re-resolve deck entries to full DB cards (image / stats) for quick-add.
+        async function resolveDeckCards(cards) {
+            const unique = [...new Map(cards.map(c => [c.name, c])).values()];
+            const resolved = await Promise.all(unique.map(async (c) => {
+                try {
+                    const q = c.number || c.name;
+                    const arr = await (await fetch(`/api/search/lorcana?q=${encodeURIComponent(q)}`)).json();
+                    const e = arr.find(x => (c.number && (x.card_number || '').toUpperCase() === c.number.toUpperCase()))
+                        || arr.find(x => (x.name || '').toLowerCase() === (c.name || '').toLowerCase());
+                    return e || arr[0] || null;
+                } catch (e) { return null; }
+            }));
+            return resolved.filter(Boolean);
+        }
+        async function populateDeckCards() {
+            if (!searchContext) return;
+            const deck = playerDecks[searchContext.player];
+            const cards = deckCardsForSlot(deck, searchContext.slot);
+            const out = document.getElementById('searchResults');
+            if (!cards.length) { out.innerHTML = '<div class="col-span-full text-center text-base-content/50">No matching cards in this deck</div>'; return; }
+            out.innerHTML = '<div class="col-span-full text-center"><span class="loading loading-spinner loading-md"></span> Loading deck cards...</div>';
+            currentDeckCards = await resolveDeckCards(cards);
+            displayResults(currentDeckCards);
+        }
+
+        function playerCardHtml(n) {
+            const p = state[`player${n}`];
+            const border = n === 1 ? 'border-primary' : 'border-warning';
+            return `
+            <div class="card bg-base-100 shadow-xl border-t-4 ${border}">
+                <div class="card-body gap-3">
+                    <div class="flex items-center justify-between">
+                        <input type="text" value="${esc(p.name)}" class="input input-ghost text-xl font-bold w-40" onchange="setName(${n}, this.value)">
+                        <div class="flex items-center gap-1">
+                            <span class="text-sm">Rec:</span>
+                            <input type="number" id="p${n}W" value="${p.record.wins}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                            <span>/</span>
+                            <input type="number" id="p${n}L" value="${p.record.losses}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                            <span>/</span>
+                            <input type="number" id="p${n}T" value="${p.record.ties}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm">Games Won:</span>
+                        <div class="join">
+                            <button class="btn btn-xs join-item" onclick="adjGamesWon(${n}, -1)">-</button>
+                            <span class="join-item bg-base-200 px-3 py-1 text-sm" id="p${n}GamesWon">${p.gamesWon}</span>
+                            <button class="btn btn-xs join-item" onclick="adjGamesWon(${n}, 1)">+</button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm whitespace-nowrap">Deck:</span>
+                        <select id="p${n}Deck" class="select select-bordered select-sm flex-1" onchange="setPlayerDeck(${n})">
+                            <option value="">No deck (search all)</option>
+                        </select>
+                    </div>
+
+                    <div class="divider my-0">Lore &mdash; Race to 20</div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <div class="join">
+                            <button class="btn btn-sm join-item" onclick="adjLore(${n}, -1)">-</button>
+                            <span class="join-item bg-base-200 px-4 py-1 text-2xl font-mono font-bold text-warning" id="p${n}Lore">0</span>
+                            <button class="btn btn-sm join-item" onclick="adjLore(${n}, 1)">+</button>
+                        </div>
+                        <span class="text-sm opacity-60">/ 20</span>
+                        <div class="join">
+                            <button class="btn btn-xs btn-outline join-item" onclick="adjLore(${n}, 1)">+1</button>
+                            <button class="btn btn-xs btn-outline join-item" onclick="adjLore(${n}, 2)">+2</button>
+                            <button class="btn btn-xs btn-outline join-item" onclick="adjLore(${n}, 3)">+3</button>
+                        </div>
+                        <button class="btn btn-xs btn-ghost" onclick="setLore(${n}, 0)">Reset</button>
+                    </div>
+
+                    <div class="divider my-0">Ink</div>
+                    <div class="grid grid-cols-2 gap-2 items-end">
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-[11px]">Available</span></label>
+                            <div class="join">
+                                <button class="btn btn-xs join-item" onclick="adjInk(${n}, 'available', -1)">-</button>
+                                <span class="join-item bg-base-200 px-3 py-1 text-sm font-mono" id="p${n}InkAvail">${p.ink.available}</span>
+                                <button class="btn btn-xs join-item" onclick="adjInk(${n}, 'available', 1)">+</button>
+                            </div>
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-[11px]">Total (inkwell)</span></label>
+                            <div class="join">
+                                <button class="btn btn-xs join-item" onclick="adjInk(${n}, 'total', -1)">-</button>
+                                <span class="join-item bg-base-200 px-3 py-1 text-sm font-mono" id="p${n}InkTotal">${p.ink.total}</span>
+                                <button class="btn btn-xs join-item" onclick="adjInk(${n}, 'total', 1)">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divider my-0">Characters in Play</div>
+                    <div class="grid grid-cols-3 gap-1.5" id="p${n}Chars"></div>
+
+                    <div class="divider my-0">Locations</div>
+                    <div class="grid grid-cols-3 gap-1.5" id="p${n}Locs"></div>
+
+                    <div class="divider my-0">Items</div>
+                    <div class="flex flex-wrap gap-1.5 items-center" id="p${n}Items"></div>
+                </div>
+            </div>`;
+        }
+
+        function renderLore(n) {
+            const el = document.getElementById(`p${n}Lore`);
+            if (el) el.textContent = state[`player${n}`].lore;
+        }
+
+        function renderInk(n) {
+            const ink = state[`player${n}`].ink;
+            const a = document.getElementById(`p${n}InkAvail`); if (a) a.textContent = ink.available;
+            const t = document.getElementById(`p${n}InkTotal`); if (t) t.textContent = ink.total;
+        }
+
+        function renderChars(n) {
+            const p = state[`player${n}`];
+            let html = '';
+            for (let i = 0; i < 6; i++) {
+                const c = p.characters[i];
+                if (!c) {
+                    html += `
+                    <div class="border-2 border-dashed border-base-content/20 rounded-lg p-1 flex items-center justify-center lc-card-aspect">
+                        <button class="btn btn-primary btn-xs" onclick="openSearch(${n}, 'character', ${i})">+ Char</button>
+                    </div>`;
+                    continue;
+                }
+                const wp = num(c.willpower, 0);
+                const dmg = Math.max(0, num(c.damage, 0));
+                const banished = wp > 0 && dmg >= wp;
+                html += `
+                <div class="bg-base-200 rounded-lg p-1 ${banished ? 'ring-2 ring-error' : ''}">
+                    <div class="relative">
+                        <img src="${esc(c.image)}" class="w-full rounded lc-card-aspect object-cover ${c.exerted ? 'rotate-6 opacity-80' : ''}" onerror="this.src=window.CARD_BACK">
+                        <button class="btn btn-circle btn-xs btn-error absolute top-0.5 right-0.5" onclick="removeChar(${n}, ${i})">x</button>
+                    </div>
+                    <div class="text-[10px] font-semibold truncate mt-0.5" title="${esc(c.name)}">${esc(c.name)}</div>
+                    <div class="grid grid-cols-3 gap-0.5 mt-0.5">
+                        <div class="flex items-center gap-0.5"><span class="text-[9px] text-error font-bold">S</span><input type="number" value="${num(c.strength, 0)}" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setCharStat(${n}, ${i}, 'strength', this.value)"></div>
+                        <div class="flex items-center gap-0.5"><span class="text-[9px] text-info font-bold">W</span><input type="number" value="${wp}" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setCharStat(${n}, ${i}, 'willpower', this.value)"></div>
+                        <div class="flex items-center gap-0.5"><span class="text-[9px] text-warning font-bold">L</span><input type="number" value="${num(c.lore, 0)}" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setCharStat(${n}, ${i}, 'lore', this.value)"></div>
+                    </div>
+                    <div class="flex items-center justify-between gap-0.5 mt-0.5">
+                        <span class="text-[9px] ${banished ? 'text-error' : 'opacity-60'} font-bold">Dmg ${dmg}/${wp}</span>
+                        <div class="join">
+                            <button class="btn btn-xs join-item px-1" onclick="adjCharDamage(${n}, ${i}, -1)">-</button>
+                            <button class="btn btn-xs join-item px-1" onclick="adjCharDamage(${n}, ${i}, 1)">+</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-xs ${c.exerted ? 'btn-warning' : 'btn-outline'} w-full mt-0.5" onclick="toggleExert(${n}, ${i})">${c.exerted ? 'Exerted' : 'Ready'}</button>
+                </div>`;
+            }
+            document.getElementById(`p${n}Chars`).innerHTML = html;
+        }
+
+        function renderLocs(n) {
+            const p = state[`player${n}`];
+            let html = '';
+            for (let i = 0; i < 3; i++) {
+                const l = p.locations[i];
+                if (!l) {
+                    html += `
+                    <div class="border-2 border-dashed border-base-content/20 rounded-lg p-1 flex items-center justify-center" style="aspect-ratio:7/5">
+                        <button class="btn btn-secondary btn-xs" onclick="openSearch(${n}, 'location', ${i})">+ Loc</button>
+                    </div>`;
+                    continue;
+                }
+                html += `
+                <div class="bg-base-200 rounded-lg p-1">
+                    <div class="relative">
+                        <img src="${esc(l.image)}" class="w-full rounded object-cover" style="aspect-ratio:7/5" onerror="this.src=window.CARD_BACK">
+                        <button class="btn btn-circle btn-xs btn-error absolute top-0.5 right-0.5" onclick="removeLoc(${n}, ${i})">x</button>
+                    </div>
+                    <div class="text-[10px] font-semibold truncate mt-0.5" title="${esc(l.name)}">${esc(l.name)}</div>
+                    <div class="grid grid-cols-2 gap-0.5 mt-0.5">
+                        <div class="flex items-center gap-0.5"><span class="text-[9px] text-info font-bold">W</span><input type="number" value="${num(l.willpower, 0)}" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setLocStat(${n}, ${i}, 'willpower', this.value)"></div>
+                        <div class="flex items-center gap-0.5"><span class="text-[9px] text-warning font-bold">L</span><input type="number" value="${num(l.lore, 0)}" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setLocStat(${n}, ${i}, 'lore', this.value)"></div>
+                    </div>
+                </div>`;
+            }
+            document.getElementById(`p${n}Locs`).innerHTML = html;
+        }
+
+        function renderItems(n) {
+            const items = state[`player${n}`].items || [];
+            const chips = items.map((it, idx) => `
+                <span class="badge badge-lg gap-1 bg-base-200">
+                    ${esc(it.name)}
+                    <button class="text-error font-bold" onclick="removeItem(${n}, ${idx})" title="Remove">x</button>
+                </span>`).join('');
+            document.getElementById(`p${n}Items`).innerHTML = chips +
+                `<button class="btn btn-xs btn-outline" onclick="openSearch(${n}, 'item', 0)">+ Item</button>`;
+        }
+
+        // ---------- Mutations ----------
+        function setName(n, v) {
+            state[`player${n}`].name = v || `Player ${n}`;
+            socket.emit('lorcana-match-update', { [`player${n}`]: { name: state[`player${n}`].name } });
+            updateTurnDisplay(); save();
+        }
+        function setRecord(n) {
+            const r = {
+                wins: num(document.getElementById(`p${n}W`).value),
+                losses: num(document.getElementById(`p${n}L`).value),
+                ties: num(document.getElementById(`p${n}T`).value)
+            };
+            state[`player${n}`].record = r;
+            socket.emit('lorcana-record-update', { player: n, record: r }); save();
+        }
+        function adjGamesWon(n, d) {
+            const g = Math.max(0, (state[`player${n}`].gamesWon || 0) + d);
+            state[`player${n}`].gamesWon = g;
+            document.getElementById(`p${n}GamesWon`).textContent = g;
+            socket.emit('lorcana-games-won-update', { player: n, gamesWon: g }); save();
+        }
+
+        // Lore (counts UP toward 20)
+        function setLore(n, v) {
+            const p = state[`player${n}`];
+            const goal = p.loreGoal || 20;
+            p.lore = Math.max(0, Math.min(goal, num(v, p.lore)));
+            renderLore(n);
+            socket.emit('lorcana-lore-update', { player: n, lore: p.lore }); save();
+        }
+        function adjLore(n, d) { setLore(n, (state[`player${n}`].lore || 0) + d); }
+
+        // Ink
+        function adjInk(n, field, d) {
+            const ink = state[`player${n}`].ink;
+            ink[field] = Math.max(0, (ink[field] || 0) + d);
+            if (ink.available > ink.total) {
+                if (field === 'total') ink.available = ink.total;
+                else ink.total = ink.available;
+            }
+            renderInk(n);
+            socket.emit('lorcana-ink-update', { player: n, ink }); save();
+        }
+
+        // Characters
+        function setCharStat(n, i, field, v) {
+            const c = state[`player${n}`].characters[i]; if (!c) return;
+            c[field] = num(v);
+            renderChars(n);
+            socket.emit('lorcana-character-update', { player: n, index: i, character: c }); save();
+        }
+        function adjCharDamage(n, i, d) {
+            const c = state[`player${n}`].characters[i]; if (!c) return;
+            c.damage = Math.max(0, (num(c.damage, 0)) + d);
+            renderChars(n);
+            socket.emit('lorcana-character-damage', { player: n, index: i, damage: c.damage }); save();
+        }
+        function toggleExert(n, i) {
+            const c = state[`player${n}`].characters[i]; if (!c) return;
+            c.exerted = !c.exerted;
+            renderChars(n);
+            socket.emit('lorcana-character-exert', { player: n, index: i, exerted: c.exerted }); save();
+        }
+        function removeChar(n, i) {
+            state[`player${n}`].characters[i] = null; renderChars(n);
+            socket.emit('lorcana-character-update', { player: n, index: i, character: null }); save();
+        }
+
+        // Locations
+        function setLocStat(n, i, field, v) {
+            const l = state[`player${n}`].locations[i]; if (!l) return;
+            l[field] = num(v);
+            socket.emit('lorcana-location-update', { player: n, index: i, location: l }); save();
+        }
+        function removeLoc(n, i) {
+            state[`player${n}`].locations[i] = null; renderLocs(n);
+            socket.emit('lorcana-location-update', { player: n, index: i, location: null }); save();
+        }
+
+        // Items
+        function removeItem(n, idx) {
+            const items = state[`player${n}`].items || [];
+            items.splice(idx, 1);
+            state[`player${n}`].items = items;
+            renderItems(n);
+            socket.emit('lorcana-item-update', { player: n, items }); save();
+        }
+
+        // ---------- Search + assignment ----------
+        function openSearch(player, slot, index) {
+            searchContext = { player, slot, index };
+            currentDeckCards = [];
+            const titles = { character: 'Select Character', location: 'Select Location', item: 'Select Item' };
+            document.getElementById('searchTitle').textContent = titles[slot] || 'Select Card';
+            document.getElementById('searchAllTypes').checked = false;
+            document.getElementById('cardSearch').value = '';
+
+            const deck = playerDecks[player];
+            const hasDeckCat = !!(deck && deckCardsForSlot(deck, slot).length);
+            document.getElementById('deckOnlyLabel').classList.toggle('hidden', !hasDeckCat);
+            document.getElementById('searchDeckOnly').checked = hasDeckCat;
+
+            document.getElementById('searchOverlay').classList.add('active');
+            document.getElementById('cardSearch').focus();
+
+            if (hasDeckCat) populateDeckCards();
+            else document.getElementById('searchResults').innerHTML = '<div class="col-span-full text-center text-base-content/50">Search Lorcana cards to assign...</div>';
+        }
+        function closeSearch() {
+            document.getElementById('searchOverlay').classList.remove('active');
+            searchContext = null;
+        }
+        function matchesSlotType(card, slot) {
+            const t = (card.card_type || '').toLowerCase();
+            return (typeForSlot[slot] || []).some(k => t.includes(k));
+        }
+        async function runSearch() {
+            const q = document.getElementById('cardSearch').value.trim();
+            const deckOnly = document.getElementById('searchDeckOnly').checked &&
+                !document.getElementById('deckOnlyLabel').classList.contains('hidden');
+
+            if (deckOnly) {
+                if (!currentDeckCards.length) await populateDeckCards();
+                const ql = q.toLowerCase();
+                const list = q ? currentDeckCards.filter(c => (c.name || '').toLowerCase().includes(ql)) : currentDeckCards;
+                displayResults(list);
+                return;
+            }
+
+            if (q.length < 2) { document.getElementById('searchResults').innerHTML = '<div class="col-span-full text-center text-base-content/50">Type at least 2 characters...</div>'; return; }
+            const all = document.getElementById('searchAllTypes').checked;
+            try {
+                const res = await fetch(`/api/search/lorcana?q=${encodeURIComponent(q)}`);
+                let cards = await res.json();
+                if (!all && searchContext) cards = cards.filter(c => matchesSlotType(c, searchContext.slot));
+                displayResults(cards);
+            } catch (e) { console.error('search error', e); }
+        }
+        function displayResults(cards) {
+            const c = document.getElementById('searchResults');
+            if (!cards.length) { c.innerHTML = '<div class="col-span-full text-center text-base-content/50">No cards found</div>'; return; }
+            const seen = new Set();
+            c.innerHTML = cards.filter(card => { if (seen.has(card.id)) return false; seen.add(card.id); return true; }).map(card => {
+                const has = (v) => v !== undefined && v !== null && v !== '';
+                const bits = [];
+                if (has(card.ink_cost)) bits.push(`Ink ${card.ink_cost}`);
+                if (has(card.strength) || has(card.willpower)) bits.push(`${has(card.strength) ? card.strength : '-'}/${has(card.willpower) ? card.willpower : '-'}`);
+                if (has(card.lore_value)) bits.push(`Lore ${card.lore_value}`);
+                const meta = bits.length ? bits.join(' / ') : esc(card.colors || card.card_type || '');
+                return `
+                <div class="card bg-base-200 cursor-pointer hover:shadow-lg" onclick="pickCard('${card.id}')">
+                    <figure class="px-2 pt-2"><img src="${esc(card.display_image || card.image_url || card.local_image)}" class="rounded-lg lc-card-aspect object-cover w-full" onerror="this.src=window.CARD_BACK"></figure>
+                    <div class="card-body p-2">
+                        <p class="text-xs font-semibold truncate">${esc(card.name)}</p>
+                        <p class="text-[10px] opacity-70">${meta}</p>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        async function pickCard(id) {
+            if (!searchContext) return;
+            try {
+                const res = await fetch(`/api/card/lorcana/${id}`);
+                const card = await res.json();
+                const image = card.display_image || card.image_url || card.local_image;
+                const { player, slot, index } = searchContext;
+                if (slot === 'character') {
+                    const character = {
+                        id: card.id, name: card.name, image,
+                        strength: num(card.strength, 0),
+                        willpower: num(card.willpower, 0),
+                        lore: num(card.lore_value, 0),
+                        colors: card.colors || '',
+                        damage: 0, exerted: false
+                    };
+                    state[`player${player}`].characters[index] = character; renderChars(player);
+                    socket.emit('lorcana-character-update', { player, index, character });
+                } else if (slot === 'location') {
+                    const location = {
+                        id: card.id, name: card.name, image,
+                        willpower: num(card.willpower, 0),
+                        lore: num(card.lore_value, 0)
+                    };
+                    state[`player${player}`].locations[index] = location; renderLocs(player);
+                    socket.emit('lorcana-location-update', { player, index, location });
+                } else if (slot === 'item') {
+                    const item = { id: card.id, name: card.name, image };
+                    const items = state[`player${player}`].items || [];
+                    items.push(item);
+                    state[`player${player}`].items = items; renderItems(player);
+                    socket.emit('lorcana-item-update', { player, items });
+                }
+                save(); closeSearch();
+            } catch (e) { console.error('pick error', e); }
+        }
+
+        // ---------- Shared match controls ----------
+        function applyMatchSettings() {
+            state.gameNumber = parseInt(document.getElementById('gameNumber').value);
+            state.matchFormat = document.getElementById('matchFormat').value;
+            socket.emit('match-settings', { gameNumber: state.gameNumber, matchFormat: state.matchFormat }); save();
+        }
+        function switchTurn() {
+            state.currentTurn = state.currentTurn === 1 ? 2 : 1;
+            socket.emit('turn-switch', { currentTurn: state.currentTurn });
+            updateTurnDisplay(); save();
+        }
+        function updateTurnDisplay() {
+            document.getElementById('turnDisplay').textContent = `${state[`player${state.currentTurn}`].name}'s Turn`;
+        }
+        function startTimer() {
+            if (state.timerInterval) return;
+            socket.emit('timer-start');
+            state.timerInterval = setInterval(() => {
+                if (state.timer.seconds > 0) state.timer.seconds--;
+                else if (state.timer.minutes > 0) { state.timer.minutes--; state.timer.seconds = 59; }
+                else { pauseTimer(); }
+                updateTimerDisplay();
+            }, 1000);
+        }
+        function pauseTimer() {
+            if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; socket.emit('timer-pause'); }
+        }
+        function resetTimer() {
+            pauseTimer();
+            const d = state.timerDuration || { minutes: 50, seconds: 0 };
+            state.timer = { minutes: d.minutes, seconds: d.seconds };
+            updateTimerDisplay(); socket.emit('timer-reset', d); save();
+        }
+        function setTimer() {
+            let m = num(document.getElementById('timerMinutes').value); let s = num(document.getElementById('timerSeconds').value);
+            if (m < 0) m = 0; if (s < 0) s = 0; if (s > 59) s = 59;
+            pauseTimer();
+            state.timerDuration = { minutes: m, seconds: s }; state.timer = { minutes: m, seconds: s };
+            updateTimerDisplay(); socket.emit('timer-set', { minutes: m, seconds: s }); save();
+        }
+        function setTimerPreset(m) { document.getElementById('timerMinutes').value = m; document.getElementById('timerSeconds').value = 0; setTimer(); }
+        function updateTimerDisplay() {
+            document.getElementById('timerDisplay').textContent = `${String(state.timer.minutes).padStart(2, '0')}:${String(state.timer.seconds).padStart(2, '0')}`;
+        }
+        function showOverlay() { socket.emit('toggle-lorcana-match', { show: true }); pushFullState(); }
+        function hideOverlay() { socket.emit('toggle-lorcana-match', { show: false }); }
+        function resetMatch() {
+            if (!confirm('Reset the entire Lorcana match?')) return;
+            const p1 = state.player1.name, p2 = state.player2.name;
+            const dur = state.timerDuration || { minutes: 50, seconds: 0 };
+            if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+            state = {
+                player1: freshPlayer(p1), player2: freshPlayer(p2),
+                currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
+                timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: state.matchFormat
+            };
+            socket.emit('lorcana-match-reset');
+            renderPlayers(); updateTimerDisplay(); save();
+        }
+
+        // Push the whole board to a freshly-shown / reconnected overlay.
+        function pushFullState() {
+            socket.emit('lorcana-match-update', {
+                player1: state.player1, player2: state.player2,
+                currentTurn: state.currentTurn,
+                gameNumber: state.gameNumber, matchFormat: state.matchFormat
+            });
+        }
+
+        function updateOverlayStatus(connected) {
+            const s = document.getElementById('overlayStatus');
+            s.className = 'badge gap-2 py-3 font-medium ' + (connected ? 'badge-success' : 'badge-error');
+            s.innerHTML = `<div class="w-2 h-2 rounded-full bg-current"></div><span>${connected ? 'Overlay Connected' : 'Overlay Not Connected'}</span>`;
+        }
+
+        function load() {
+            const saved = localStorage.getItem('lorcanaMatchState');
+            if (saved) {
+                try {
+                    const s = JSON.parse(saved);
+                    state = { ...state, ...s, timerInterval: null };
+                    state.player1 = { ...freshPlayer('Player 1'), ...s.player1 };
+                    state.player2 = { ...freshPlayer('Player 2'), ...s.player2 };
+                } catch (e) { console.error('load error', e); }
+            }
+            document.getElementById('matchFormat').value = state.matchFormat;
+            document.getElementById('gameNumber').value = state.gameNumber;
+            const d = state.timerDuration || { minutes: 50, seconds: 0 };
+            document.getElementById('timerMinutes').value = d.minutes;
+            document.getElementById('timerSeconds').value = d.seconds;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            load();
+            renderPlayers();
+            updateTimerDisplay();
+            document.getElementById('cardSearch').addEventListener('input', debounce(runSearch, 300));
+
+            socket.emit('register-control', 'lorcana-match');
+            socket.on('connect', () => { socket.emit('register-control', 'lorcana-match'); socket.emit('check-overlay-status', 'lorcana-match'); });
+            socket.on('overlay-connected', (t) => { if (t === 'lorcana-match') { updateOverlayStatus(true); pushFullState(); } });
+            socket.on('overlay-disconnected', (t) => { if (t === 'lorcana-match') updateOverlayStatus(false); });
+
+            setTimeout(pushFullState, 600);
+        });
+
+        function debounce(fn, wait) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); }; }
+
+        // Self-contained card back fallback (matches the overlay's).
+        window.CARD_BACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 59 86">' +
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+            '<stop offset="0" stop-color="#5b21b6"/><stop offset="1" stop-color="#1e1b4b"/></linearGradient></defs>' +
+            '<rect width="59" height="86" rx="5" fill="url(#g)"/>' +
+            '<rect x="4" y="4" width="51" height="78" rx="4" fill="none" stroke="#a78bfa" stroke-width="1.5"/>' +
+            '<text x="29.5" y="48" font-family="sans-serif" font-size="9" fill="#c4b5fd" text-anchor="middle">LORCANA</text></svg>');
+
+        // expose for inline handlers
+        Object.assign(window, {
+            setName, setRecord, adjGamesWon, setPlayerDeck,
+            openSearch, closeSearch, runSearch, pickCard,
+            setLore, adjLore, adjInk,
+            setCharStat, adjCharDamage, toggleExert, removeChar,
+            setLocStat, removeLoc, removeItem,
+            applyMatchSettings, switchTurn, startTimer, pauseTimer, resetTimer, setTimer, setTimerPreset,
+            showOverlay, hideOverlay, resetMatch
+        });
+    </script>
+</body>
+</html>

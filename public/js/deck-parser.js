@@ -39,6 +39,11 @@ async function parseDeckList(text) {
         const cats = result.categories || {};
         console.log('One Piece Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
         return result;
+    } else if (gameType === 'lorcana') {
+        const result = await parseLorcanaDeckList(lines);
+        const cats = result.categories || {};
+        console.log('Lorcana Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
+        return result;
     } else {
         return parsePokemonDeckList(lines);
     }
@@ -94,7 +99,17 @@ function detectGameType(text) {
     if (text.match(/^Sideboard\s*$/mi)) {
         return 'magic';
     }
-    
+
+    // Disney Lorcana: exports are "quantity name" lines, and Lorcana card names
+    // carry a " - " version subtitle (e.g. "4 Elsa - Snow Queen"). Two or more
+    // such lines is a strong Lorcana signal the other games' exports never
+    // produce. Checked after the explicit Pokemon/MTG markers above (so a tagged
+    // MTG/Pokemon export still wins) and before the generic Pokemon fallback.
+    const lorcanaVersionLines = (text.match(/^\s*\d+\s*x?\s+.+\s+-\s+.+$/gmi) || []).length;
+    if (lorcanaVersionLines >= 2) {
+        return 'lorcana';
+    }
+
     // Check for Pokemon-specific set code pattern (letters + numbers)
     // Pokemon uses codes like SV01, PAL, SCR, etc.
     if (text.match(/\d+\s+.+?\s+[A-Z]{2,4}[0-9]+\s+\d+/)) {
@@ -705,6 +720,121 @@ async function parseOnePieceDeckList(lines) {
     return deck;
 }
 
+/**
+ * Lorcana card_type -> deck category. Prefers the shared registry function
+ * (single source of truth); inlined fallback keeps the parser self-contained.
+ */
+function lorcanaCategory(cardType) {
+    if (typeof window !== 'undefined' && typeof window.lorcanaCategoryFromType === 'function') {
+        return window.lorcanaCategoryFromType(cardType);
+    }
+    const t = (cardType || '').toLowerCase().trim();
+    if (t.includes('location')) return 'Locations';
+    if (t.includes('item')) return 'Items';
+    if (t.includes('action') || t.includes('song')) return 'Actions';
+    return 'Characters';
+}
+
+/**
+ * Resolve a Lorcana deck-list token to a DB card via the local search endpoint
+ * (no new external calls). Lorcana exports are name-keyed (no universal card-number
+ * token), so this resolves by exact name (case-insensitive) and falls back to the
+ * first result. A number is accepted but rarely present.
+ * @param {{name?: string, number?: string}} token
+ * @returns {Promise<Object|null>} the matched card row, or null
+ */
+async function resolveLorcanaCard(token) {
+    const q = token.number || token.name;
+    if (!q || q.length < 2) return null;
+    try {
+        const res = await fetch(`/api/search/lorcana?q=${encodeURIComponent(q)}`);
+        if (!res.ok) return null;
+        const results = await res.json();
+        if (!Array.isArray(results) || results.length === 0) return null;
+
+        if (token.number) {
+            const want = token.number.toUpperCase();
+            const exact = results.find(c => (c.card_number || '').toUpperCase() === want);
+            if (exact) return exact;
+        }
+        if (token.name) {
+            const want = token.name.toLowerCase();
+            const exact = results.find(c => (c.name || '').toLowerCase() === want);
+            if (exact) return exact;
+        }
+        return results[0];
+    } catch (e) {
+        console.error('Lorcana resolve error for', q, e);
+        return null;
+    }
+}
+
+/**
+ * Parse a Disney Lorcana deck list (Dreamborn / Pixelborn / inkdecks /
+ * Ravensburger app exports). These are "quantity name" lines, where Lorcana card
+ * names usually carry a " - " version subtitle. Strategy: strip the leading
+ * quantity, resolve the remaining name against the DB; if that misses, strip a
+ * trailing set/number token (Dreamborn sometimes appends one) and retry. Cards are
+ * bucketed by card_type into Characters / Actions / Items / Locations.
+ * @param {Array<string>} lines
+ * @returns {Promise<Object>} { game:'lorcana', categories: { Characters, Actions, Items, Locations } }
+ */
+async function parseLorcanaDeckList(lines) {
+    const deck = { game: 'lorcana', categories: { Characters: [], Actions: [], Items: [], Locations: [] } };
+
+    const QTY = /^(\d+)\s*x?\s+/i;
+    // Section headers some exports emit (grouped by type or ink). Skipped.
+    const HEADER = /^(deck|mainboard|main deck|sideboard|characters?|actions?|songs?|items?|locations?|total cards?|total|cards|ink(?:able)?|amber|amethyst|emerald|ruby|sapphire|steel)\s*:?\s*\d*\s*$/i;
+    // Trailing set/number tokens to strip on a failed name lookup. "(TFC) 42" or "TFC 42".
+    const TRAIL_PARENS = /\s*\([A-Z0-9]{1,4}\)\s*\d+[a-z]?$/i;
+    const TRAIL_PLAIN = /\s+[A-Z0-9]{1,4}\s+\d+[a-z]?$/i;
+
+    for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+        if (line.startsWith('//') || line.startsWith('#')) continue;
+        if (HEADER.test(line)) continue;
+
+        const qtyM = line.match(QTY);
+        const quantity = qtyM ? parseInt(qtyM[1], 10) : 1;
+        const name = (qtyM ? line.slice(qtyM[0].length) : line).trim();
+        if (!name) continue;
+
+        let resolved = await resolveLorcanaCard({ name });
+        if (!resolved) {
+            // Strip a trailing set/number token and retry by name.
+            let stripped = name.replace(TRAIL_PARENS, '').trim();
+            if (stripped === name) stripped = name.replace(TRAIL_PLAIN, '').trim();
+            if (stripped && stripped !== name) resolved = await resolveLorcanaCard({ name: stripped });
+        }
+        if (!resolved) continue;
+
+        const category = lorcanaCategory(resolved.card_type);
+        if (!deck.categories[category]) deck.categories[category] = [];
+        const bucket = deck.categories[category];
+
+        const number = resolved.card_number || '';
+        const image = resolved.display_image || resolved.image_url || resolved.local_image || '';
+        const existing = bucket.find(c => c.name === resolved.name);
+        if (existing) {
+            existing.quantity += quantity;
+        } else {
+            bucket.push({
+                quantity,
+                name: resolved.name,
+                setCode: resolved.set_abbreviation || resolved.set_code || '',
+                number,
+                cardType: resolved.card_type || '',
+                colors: resolved.colors || '',
+                image,
+                fullName: `${quantity} ${resolved.name}`.trim()
+            });
+        }
+    }
+
+    return deck;
+}
+
 // Export functions for use in other files
 if (typeof module !== 'undefined' && module.exports) {
     // Node.js environment
@@ -715,6 +845,7 @@ if (typeof module !== 'undefined' && module.exports) {
         parsePokemonDeckList,
         parseGundamDeckList,
         parseYugiohDeckList,
-        parseOnePieceDeckList
+        parseOnePieceDeckList,
+        parseLorcanaDeckList
     };
 }

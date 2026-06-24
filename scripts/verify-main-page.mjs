@@ -70,6 +70,14 @@ try {
     check('yugioh: OBS leaked no pokemon/mtg/prizes', !yg.obs.includes('/pokemon-match') && !yg.obs.includes('/mtg-match') && !yg.obs.includes('/prizes'), yg.obs);
     check('yugioh: deck select synced', yg.deckSelect === 'yugioh', yg.deckSelect);
 
+    const lc = await panelsFor(page, 'lorcana');
+    check('lorcana: shows Lorcana Match Control', lc.match.includes('Lorcana Match Control'), lc.match);
+    check('lorcana: dropped Pokemon Match Control', !lc.match.includes('Pokemon Match Control'), lc.match);
+    check('lorcana: OBS has lorcana-match overlay + decklist', lc.obs.includes('/lorcana-match') && lc.obs.includes('/decklist'), lc.obs);
+    check('lorcana: OBS leaked no pokemon/mtg/yugioh/prizes',
+        !lc.obs.includes('/pokemon-match') && !lc.obs.includes('/mtg-match') && !lc.obs.includes('/yugioh-match') && !lc.obs.includes('/prizes'), lc.obs);
+    check('lorcana: deck select synced', lc.deckSelect === 'lorcana', lc.deckSelect);
+
     // ===== Phase 2: per-game search/preview meta =====
     // Pokemon: HP shown on results + preview
     await page.evaluate(() => window.selectGame('pokemon', true));
