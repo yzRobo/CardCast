@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cardcast">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CardCast - One Piece Match Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .op-card-aspect { aspect-ratio: 5/7; }
+        .search-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; padding: 2rem; }
+        .search-overlay.active { display: flex; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-base-100 via-base-200 to-base-100">
+    <div class="animated-bg"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <!-- Header -->
+    <div class="navbar glass-card border-b border-white/5 px-4 sm:px-6 fixed top-0 z-50 min-h-[3.75rem] gap-2">
+        <div class="navbar-start gap-2 sm:gap-3">
+            <a href="/" class="btn btn-ghost btn-sm gap-1.5 px-2" title="Back to Dashboard">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                <span class="hidden sm:inline">Dashboard</span>
+            </a>
+            <div class="h-6 w-px bg-white/10"></div>
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shadow" style="background: linear-gradient(135deg, #ef4444 0%, #6366f1 100%);">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20"/><path d="M12 2a10 10 0 0 1 0 20"/><path d="M12 2a10 10 0 0 0 0 20"/></svg>
+                </div>
+                <div class="leading-tight">
+                    <div class="font-bold text-base">One Piece Match Control</div>
+                    <div class="text-[10px] uppercase tracking-[0.18em] text-base-content/40 font-medium">CardCast</div>
+                </div>
+            </div>
+        </div>
+        <div class="navbar-end">
+            <div class="badge badge-error gap-2 py-3 font-medium" id="overlayStatus">
+                <div class="w-2 h-2 rounded-full bg-current"></div>
+                <span>Overlay Not Connected</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 pt-20 pb-8">
+        <div class="grid lg:grid-cols-2 gap-6" id="playersGrid"></div>
+
+        <!-- Shared Match Controls -->
+        <div class="card bg-base-100 shadow-xl mt-6">
+            <div class="card-body">
+                <div class="border-b border-base-300 pb-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Match Setup</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-xs">Format</span></label>
+                            <select id="matchFormat" class="select select-bordered select-sm">
+                                <option value="Best of 1">Best of 1</option>
+                                <option value="Best of 3" selected>Best of 3</option>
+                            </select>
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-xs">Game</span></label>
+                            <select id="gameNumber" class="select select-bordered select-sm">
+                                <option value="1">Game 1</option>
+                                <option value="2">Game 2</option>
+                                <option value="3">Game 3</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-sm mt-6" onclick="applyMatchSettings()">Apply Settings</button>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Timer Control</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="text-5xl font-mono font-bold text-primary bg-base-200 px-6 py-3 rounded-lg" id="timerDisplay">50:00</div>
+                        <div class="flex gap-2">
+                            <button class="btn btn-success" onclick="startTimer()">Start</button>
+                            <button class="btn btn-warning" onclick="pauseTimer()">Pause</button>
+                            <button class="btn btn-neutral" onclick="resetTimer()">Reset</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-end gap-3 mt-4">
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Minutes</span></label>
+                            <input type="number" id="timerMinutes" class="input input-bordered input-sm w-20" value="50" min="0" max="999">
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Seconds</span></label>
+                            <input type="number" id="timerSeconds" class="input input-bordered input-sm w-20" value="0" min="0" max="59">
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="setTimer()">Set Timer</button>
+                        <div class="flex gap-1">
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(40)">40 min</button>
+                            <button class="btn btn-outline btn-sm" onclick="setTimerPreset(50)">50 min</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Turn Control</h3>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="badge badge-lg badge-primary p-4" id="turnDisplay">Player 1's Turn</div>
+                        <button class="btn btn-primary" onclick="switchTurn()">Switch Turn</button>
+                    </div>
+                </div>
+
+                <div class="border-b border-base-300 py-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Overlay Display</h3>
+                    <div class="flex gap-2">
+                        <button class="btn btn-success" onclick="showOverlay()">Show Overlay</button>
+                        <button class="btn btn-warning" onclick="hideOverlay()">Hide Overlay</button>
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <h3 class="text-sm uppercase tracking-wider text-primary font-semibold mb-3">Match Reset</h3>
+                    <div class="flex items-center gap-4">
+                        <button class="btn btn-error" onclick="resetMatch()">Reset Entire Match</button>
+                        <span class="text-xs text-error opacity-70 italic">Clears Leader, Life, DON!!, characters, stage and timer</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search modal -->
+    <div class="search-overlay" id="searchOverlay">
+        <div class="card w-full max-w-5xl bg-base-100">
+            <div class="card-body">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="card-title" id="searchTitle">Select Card</h2>
+                    <button class="btn btn-circle btn-ghost btn-sm" onclick="closeSearch()" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-2 mb-4 items-center">
+                    <input type="text" id="cardSearch" placeholder="Search One Piece cards (name or card number)..." class="input input-bordered flex-1 min-w-[12rem]">
+                    <label class="label cursor-pointer gap-2 hidden" id="deckOnlyLabel">
+                        <span class="label-text whitespace-nowrap">Deck only</span>
+                        <input type="checkbox" id="searchDeckOnly" class="toggle toggle-secondary" onchange="runSearch()">
+                    </label>
+                    <label class="label cursor-pointer gap-2">
+                        <span class="label-text whitespace-nowrap">All card types</span>
+                        <input type="checkbox" id="searchAllTypes" class="toggle toggle-primary" onchange="runSearch()">
+                    </label>
+                </div>
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 max-h-[600px] overflow-y-auto p-2" id="searchResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        // One Piece color name -> swatch hex for the leader/color dots.
+        const OP_COLOR_HEX = { red: '#ef4444', green: '#22c55e', blue: '#3b82f6', purple: '#a855f7', black: '#374151', yellow: '#eab308' };
+        function colorList(colors) {
+            return String(colors || '').split(/[\/\s]+/).map(c => c.trim()).filter(Boolean);
+        }
+
+        function freshPlayer(name) {
+            return {
+                name, record: { wins: 0, losses: 0, ties: 0 }, gamesWon: 0,
+                leader: null,
+                life: { total: 4, taken: [] },
+                don: { active: 0, rested: 0, max: 10 },
+                characters: [null, null, null, null, null],
+                stage: null
+            };
+        }
+        let state = {
+            player1: freshPlayer('Player 1'),
+            player2: freshPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            timerDuration: { minutes: 50, seconds: 0 },
+            timerInterval: null,
+            gameNumber: 1,
+            matchFormat: 'Best of 3'
+        };
+        let searchContext = null; // { player, slot:'leader'|'character'|'stage', index }
+        let playerDecks = { 1: null, 2: null };
+        let currentDeckCards = [];
+        // Deck categories that make sense to quick-add into each board slot.
+        const categoriesForSlot = { leader: ['Leader'], character: ['Characters'], stage: ['Stages'] };
+        // Card-type substrings a normal search keeps for each slot (unless "All card types").
+        const typeForSlot = { leader: ['leader'], character: ['character'], stage: ['stage'] };
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
+        function save() { localStorage.setItem('onepieceMatchState', JSON.stringify({ ...state, timerInterval: null })); }
+        const num = (v, d = 0) => { const n = parseInt(v); return isNaN(n) ? d : n; };
+
+        // ---------- Player board rendering ----------
+        function renderPlayers() {
+            document.getElementById('playersGrid').innerHTML = [1, 2].map(playerCardHtml).join('');
+            [1, 2].forEach(n => { renderLeader(n); renderLife(n); renderDon(n); renderChars(n); renderStage(n); });
+            populateDeckSelectors();
+            updateTurnDisplay();
+        }
+
+        // ---------- Deck-aware control ----------
+        function onepieceDecks() {
+            try { return (JSON.parse(localStorage.getItem('savedDecks') || '{}').onepiece) || []; }
+            catch (e) { return []; }
+        }
+        function populateDeckSelectors() {
+            const decks = onepieceDecks();
+            [1, 2].forEach(n => {
+                const sel = document.getElementById(`p${n}Deck`);
+                if (!sel) return;
+                const current = state[`player${n}`].deckName || '';
+                sel.innerHTML = '<option value="">No deck (search all)</option>' +
+                    decks.map(d => `<option value="${esc(d.name)}">${esc(d.name)}</option>`).join('');
+                if (current && decks.find(d => d.name === current)) { sel.value = current; playerDecks[n] = decks.find(d => d.name === current); }
+                else { sel.value = ''; playerDecks[n] = null; }
+            });
+        }
+        function setPlayerDeck(n) {
+            const name = document.getElementById(`p${n}Deck`).value;
+            playerDecks[n] = name ? (onepieceDecks().find(d => d.name === name) || null) : null;
+            state[`player${n}`].deckName = name || null;
+            save();
+        }
+        // Auto-set this player's Leader from the loaded deck's Leader (seeds Life + colors).
+        async function leaderFromDeck(n) {
+            const deck = playerDecks[n];
+            const leaderEntry = deck && deck.leader;
+            const leaderCard = leaderEntry || (deck && deck.categories && (deck.categories.Leader || [])[0]);
+            if (!leaderCard) { alert('Loaded deck has no Leader card.'); return; }
+            // Resolve to a full DB card for image/power/life/colors.
+            const q = leaderCard.number || leaderCard.name;
+            try {
+                const arr = await (await fetch(`/api/search/onepiece?q=${encodeURIComponent(q)}`)).json();
+                const full = arr.find(c => (leaderCard.number && (c.card_number || '').toUpperCase() === leaderCard.number.toUpperCase()))
+                    || arr.find(c => (c.name || '').toLowerCase() === (leaderCard.name || '').toLowerCase()) || arr[0];
+                if (full) assignLeader(n, full);
+            } catch (e) { console.error('leaderFromDeck error', e); }
+        }
+        function deckCardsForSlot(deck, slot) {
+            const cats = (deck && deck.categories) || {};
+            return (categoriesForSlot[slot] || []).flatMap(c => cats[c] || []);
+        }
+        // Re-resolve deck entries to full DB cards (image / power / counter) for quick-add.
+        async function resolveDeckCards(cards) {
+            const unique = [...new Map(cards.map(c => [c.name, c])).values()];
+            const resolved = await Promise.all(unique.map(async (c) => {
+                try {
+                    const q = c.number || c.name;
+                    const arr = await (await fetch(`/api/search/onepiece?q=${encodeURIComponent(q)}`)).json();
+                    const e = arr.find(x => (c.number && (x.card_number || '').toUpperCase() === c.number.toUpperCase()))
+                        || arr.find(x => (x.name || '').toLowerCase() === (c.name || '').toLowerCase());
+                    return e || arr[0] || null;
+                } catch (e) { return null; }
+            }));
+            return resolved.filter(Boolean);
+        }
+        async function populateDeckCards() {
+            if (!searchContext) return;
+            const deck = playerDecks[searchContext.player];
+            const cards = deckCardsForSlot(deck, searchContext.slot);
+            const out = document.getElementById('searchResults');
+            if (!cards.length) { out.innerHTML = '<div class="col-span-full text-center text-base-content/50">No matching cards in this deck</div>'; return; }
+            out.innerHTML = '<div class="col-span-full text-center"><span class="loading loading-spinner loading-md"></span> Loading deck cards...</div>';
+            currentDeckCards = await resolveDeckCards(cards);
+            displayResults(currentDeckCards);
+        }
+
+        function playerCardHtml(n) {
+            const p = state[`player${n}`];
+            const border = n === 1 ? 'border-primary' : 'border-error';
+            return `
+            <div class="card bg-base-100 shadow-xl border-t-4 ${border}">
+                <div class="card-body gap-3">
+                    <div class="flex items-center justify-between">
+                        <input type="text" value="${esc(p.name)}" class="input input-ghost text-xl font-bold w-40" onchange="setName(${n}, this.value)">
+                        <div class="flex items-center gap-1">
+                            <span class="text-sm">Rec:</span>
+                            <input type="number" id="p${n}W" value="${p.record.wins}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                            <span>/</span>
+                            <input type="number" id="p${n}L" value="${p.record.losses}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                            <span>/</span>
+                            <input type="number" id="p${n}T" value="${p.record.ties}" min="0" class="input input-bordered input-xs w-12" onchange="setRecord(${n})">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm">Games Won:</span>
+                        <div class="join">
+                            <button class="btn btn-xs join-item" onclick="adjGamesWon(${n}, -1)">-</button>
+                            <span class="join-item bg-base-200 px-3 py-1 text-sm" id="p${n}GamesWon">${p.gamesWon}</span>
+                            <button class="btn btn-xs join-item" onclick="adjGamesWon(${n}, 1)">+</button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm whitespace-nowrap">Deck:</span>
+                        <select id="p${n}Deck" class="select select-bordered select-sm flex-1" onchange="setPlayerDeck(${n})">
+                            <option value="">No deck (search all)</option>
+                        </select>
+                        <button class="btn btn-xs btn-outline" onclick="leaderFromDeck(${n})" title="Set Leader from loaded deck">Use Leader</button>
+                    </div>
+
+                    <div class="divider my-0">Leader</div>
+                    <div id="p${n}Leader"></div>
+
+                    <div class="divider my-0">Life</div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-xs">Total:</span>
+                        <input type="number" id="p${n}LifeTotal" value="${p.life.total}" min="0" max="12" class="input input-bordered input-sm w-20" onchange="setLifeTotal(${n}, this.value)">
+                        <button class="btn btn-xs btn-outline" onclick="resetLife(${n})">Restore all</button>
+                        <span class="text-xs opacity-60" id="p${n}LifeRemain"></span>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5" id="p${n}LifePips"></div>
+
+                    <div class="divider my-0">DON!!</div>
+                    <div class="grid grid-cols-3 gap-2 items-end">
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-[11px]">Active</span></label>
+                            <div class="join">
+                                <button class="btn btn-xs join-item" onclick="adjDon(${n}, 'active', -1)">-</button>
+                                <span class="join-item bg-base-200 px-2 py-1 text-sm font-mono" id="p${n}DonActive">${p.don.active}</span>
+                                <button class="btn btn-xs join-item" onclick="adjDon(${n}, 'active', 1)">+</button>
+                            </div>
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-[11px]">Rested</span></label>
+                            <div class="join">
+                                <button class="btn btn-xs join-item" onclick="adjDon(${n}, 'rested', -1)">-</button>
+                                <span class="join-item bg-base-200 px-2 py-1 text-sm font-mono" id="p${n}DonRested">${p.don.rested}</span>
+                                <button class="btn btn-xs join-item" onclick="adjDon(${n}, 'rested', 1)">+</button>
+                            </div>
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-[11px]">Max</span></label>
+                            <input type="number" id="p${n}DonMax" value="${p.don.max}" min="1" max="20" class="input input-bordered input-xs w-16" onchange="setDonMax(${n}, this.value)">
+                        </div>
+                    </div>
+
+                    <div class="divider my-0">Character Area</div>
+                    <div class="grid grid-cols-5 gap-1.5" id="p${n}Chars"></div>
+
+                    <div class="divider my-0">Stage</div>
+                    <div id="p${n}Stage"></div>
+                </div>
+            </div>`;
+        }
+
+        function renderLeader(n) {
+            const l = state[`player${n}`].leader;
+            const el = document.getElementById(`p${n}Leader`);
+            if (!l) { el.innerHTML = `<button class="btn btn-primary btn-sm" onclick="openSearch(${n}, 'leader', 0)">+ Assign Leader</button>`; return; }
+            const dots = colorList(l.colors).map(c =>
+                `<span class="inline-block w-3 h-3 rounded-full border border-white/40" style="background:${OP_COLOR_HEX[c.toLowerCase()] || '#94a3b8'}" title="${esc(c)}"></span>`).join(' ');
+            el.innerHTML = `
+            <div class="flex items-center gap-3 bg-base-200 rounded-lg p-2">
+                <img src="${esc(l.image)}" class="w-14 rounded op-card-aspect object-cover" onerror="this.src=window.CARD_BACK">
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-sm truncate" title="${esc(l.name)}">${esc(l.name)}</div>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="text-xs">Power:</span>
+                        <input type="number" value="${l.power != null ? l.power : 0}" step="1000" class="input input-bordered input-xs w-20" onchange="setLeaderPower(${n}, this.value)">
+                        <span class="flex items-center gap-1">${dots}</span>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <button class="btn btn-xs btn-outline" onclick="seedLifeFromLeader(${n})" title="Seed Life from this Leader">Life ${l.life != null ? l.life : ''}</button>
+                    <button class="btn btn-error btn-xs" onclick="removeLeader(${n})">Remove</button>
+                </div>
+            </div>`;
+        }
+
+        function renderLife(n) {
+            const life = state[`player${n}`].life;
+            const totalEl = document.getElementById(`p${n}LifeTotal`); if (totalEl) totalEl.value = life.total;
+            const pips = document.getElementById(`p${n}LifePips`);
+            if (pips) {
+                let html = '';
+                for (let i = 0; i < life.total; i++) {
+                    const taken = life.taken.includes(i);
+                    html += `<button class="btn btn-xs ${taken ? 'btn-error' : 'btn-success'} btn-outline w-9" onclick="toggleLife(${n}, ${i})" title="${taken ? 'Taken' : 'Remaining'}">${taken ? '✕' : (i + 1)}</button>`;
+                }
+                pips.innerHTML = html;
+            }
+            const remain = document.getElementById(`p${n}LifeRemain`);
+            if (remain) remain.textContent = `${Math.max(0, life.total - life.taken.length)} remaining`;
+        }
+
+        function renderDon(n) {
+            const don = state[`player${n}`].don;
+            const a = document.getElementById(`p${n}DonActive`); if (a) a.textContent = don.active;
+            const r = document.getElementById(`p${n}DonRested`); if (r) r.textContent = don.rested;
+            const m = document.getElementById(`p${n}DonMax`); if (m) m.value = don.max;
+        }
+
+        function renderChars(n) {
+            const p = state[`player${n}`];
+            let html = '';
+            for (let i = 0; i < 5; i++) {
+                const c = p.characters[i];
+                if (!c) {
+                    html += `
+                    <div class="border-2 border-dashed border-base-content/20 rounded-lg p-1 flex items-center justify-center op-card-aspect">
+                        <button class="btn btn-primary btn-xs" onclick="openSearch(${n}, 'character', ${i})">+ Char</button>
+                    </div>`;
+                    continue;
+                }
+                const don = c.donAttached || 0;
+                html += `
+                <div class="bg-base-200 rounded-lg p-1">
+                    <div class="relative">
+                        <img src="${esc(c.image)}" class="w-full rounded op-card-aspect object-cover" onerror="this.src=window.CARD_BACK">
+                        <button class="btn btn-circle btn-xs btn-error absolute top-0.5 right-0.5" onclick="removeChar(${n}, ${i})">x</button>
+                    </div>
+                    <div class="text-[10px] font-semibold truncate mt-0.5" title="${esc(c.name)}">${esc(c.name)}</div>
+                    <div class="flex items-center gap-0.5 mt-0.5">
+                        <span class="text-[9px] opacity-60">P</span>
+                        <input type="number" value="${c.power != null ? c.power : 0}" step="1000" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setCharPower(${n}, ${i}, this.value)">
+                    </div>
+                    <div class="flex items-center gap-0.5 mt-0.5">
+                        <span class="text-[9px] opacity-60">C</span>
+                        <input type="number" value="${c.counter != null ? c.counter : 0}" step="1000" class="input input-bordered input-xs w-full px-0.5 text-center" onchange="setCharCounter(${n}, ${i}, this.value)">
+                    </div>
+                    <div class="flex items-center justify-between gap-0.5 mt-0.5">
+                        <span class="text-[9px] text-warning font-bold">DON ${don}</span>
+                        <div class="join">
+                            <button class="btn btn-[10px] btn-xs join-item px-1" onclick="adjCharDon(${n}, ${i}, -1)">-</button>
+                            <button class="btn btn-[10px] btn-xs join-item px-1" onclick="adjCharDon(${n}, ${i}, 1)">+</button>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            document.getElementById(`p${n}Chars`).innerHTML = html;
+        }
+
+        function renderStage(n) {
+            const s = state[`player${n}`].stage;
+            const el = document.getElementById(`p${n}Stage`);
+            if (!s) { el.innerHTML = `<button class="btn btn-secondary btn-sm" onclick="openSearch(${n}, 'stage', 0)">+ Assign Stage</button>`; return; }
+            el.innerHTML = `
+            <div class="flex items-center gap-3 bg-base-200 rounded-lg p-2">
+                <img src="${esc(s.image)}" class="w-12 rounded op-card-aspect object-cover" onerror="this.src=window.CARD_BACK">
+                <div class="flex-1 min-w-0"><div class="font-semibold text-sm truncate" title="${esc(s.name)}">${esc(s.name)}</div></div>
+                <button class="btn btn-error btn-xs" onclick="removeStage(${n})">Remove</button>
+            </div>`;
+        }
+
+        // ---------- Mutations ----------
+        function setName(n, v) {
+            state[`player${n}`].name = v || `Player ${n}`;
+            socket.emit('onepiece-match-update', { [`player${n}`]: { name: state[`player${n}`].name } });
+            updateTurnDisplay(); save();
+        }
+        function setRecord(n) {
+            const r = {
+                wins: num(document.getElementById(`p${n}W`).value),
+                losses: num(document.getElementById(`p${n}L`).value),
+                ties: num(document.getElementById(`p${n}T`).value)
+            };
+            state[`player${n}`].record = r;
+            socket.emit('onepiece-record-update', { player: n, record: r }); save();
+        }
+        function adjGamesWon(n, d) {
+            const g = Math.max(0, (state[`player${n}`].gamesWon || 0) + d);
+            state[`player${n}`].gamesWon = g;
+            document.getElementById(`p${n}GamesWon`).textContent = g;
+            socket.emit('onepiece-games-won-update', { player: n, gamesWon: g }); save();
+        }
+
+        // Leader
+        function assignLeader(n, card) {
+            const image = card.display_image || card.image_url || card.local_image;
+            const leader = {
+                id: card.id, name: card.name, image,
+                power: card.op_power != null ? card.op_power : null,
+                life: card.life != null ? card.life : 4,
+                colors: card.colors || ''
+            };
+            const p = state[`player${n}`];
+            p.leader = leader;
+            // Seed the Life track length from the Leader's life (and clear taken).
+            p.life = { total: Math.max(1, leader.life | 0), taken: [] };
+            renderLeader(n); renderLife(n);
+            socket.emit('onepiece-leader-update', { player: n, leader, seedLife: true });
+            save();
+        }
+        function setLeaderPower(n, v) {
+            const l = state[`player${n}`].leader; if (!l) return;
+            l.power = num(v); socket.emit('onepiece-leader-update', { player: n, leader: l, seedLife: false }); save();
+        }
+        function seedLifeFromLeader(n) {
+            const l = state[`player${n}`].leader; if (!l) return;
+            setLifeTotal(n, l.life != null ? l.life : 4);
+        }
+        function removeLeader(n) {
+            state[`player${n}`].leader = null; renderLeader(n);
+            socket.emit('onepiece-leader-update', { player: n, leader: null, seedLife: false }); save();
+        }
+
+        // Life
+        function setLifeTotal(n, v) {
+            const p = state[`player${n}`];
+            p.life.total = Math.max(0, num(v, p.life.total));
+            p.life.taken = p.life.taken.filter(i => i < p.life.total);
+            renderLife(n);
+            socket.emit('onepiece-life-total', { player: n, total: p.life.total, taken: p.life.taken }); save();
+        }
+        function toggleLife(n, i) {
+            const p = state[`player${n}`];
+            const idx = p.life.taken.indexOf(i);
+            if (idx === -1) p.life.taken.push(i); else p.life.taken.splice(idx, 1);
+            renderLife(n);
+            socket.emit('onepiece-life-taken', { player: n, taken: p.life.taken, total: p.life.total }); save();
+        }
+        function resetLife(n) {
+            const p = state[`player${n}`];
+            p.life.taken = []; renderLife(n);
+            socket.emit('onepiece-life-taken', { player: n, taken: [], total: p.life.total }); save();
+        }
+
+        // DON!!
+        function adjDon(n, field, d) {
+            const don = state[`player${n}`].don;
+            don[field] = Math.max(0, (don[field] || 0) + d);
+            // Keep active+rested within max.
+            if (don.active + don.rested > don.max) {
+                if (field === 'active') don.rested = Math.max(0, don.max - don.active);
+                else don.active = Math.max(0, don.max - don.rested);
+            }
+            renderDon(n);
+            socket.emit('onepiece-don-update', { player: n, don }); save();
+        }
+        function setDonMax(n, v) {
+            const don = state[`player${n}`].don;
+            don.max = Math.max(1, num(v, 10));
+            if (don.active > don.max) don.active = don.max;
+            if (don.active + don.rested > don.max) don.rested = Math.max(0, don.max - don.active);
+            renderDon(n);
+            socket.emit('onepiece-don-update', { player: n, don }); save();
+        }
+
+        // Characters
+        function setCharPower(n, i, v) {
+            const c = state[`player${n}`].characters[i]; if (!c) return;
+            c.power = num(v); socket.emit('onepiece-character-update', { player: n, index: i, character: c }); save();
+        }
+        function setCharCounter(n, i, v) {
+            const c = state[`player${n}`].characters[i]; if (!c) return;
+            c.counter = num(v); socket.emit('onepiece-character-update', { player: n, index: i, character: c }); save();
+        }
+        function adjCharDon(n, i, d) {
+            const c = state[`player${n}`].characters[i]; if (!c) return;
+            c.donAttached = Math.max(0, (c.donAttached || 0) + d); renderChars(n);
+            socket.emit('onepiece-don-attach', { player: n, index: i, donAttached: c.donAttached }); save();
+        }
+        function removeChar(n, i) {
+            state[`player${n}`].characters[i] = null; renderChars(n);
+            socket.emit('onepiece-character-update', { player: n, index: i, character: null }); save();
+        }
+
+        // Stage
+        function removeStage(n) {
+            state[`player${n}`].stage = null; renderStage(n);
+            socket.emit('onepiece-stage-update', { player: n, stage: null }); save();
+        }
+
+        // ---------- Search + assignment ----------
+        function openSearch(player, slot, index) {
+            searchContext = { player, slot, index };
+            currentDeckCards = [];
+            const titles = { leader: 'Select Leader', character: 'Select Character', stage: 'Select Stage' };
+            document.getElementById('searchTitle').textContent = titles[slot] || 'Select Card';
+            document.getElementById('searchAllTypes').checked = false;
+            document.getElementById('cardSearch').value = '';
+
+            const deck = playerDecks[player];
+            const hasDeckCat = !!(deck && deckCardsForSlot(deck, slot).length);
+            document.getElementById('deckOnlyLabel').classList.toggle('hidden', !hasDeckCat);
+            document.getElementById('searchDeckOnly').checked = hasDeckCat;
+
+            document.getElementById('searchOverlay').classList.add('active');
+            document.getElementById('cardSearch').focus();
+
+            if (hasDeckCat) populateDeckCards();
+            else document.getElementById('searchResults').innerHTML = '<div class="col-span-full text-center text-base-content/50">Search One Piece cards to assign...</div>';
+        }
+        function closeSearch() {
+            document.getElementById('searchOverlay').classList.remove('active');
+            searchContext = null;
+        }
+        function matchesSlotType(card, slot) {
+            const t = (card.card_type || '').toLowerCase();
+            return (typeForSlot[slot] || []).some(k => t.includes(k));
+        }
+        async function runSearch() {
+            const q = document.getElementById('cardSearch').value.trim();
+            const deckOnly = document.getElementById('searchDeckOnly').checked &&
+                !document.getElementById('deckOnlyLabel').classList.contains('hidden');
+
+            if (deckOnly) {
+                if (!currentDeckCards.length) await populateDeckCards();
+                const ql = q.toLowerCase();
+                const list = q ? currentDeckCards.filter(c => (c.name || '').toLowerCase().includes(ql)) : currentDeckCards;
+                displayResults(list);
+                return;
+            }
+
+            if (q.length < 2) { document.getElementById('searchResults').innerHTML = '<div class="col-span-full text-center text-base-content/50">Type at least 2 characters...</div>'; return; }
+            const all = document.getElementById('searchAllTypes').checked;
+            try {
+                const res = await fetch(`/api/search/onepiece?q=${encodeURIComponent(q)}`);
+                let cards = await res.json();
+                if (!all && searchContext) cards = cards.filter(c => matchesSlotType(c, searchContext.slot));
+                displayResults(cards);
+            } catch (e) { console.error('search error', e); }
+        }
+        function displayResults(cards) {
+            const c = document.getElementById('searchResults');
+            if (!cards.length) { c.innerHTML = '<div class="col-span-full text-center text-base-content/50">No cards found</div>'; return; }
+            const seen = new Set();
+            c.innerHTML = cards.filter(card => { if (seen.has(card.id)) return false; seen.add(card.id); return true; }).map(card => {
+                const has = (v) => v !== undefined && v !== null && v !== '';
+                const meta = has(card.op_power) ? `Power ${card.op_power}` : esc(card.colors || card.card_type || '');
+                return `
+                <div class="card bg-base-200 cursor-pointer hover:shadow-lg" onclick="pickCard('${card.id}')">
+                    <figure class="px-2 pt-2"><img src="${esc(card.display_image || card.image_url || card.local_image)}" class="rounded-lg op-card-aspect object-cover w-full" onerror="this.src=window.CARD_BACK"></figure>
+                    <div class="card-body p-2">
+                        <p class="text-xs font-semibold truncate">${esc(card.name)}</p>
+                        <p class="text-[10px] opacity-70">${meta}</p>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        async function pickCard(id) {
+            if (!searchContext) return;
+            try {
+                const res = await fetch(`/api/card/onepiece/${id}`);
+                const card = await res.json();
+                const image = card.display_image || card.image_url || card.local_image;
+                const { player, slot, index } = searchContext;
+                if (slot === 'leader') {
+                    assignLeader(player, card);
+                } else if (slot === 'character') {
+                    const power = parseInt(card.op_power); const counter = parseInt(card.counter);
+                    const character = {
+                        id: card.id, name: card.name, image,
+                        power: isNaN(power) ? 0 : power,
+                        counter: isNaN(counter) ? 0 : counter,
+                        colors: card.colors || '',
+                        donAttached: 0
+                    };
+                    state[`player${player}`].characters[index] = character; renderChars(player);
+                    socket.emit('onepiece-character-update', { player, index, character });
+                } else if (slot === 'stage') {
+                    const stage = { id: card.id, name: card.name, image };
+                    state[`player${player}`].stage = stage; renderStage(player);
+                    socket.emit('onepiece-stage-update', { player, stage });
+                }
+                save(); closeSearch();
+            } catch (e) { console.error('pick error', e); }
+        }
+
+        // ---------- Shared match controls ----------
+        function applyMatchSettings() {
+            state.gameNumber = parseInt(document.getElementById('gameNumber').value);
+            state.matchFormat = document.getElementById('matchFormat').value;
+            socket.emit('match-settings', { gameNumber: state.gameNumber, matchFormat: state.matchFormat }); save();
+        }
+        function switchTurn() {
+            state.currentTurn = state.currentTurn === 1 ? 2 : 1;
+            socket.emit('turn-switch', { currentTurn: state.currentTurn });
+            updateTurnDisplay(); save();
+        }
+        function updateTurnDisplay() {
+            document.getElementById('turnDisplay').textContent = `${state[`player${state.currentTurn}`].name}'s Turn`;
+        }
+        function startTimer() {
+            if (state.timerInterval) return;
+            socket.emit('timer-start');
+            state.timerInterval = setInterval(() => {
+                if (state.timer.seconds > 0) state.timer.seconds--;
+                else if (state.timer.minutes > 0) { state.timer.minutes--; state.timer.seconds = 59; }
+                else { pauseTimer(); }
+                updateTimerDisplay();
+            }, 1000);
+        }
+        function pauseTimer() {
+            if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; socket.emit('timer-pause'); }
+        }
+        function resetTimer() {
+            pauseTimer();
+            const d = state.timerDuration || { minutes: 50, seconds: 0 };
+            state.timer = { minutes: d.minutes, seconds: d.seconds };
+            updateTimerDisplay(); socket.emit('timer-reset', d); save();
+        }
+        function setTimer() {
+            let m = num(document.getElementById('timerMinutes').value); let s = num(document.getElementById('timerSeconds').value);
+            if (m < 0) m = 0; if (s < 0) s = 0; if (s > 59) s = 59;
+            pauseTimer();
+            state.timerDuration = { minutes: m, seconds: s }; state.timer = { minutes: m, seconds: s };
+            updateTimerDisplay(); socket.emit('timer-set', { minutes: m, seconds: s }); save();
+        }
+        function setTimerPreset(m) { document.getElementById('timerMinutes').value = m; document.getElementById('timerSeconds').value = 0; setTimer(); }
+        function updateTimerDisplay() {
+            document.getElementById('timerDisplay').textContent = `${String(state.timer.minutes).padStart(2, '0')}:${String(state.timer.seconds).padStart(2, '0')}`;
+        }
+        function showOverlay() { socket.emit('toggle-onepiece-match', { show: true }); pushFullState(); }
+        function hideOverlay() { socket.emit('toggle-onepiece-match', { show: false }); }
+        function resetMatch() {
+            if (!confirm('Reset the entire One Piece match?')) return;
+            const p1 = state.player1.name, p2 = state.player2.name;
+            const dur = state.timerDuration || { minutes: 50, seconds: 0 };
+            if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+            state = {
+                player1: freshPlayer(p1), player2: freshPlayer(p2),
+                currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
+                timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: state.matchFormat
+            };
+            socket.emit('onepiece-match-reset');
+            renderPlayers(); updateTimerDisplay(); save();
+        }
+
+        // Push the whole board to a freshly-shown / reconnected overlay.
+        function pushFullState() {
+            socket.emit('onepiece-match-update', {
+                player1: state.player1, player2: state.player2,
+                currentTurn: state.currentTurn,
+                gameNumber: state.gameNumber, matchFormat: state.matchFormat
+            });
+        }
+
+        function updateOverlayStatus(connected) {
+            const s = document.getElementById('overlayStatus');
+            s.className = 'badge gap-2 py-3 font-medium ' + (connected ? 'badge-success' : 'badge-error');
+            s.innerHTML = `<div class="w-2 h-2 rounded-full bg-current"></div><span>${connected ? 'Overlay Connected' : 'Overlay Not Connected'}</span>`;
+        }
+
+        function load() {
+            const saved = localStorage.getItem('onepieceMatchState');
+            if (saved) {
+                try {
+                    const s = JSON.parse(saved);
+                    state = { ...state, ...s, timerInterval: null };
+                    state.player1 = { ...freshPlayer('Player 1'), ...s.player1 };
+                    state.player2 = { ...freshPlayer('Player 2'), ...s.player2 };
+                } catch (e) { console.error('load error', e); }
+            }
+            document.getElementById('matchFormat').value = state.matchFormat;
+            document.getElementById('gameNumber').value = state.gameNumber;
+            const d = state.timerDuration || { minutes: 50, seconds: 0 };
+            document.getElementById('timerMinutes').value = d.minutes;
+            document.getElementById('timerSeconds').value = d.seconds;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            load();
+            renderPlayers();
+            updateTimerDisplay();
+            document.getElementById('cardSearch').addEventListener('input', debounce(runSearch, 300));
+
+            socket.emit('register-control', 'onepiece-match');
+            socket.on('connect', () => { socket.emit('register-control', 'onepiece-match'); socket.emit('check-overlay-status', 'onepiece-match'); });
+            socket.on('overlay-connected', (t) => { if (t === 'onepiece-match') { updateOverlayStatus(true); pushFullState(); } });
+            socket.on('overlay-disconnected', (t) => { if (t === 'onepiece-match') updateOverlayStatus(false); });
+
+            setTimeout(pushFullState, 600);
+        });
+
+        function debounce(fn, wait) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); }; }
+
+        // Self-contained card back fallback (matches the overlay's).
+        window.CARD_BACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 59 86">' +
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+            '<stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#0b1220"/></linearGradient></defs>' +
+            '<rect width="59" height="86" rx="5" fill="url(#g)"/>' +
+            '<rect x="4" y="4" width="51" height="78" rx="4" fill="none" stroke="#6366f1" stroke-width="1.5"/>' +
+            '<text x="29.5" y="48" font-family="sans-serif" font-size="11" fill="#93a5ff" text-anchor="middle">OP</text></svg>');
+
+        // expose for inline handlers
+        Object.assign(window, {
+            setName, setRecord, adjGamesWon, setPlayerDeck, leaderFromDeck,
+            openSearch, closeSearch, runSearch, pickCard,
+            assignLeader, setLeaderPower, seedLifeFromLeader, removeLeader,
+            setLifeTotal, toggleLife, resetLife,
+            adjDon, setDonMax,
+            setCharPower, setCharCounter, adjCharDon, removeChar,
+            removeStage,
+            applyMatchSettings, switchTurn, startTimer, pauseTimer, resetTimer, setTimer, setTimerPreset,
+            showOverlay, hideOverlay, resetMatch
+        });
+    </script>
+</body>
+</html>

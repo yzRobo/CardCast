@@ -89,6 +89,35 @@ class OverlayServer {
             gameNumber: 1,
             matchFormat: 'Best of 3'
         };
+
+        // One Piece Match State (mirrors gundamMatch; locked design: featured
+        // Leader + Power, a variable-length Life pip-track seeded from the Leader's
+        // life, a DON!! X/10 active/rested counter with per-character attach, a
+        // Character Area row of up to 5, and a single Stage slot. No turn-flag row.
+        this.onePieceMatch = {
+            player1: this.freshOnePiecePlayer('Player 1'),
+            player2: this.freshOnePiecePlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: 'Best of 3'
+        };
+    }
+
+    // A blank One Piece player board. characters is a fixed 5-slot row (null =
+    // empty). Life total defaults to 4 and is reseeded from the Leader's life when
+    // a Leader is assigned. DON!! is a ramping active/rested counter out of 10.
+    freshOnePiecePlayer(name) {
+        return {
+            name,
+            record: { wins: 0, losses: 0, ties: 0 },
+            gamesWon: 0,
+            leader: null,                                 // {id,name,image,power,colors}
+            life: { total: 4, taken: [] },                // total seeded from leader.life
+            don: { active: 0, rested: 0, max: 10 },
+            characters: [null, null, null, null, null],   // {id,name,image,power,counter,donAttached}
+            stage: null                                   // {id,name,image}|null
+        };
     }
 
     // A blank Yu-Gi-Oh! player board. monsters / spellsTraps are fixed 5-slot
@@ -675,6 +704,137 @@ class OverlayServer {
 
     // ============ END YU-GI-OH! METHODS ============
 
+    // ============ ONE PIECE MATCH METHODS ============
+
+    // Bulk update (player boards / turn / game / format) - control load + show.
+    updateOnePieceMatch(data) {
+        if (data.player1) this.onePieceMatch.player1 = { ...this.onePieceMatch.player1, ...data.player1 };
+        if (data.player2) this.onePieceMatch.player2 = { ...this.onePieceMatch.player2, ...data.player2 };
+        if (data.currentTurn !== undefined) this.onePieceMatch.currentTurn = data.currentTurn;
+        if (data.gameNumber !== undefined) this.onePieceMatch.gameNumber = data.gameNumber;
+        if (data.matchFormat !== undefined) this.onePieceMatch.matchFormat = data.matchFormat;
+        this.io.emit('onepiece-match-update', data);
+    }
+
+    // Set or clear (leader=null) the featured Leader. Assigning a Leader reseeds the
+    // Life pip-track length from leader.life (and clears taken) unless seedLife is
+    // explicitly false; the control can still override the count via setOnePieceLifeTotal.
+    setOnePieceLeader(player, leader, seedLife = true) {
+        const key = `player${player}`;
+        const p = this.onePieceMatch[key];
+        if (!p) return;
+        p.leader = leader;
+        if (leader && seedLife && leader.life != null) {
+            p.life = { total: Math.max(1, leader.life | 0), taken: [] };
+        }
+        this.io.emit('onepiece-leader-update', { player, leader, life: p.life, timestamp: Date.now() });
+    }
+
+    setOnePieceLifeTotal(player, total) {
+        const key = `player${player}`;
+        const p = this.onePieceMatch[key];
+        if (!p) return;
+        p.life.total = Math.max(0, total | 0);
+        // Drop any taken indices that no longer fit the new track length.
+        p.life.taken = (p.life.taken || []).filter(i => i < p.life.total);
+        this.io.emit('onepiece-life-total', { player, total: p.life.total, taken: p.life.taken, timestamp: Date.now() });
+    }
+
+    // Toggle a Life card as taken/restored (mirrors the prize/shield take logic).
+    takeOnePieceLife(player, index) {
+        const p = this.onePieceMatch[`player${player}`];
+        if (!p) return;
+        const i = p.life.taken.indexOf(index);
+        if (i === -1) p.life.taken.push(index);
+        else p.life.taken.splice(i, 1);
+        this.io.emit('onepiece-life-taken', { player, index, taken: p.life.taken, total: p.life.total, timestamp: Date.now() });
+    }
+
+    setOnePieceLife(player, taken) {
+        const p = this.onePieceMatch[`player${player}`];
+        if (!p) return;
+        p.life.taken = Array.isArray(taken) ? taken : [];
+        this.io.emit('onepiece-life-taken', { player, index: null, taken: p.life.taken, total: p.life.total, timestamp: Date.now() });
+    }
+
+    resetOnePieceLife() {
+        this.onePieceMatch.player1.life.taken = [];
+        this.onePieceMatch.player2.life.taken = [];
+        this.io.emit('onepiece-life-reset', {
+            player1: this.onePieceMatch.player1.life,
+            player2: this.onePieceMatch.player2.life,
+            timestamp: Date.now()
+        });
+    }
+
+    // DON!! ramp counter: { active, rested, max }. Partial updates merge.
+    setOnePieceDon(player, don) {
+        const p = this.onePieceMatch[`player${player}`];
+        if (!p) return;
+        p.don = { ...p.don, ...don };
+        this.io.emit('onepiece-don-update', { player, don: p.don, timestamp: Date.now() });
+    }
+
+    // Set or clear (character=null) a Character Area slot (0-4).
+    setOnePieceCharacter(player, index, character) {
+        const key = `player${player}`;
+        if (!this.onePieceMatch[key] || index < 0 || index > 4) return;
+        this.onePieceMatch[key].characters[index] = character;
+        this.io.emit('onepiece-character-update', { player, index, character, timestamp: Date.now() });
+    }
+
+    setOnePieceCharacterPower(player, index, power) {
+        const c = this.onePieceMatch[`player${player}`] && this.onePieceMatch[`player${player}`].characters[index];
+        if (!c) return;
+        c.power = power;
+        this.io.emit('onepiece-character-power', { player, index, power, timestamp: Date.now() });
+    }
+
+    // Attach/detach DON!! to a Character (each attached DON!! = +1000 power on the
+    // overlay readout). donAttached is the count on that character.
+    setOnePieceDonAttach(player, index, donAttached) {
+        const c = this.onePieceMatch[`player${player}`] && this.onePieceMatch[`player${player}`].characters[index];
+        if (!c) return;
+        c.donAttached = Math.max(0, donAttached | 0);
+        this.io.emit('onepiece-don-attach', { player, index, donAttached: c.donAttached, timestamp: Date.now() });
+    }
+
+    setOnePieceStage(player, stage) {
+        const key = `player${player}`;
+        if (!this.onePieceMatch[key]) return;
+        this.onePieceMatch[key].stage = stage;
+        this.io.emit('onepiece-stage-update', { player, stage, timestamp: Date.now() });
+    }
+
+    updateOnePieceRecord(player, record) {
+        const key = `player${player}`;
+        if (this.onePieceMatch[key]) this.onePieceMatch[key].record = record;
+        this.io.emit('onepiece-record-update', { player, record, timestamp: Date.now() });
+    }
+
+    updateOnePieceGamesWon(player, gamesWon) {
+        const key = `player${player}`;
+        if (this.onePieceMatch[key]) this.onePieceMatch[key].gamesWon = gamesWon;
+        this.io.emit('onepiece-games-won-update', { player, gamesWon, timestamp: Date.now() });
+    }
+
+    resetOnePieceMatch() {
+        const p1 = this.onePieceMatch.player1.name;
+        const p2 = this.onePieceMatch.player2.name;
+        this.onePieceMatch = {
+            player1: this.freshOnePiecePlayer(p1),
+            player2: this.freshOnePiecePlayer(p2),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: this.onePieceMatch.matchFormat || 'Best of 3'
+        };
+        this.io.emit('onepiece-match-reset', { timestamp: Date.now() });
+        console.log('One Piece match reset');
+    }
+
+    // ============ END ONE PIECE METHODS ============
+
     updateDecklist(deckData) {
         if (deckData.deck) {
             this.decklist = { ...this.decklist, ...deckData.deck };
@@ -858,7 +1018,8 @@ class OverlayServer {
             pokemonMatch: this.pokemonMatch,
             mtgMatch: this.mtgMatch,
             gundamMatch: this.gundamMatch,
-            yugiohMatch: this.yugiohMatch
+            yugiohMatch: this.yugiohMatch,
+            onePieceMatch: this.onePieceMatch
         };
     }
     

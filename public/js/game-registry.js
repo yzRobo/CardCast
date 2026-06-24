@@ -152,8 +152,66 @@ const GAME_REGISTRY = {
             }
             return card.card_type || '';
         }
+    },
+
+    onepiece: {
+        name: 'One Piece Card Game',
+        matchControls: [
+            { label: 'One Piece Match Control', route: '/onepiece-match-control', style: 'btn-error' }
+        ],
+        overlays: [
+            { label: 'Main Display', route: '/overlay' },
+            { label: 'One Piece Match', route: '/onepiece-match' },
+            { label: 'Deck List', route: '/decklist' }
+        ],
+        deck: {
+            // Leader (1) headlines the deck (sets colors + Life). Main deck =
+            // Characters + Events + Stages (50). The DON!! deck (10) is uniform and
+            // not built from these categories, so it is intentionally not listed.
+            categories: ['Leader', 'Characters', 'Events', 'Stages'],
+            categorize: (card) => onePieceCategoryFromType(card.card_type),
+            rules: { main: 50, leader: 1, copyLimit: 4 },
+            // Label-only by default; an opt-in legality filter can use the banlist later.
+            formats: ['Standard', 'Unlimited'],
+            // Official restricted list snapshot. Seeded empty; fill from the Bandai
+            // B&R list (en.onepiece-cardgame.com/rules/restriction). bannedPairs is a
+            // list of [cardA, cardB] that cannot share a deck (a validation warning).
+            banlist: {
+                Standard: { banned: [], restricted: [], bannedPairs: [] },
+                Unlimited: { banned: [], restricted: [], bannedPairs: [] }
+            }
+        },
+        searchMeta: (card) => {
+            const has = (v) => v !== undefined && v !== null && v !== '';
+            const parts = [];
+            if (has(card.op_power)) parts.push(`Power ${card.op_power}`);
+            if (has(card.cost)) parts.push(`Cost ${card.cost}`);
+            if (parts.length) return parts.join(' / ');
+            return card.colors || card.card_type || '';
+        }
     }
 };
+
+// One Piece card_type -> deck category. Shared by the registry categorize() above
+// and parseOnePieceDeckList in deck-parser.js (single source of truth). DB values
+// are title-case: Leader / Character / Event / Stage.
+function onePieceCategoryFromType(cardType) {
+    const t = (cardType || '').toLowerCase().trim();
+    if (t.includes('leader')) return 'Leader';
+    if (t.includes('event')) return 'Events';
+    if (t.includes('stage')) return 'Stages';
+    return 'Characters'; // Character + fallback
+}
+
+// Split a One Piece color string into its component colors. optcgapi joins
+// multicolor with "/" (e.g. "Green/Red"); older data used a space. Splitting on
+// both keeps the leader-color identity rule correct either way.
+function onePieceColors(colorString) {
+    return String(colorString || '')
+        .split(/[\/\s]+/)
+        .map(c => c.trim())
+        .filter(Boolean);
+}
 
 // Yu-Gi-Oh! card_type -> deck category. Shared by the registry categorize() above
 // and parseYugiohDeckList in deck-parser.js (single source of truth). Extra-Deck
@@ -346,6 +404,8 @@ if (typeof window !== 'undefined') {
     window.getDeckCardNameSet = getDeckCardNameSet;
     window.gundamCategoryFromType = gundamCategoryFromType;
     window.yugiohCategoryFromType = yugiohCategoryFromType;
+    window.onePieceCategoryFromType = onePieceCategoryFromType;
+    window.onePieceColors = onePieceColors;
 }
 
 // Allow Node (tests/tooling) to require the registry + deck helpers.
@@ -354,6 +414,6 @@ if (typeof module !== 'undefined' && module.exports) {
         GAME_REGISTRY, getGameConfig,
         getDeckCategories, getDeckCategoryArray, getDeckSectionNames,
         deckCardCount, deckToText, getDeckCardNameSet, gundamCategoryFromType,
-        yugiohCategoryFromType
+        yugiohCategoryFromType, onePieceCategoryFromType, onePieceColors
     };
 }

@@ -612,6 +612,14 @@ app.get('/yugioh-match-control', (req, res) => {
     res.sendFile(path.join(__dirname, 'yugioh-match-control.html'));
 });
 
+app.get('/onepiece-match', (req, res) => {
+    res.sendFile(path.join(__dirname, 'overlays', 'onepiece-match.html'));
+});
+
+app.get('/onepiece-match-control', (req, res) => {
+    res.sendFile(path.join(__dirname, 'onepiece-match-control.html'));
+});
+
 // Main card-display overlay (dual card display controlled from the dashboard)
 app.get('/overlay', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'main.html'));
@@ -638,7 +646,8 @@ let overlayStates = {
     'main': false,
     'mtg-match': false,
     'gundam-match': false,
-    'yugioh-match': false
+    'yugioh-match': false,
+    'onepiece-match': false
 };
 
 // Socket.io events
@@ -696,6 +705,16 @@ io.on('connection', (socket) => {
                 currentPhase: state.yugiohMatch.currentPhase,
                 gameNumber: state.yugiohMatch.gameNumber,
                 matchFormat: state.yugiohMatch.matchFormat
+            });
+        } else if (type === 'onepiece-match') {
+            socket.emit('onepiece-match-state', state.onePieceMatch);
+            // Also send as update so a freshly-loaded overlay renders immediately
+            socket.emit('onepiece-match-update', {
+                player1: state.onePieceMatch.player1,
+                player2: state.onePieceMatch.player2,
+                currentTurn: state.onePieceMatch.currentTurn,
+                gameNumber: state.onePieceMatch.gameNumber,
+                matchFormat: state.onePieceMatch.matchFormat
             });
         }
     });
@@ -767,6 +786,15 @@ io.on('connection', (socket) => {
                 currentPhase: state.yugiohMatch.currentPhase,
                 gameNumber: state.yugiohMatch.gameNumber,
                 matchFormat: state.yugiohMatch.matchFormat
+            });
+        } else if (type === 'onepiece-match') {
+            socket.emit('onepiece-match-state', state.onePieceMatch);
+            socket.emit('onepiece-match-update', {
+                player1: state.onePieceMatch.player1,
+                player2: state.onePieceMatch.player2,
+                currentTurn: state.onePieceMatch.currentTurn,
+                gameNumber: state.onePieceMatch.gameNumber,
+                matchFormat: state.onePieceMatch.matchFormat
             });
         }
     });
@@ -1134,6 +1162,65 @@ io.on('connection', (socket) => {
         io.emit('toggle-yugioh-match', data);
     });
 
+    // One Piece Match events (the overlay-server mutators re-broadcast to overlays)
+    socket.on('onepiece-match-update', (data) => {
+        overlayServer.updateOnePieceMatch(data);
+    });
+
+    socket.on('onepiece-leader-update', (data) => {
+        overlayServer.setOnePieceLeader(data.player, data.leader, data.seedLife !== false);
+    });
+
+    socket.on('onepiece-life-total', (data) => {
+        overlayServer.setOnePieceLifeTotal(data.player, data.total);
+    });
+
+    socket.on('onepiece-life-taken', (data) => {
+        if (Array.isArray(data.taken)) overlayServer.setOnePieceLife(data.player, data.taken);
+        else overlayServer.takeOnePieceLife(data.player, data.index);
+    });
+
+    socket.on('onepiece-life-reset', () => {
+        overlayServer.resetOnePieceLife();
+    });
+
+    socket.on('onepiece-don-update', (data) => {
+        overlayServer.setOnePieceDon(data.player, data.don);
+    });
+
+    socket.on('onepiece-character-update', (data) => {
+        overlayServer.setOnePieceCharacter(data.player, data.index, data.character);
+    });
+
+    socket.on('onepiece-character-power', (data) => {
+        overlayServer.setOnePieceCharacterPower(data.player, data.index, data.power);
+    });
+
+    socket.on('onepiece-don-attach', (data) => {
+        overlayServer.setOnePieceDonAttach(data.player, data.index, data.donAttached);
+    });
+
+    socket.on('onepiece-stage-update', (data) => {
+        overlayServer.setOnePieceStage(data.player, data.stage);
+    });
+
+    socket.on('onepiece-record-update', (data) => {
+        overlayServer.updateOnePieceRecord(data.player, data.record);
+    });
+
+    socket.on('onepiece-games-won-update', (data) => {
+        overlayServer.updateOnePieceGamesWon(data.player, data.gamesWon);
+    });
+
+    socket.on('onepiece-match-reset', () => {
+        overlayServer.resetOnePieceMatch();
+    });
+
+    socket.on('toggle-onepiece-match', (data) => {
+        console.log('Toggle one piece match overlay:', data.show);
+        io.emit('toggle-onepiece-match', data);
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
@@ -1156,6 +1243,7 @@ io.on('connection', (socket) => {
             io.emit('overlay-disconnected', 'mtg-match');
             io.emit('overlay-disconnected', 'gundam-match');
             io.emit('overlay-disconnected', 'yugioh-match');
+            io.emit('overlay-disconnected', 'onepiece-match');
             
             // If no more overlays are connected, notify main clients
             if (overlayClients.size === 0) {
@@ -1199,12 +1287,14 @@ OBS Overlays:
   - MTG Match: http://localhost:${PORT}/mtg-match
   - Gundam Match: http://localhost:${PORT}/gundam-match
   - Yu-Gi-Oh Match: http://localhost:${PORT}/yugioh-match
+  - One Piece Match: http://localhost:${PORT}/onepiece-match
 
 Control Panels:
   - Pokemon: http://localhost:${PORT}/pokemon-match-control
   - MTG: http://localhost:${PORT}/mtg-match-control
   - Gundam: http://localhost:${PORT}/gundam-match-control
   - Yu-Gi-Oh: http://localhost:${PORT}/yugioh-match-control
+  - One Piece: http://localhost:${PORT}/onepiece-match-control
 
 Currently Available:
   ✓ Pokemon TCG (20,000+ cards)

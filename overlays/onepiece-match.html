@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>CardCast - One Piece Match Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            width: 1920px;
+            height: 1080px;
+            background: transparent;
+            font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Player boards - vertical panels on the sides */
+        .player-board {
+            position: absolute;
+            width: 390px;
+            height: 1000px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            top: 50%;
+            opacity: 0;
+            transition: all 0.5s ease;
+        }
+        .player-board.left { left: 20px; transform: translateX(-430px) translateY(-50%); }
+        .player-board.left.active { transform: translateX(0) translateY(-50%); }
+        .player-board.right { right: 20px; transform: translateX(430px) translateY(-50%); }
+        .player-board.right.active { transform: translateX(0) translateY(-50%); }
+        .player-board.active { opacity: 1; }
+
+        .panel {
+            background: linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(20,20,30,0.95) 100%);
+            border: 2px solid #6366f1;
+            border-radius: 12px;
+            padding: 11px;
+            backdrop-filter: blur(10px);
+        }
+        .player-board.right .panel { border-color: #ef4444; }
+        .panel.soft { border-color: rgba(99,102,241,0.5); }
+        .player-board.right .panel.soft { border-color: rgba(239,68,68,0.5); }
+
+        .section-title {
+            font-size: 12px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        /* Header */
+        .player-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .player-name {
+            font-size: 22px; font-weight: 800; color: #fff;
+            text-transform: uppercase; letter-spacing: 1.2px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+        }
+        .player-record {
+            font-size: 15px; color: #94a3b8; font-weight: 700;
+            background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+        }
+        .games-won {
+            background: rgba(16,185,129,0.2); border: 2px solid #10b981; color: #10b981;
+            padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; text-align: center;
+        }
+
+        /* Featured Leader */
+        .leader-slot { display: flex; gap: 11px; align-items: center; min-height: 96px; }
+        .leader-art { width: 68px; aspect-ratio: 5/7; object-fit: cover; border-radius: 6px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
+        .leader-empty {
+            width: 68px; aspect-ratio: 5/7; border: 2px dashed rgba(255,255,255,0.15); border-radius: 6px;
+            display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; text-align: center; flex-shrink: 0;
+        }
+        .leader-info { flex: 1; min-width: 0; }
+        .leader-name { color: #fff; font-size: 16px; font-weight: 800; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .leader-none { color: #64748b; font-size: 13px; }
+        .leader-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .power-chip {
+            background: linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(30,27,75,0.5) 100%);
+            border: 1px solid rgba(99,102,241,0.9); color: #e0e7ff;
+            font-size: 15px; font-weight: 800; padding: 3px 10px; border-radius: 6px;
+        }
+        .player-board.right .power-chip { border-color: rgba(239,68,68,0.9); background: linear-gradient(135deg, rgba(239,68,68,0.25) 0%, rgba(75,20,20,0.5) 100%); }
+        .color-dots { display: flex; gap: 4px; }
+        .color-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.4); box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+
+        /* Life pip-track (variable length, seeded from leader) */
+        .life-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+        .life-pip {
+            width: 30px; height: 44px;
+            background: linear-gradient(135deg, #3b4cca 0%, #1a237e 100%);
+            border: 2px solid #6366f1; border-radius: 5px;
+            position: relative; box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .player-board.right .life-pip { border-color: #ef4444; background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%); }
+        .life-pip::before {
+            content: ''; position: absolute; width: 14px; height: 14px;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%); border-radius: 50%;
+        }
+        .life-pip.taken { opacity: 0.2; background: #1a1a1a; border-color: #333; box-shadow: none; }
+        .life-pip.taken::after { content: '\2715'; font-size: 18px; color: #ef4444; font-weight: bold; }
+        .life-count { text-align: center; margin-top: 6px; font-size: 13px; color: #cbd5e1; font-weight: 700; }
+        .life-count .rem { color: #fff; }
+
+        /* DON!! counter (X/10 active + rested) */
+        .don-head { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin-bottom: 8px; }
+        .don-active { font-size: 32px; font-weight: 800; color: #fbbf24; font-family: 'Inter', monospace; text-shadow: 0 0 14px rgba(251,191,36,0.4); }
+        .don-max { font-size: 20px; font-weight: 700; color: #64748b; }
+        .don-rested-label { font-size: 12px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .don-track { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+        .don-pip { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); }
+        .don-pip.active { background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b); border-color: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.5); }
+        .don-pip.rested { background: #6b5524; border-color: #8a6d2f; opacity: 0.65; }
+
+        /* Character Area: row of up to 5 */
+        .chars-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+        .char-cell {
+            position: relative; aspect-ratio: 5/7;
+            background: rgba(255,255,255,0.04);
+            border: 2px solid rgba(255,255,255,0.1); border-radius: 6px;
+            overflow: hidden;
+        }
+        .char-cell.empty { border-style: dashed; }
+        .char-cell img.char-art { width: 100%; height: 100%; object-fit: cover; }
+        .char-power {
+            position: absolute; top: 3px; left: 3px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(30,27,75,0.92) 100%);
+            border: 1px solid rgba(99,102,241,0.9); color: #e0e7ff;
+            font-size: 11px; font-weight: 800; padding: 1px 5px; border-radius: 5px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
+        .player-board.right .char-power { border-color: rgba(239,68,68,0.9); }
+        .char-power .boost { color: #fbbf24; font-size: 9px; }
+        .counter-chip {
+            position: absolute; top: 3px; right: 3px;
+            background: rgba(0,0,0,0.85); border: 1px solid rgba(56,189,248,0.8); color: #bae6fd;
+            font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 4px;
+        }
+        .char-don-row {
+            position: absolute; bottom: 3px; left: 0; right: 0;
+            display: flex; gap: 2px; justify-content: center;
+        }
+        .char-don { width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b); border: 1px solid #fbbf24; box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+
+        /* Stage slot */
+        .stage-slot { display: flex; gap: 9px; align-items: center; min-height: 64px; }
+        .stage-art { width: 48px; aspect-ratio: 5/7; object-fit: cover; border-radius: 5px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
+        .stage-empty {
+            width: 48px; aspect-ratio: 5/7; border: 2px dashed rgba(255,255,255,0.15); border-radius: 5px;
+            display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 9px; text-align: center; flex-shrink: 0;
+        }
+        .stage-info { flex: 1; min-width: 0; }
+        .stage-name { color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .stage-none { color: #64748b; font-size: 12px; }
+
+        /* Shared match-info bar */
+        .match-info {
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(0,0,0,0.98) 0%, rgba(20,20,30,0.98) 100%);
+            border: 2px solid #6366f1; border-radius: 12px; padding: 14px 30px;
+            display: flex; align-items: center; gap: 25px; backdrop-filter: blur(10px);
+            opacity: 0; transition: all 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+        .match-info.active { opacity: 1; }
+        .match-format { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+        .timer { font-size: 36px; font-weight: bold; color: #00d4ff; font-family: 'Courier New', monospace; text-shadow: 0 0 15px rgba(0,212,255,0.5); }
+        .turn-indicator {
+            padding: 8px 16px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            border-radius: 24px; color: #fff; font-weight: bold; font-size: 14px;
+            text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <!-- Player 1 (Left) -->
+    <div class="player-board left" id="player1Board">
+        <div class="panel">
+            <div class="player-name-row">
+                <div class="player-name" id="p1Name">Player 1</div>
+                <div class="player-record" id="p1Record">0-0-0</div>
+            </div>
+            <div class="games-won" id="p1GamesWon">Games Won: 0</div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Leader</div>
+            <div class="leader-slot" id="p1Leader"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Life</div>
+            <div class="life-row" id="p1Life"></div>
+            <div class="life-count" id="p1LifeCount"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">DON!!</div>
+            <div class="don-head">
+                <span class="don-active" id="p1DonActive">0</span>
+                <span class="don-max" id="p1DonMax">/10</span>
+                <span class="don-rested-label" id="p1DonRested">0 rested</span>
+            </div>
+            <div class="don-track" id="p1DonTrack"></div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Character Area</div>
+            <div class="chars-grid" id="p1Chars"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Stage</div>
+            <div class="stage-slot" id="p1Stage"></div>
+        </div>
+    </div>
+
+    <!-- Player 2 (Right) -->
+    <div class="player-board right" id="player2Board">
+        <div class="panel">
+            <div class="player-name-row">
+                <div class="player-name" id="p2Name">Player 2</div>
+                <div class="player-record" id="p2Record">0-0-0</div>
+            </div>
+            <div class="games-won" id="p2GamesWon">Games Won: 0</div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Leader</div>
+            <div class="leader-slot" id="p2Leader"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Life</div>
+            <div class="life-row" id="p2Life"></div>
+            <div class="life-count" id="p2LifeCount"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">DON!!</div>
+            <div class="don-head">
+                <span class="don-active" id="p2DonActive">0</span>
+                <span class="don-max" id="p2DonMax">/10</span>
+                <span class="don-rested-label" id="p2DonRested">0 rested</span>
+            </div>
+            <div class="don-track" id="p2DonTrack"></div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Character Area</div>
+            <div class="chars-grid" id="p2Chars"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Stage</div>
+            <div class="stage-slot" id="p2Stage"></div>
+        </div>
+    </div>
+
+    <!-- Shared match-info bar -->
+    <div class="match-info" id="matchInfo">
+        <div class="match-format" id="matchFormat">BEST OF 3 &bull; GAME 1</div>
+        <div class="timer" id="matchTimer">50:00</div>
+        <div class="turn-indicator" id="turnIndicator">Player 1's Turn</div>
+    </div>
+
+    <script>
+        const socket = io('http://localhost:3888');
+
+        // Map One Piece color names to swatch hex for the Leader color dots.
+        const OP_COLOR_HEX = { red: '#ef4444', green: '#22c55e', blue: '#3b82f6', purple: '#a855f7', black: '#374151', yellow: '#eab308' };
+        function colorList(colors) {
+            return String(colors || '').split(/[\/\s]+/).map(c => c.trim()).filter(Boolean);
+        }
+
+        // Self-contained card back (no asset dependency) - broken-image fallback.
+        const CARD_BACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 59 86">' +
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+            '<stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#0b1220"/></linearGradient></defs>' +
+            '<rect width="59" height="86" rx="5" fill="url(#g)"/>' +
+            '<rect x="4" y="4" width="51" height="78" rx="4" fill="none" stroke="#6366f1" stroke-width="1.5"/>' +
+            '<text x="29.5" y="48" font-family="sans-serif" font-size="11" fill="#93a5ff" text-anchor="middle">OP</text></svg>');
+        window.CARD_BACK = CARD_BACK;
+
+        function freshPlayer(name) {
+            return {
+                name, record: { wins: 0, losses: 0, ties: 0 }, gamesWon: 0,
+                leader: null,
+                life: { total: 4, taken: [] },
+                don: { active: 0, rested: 0, max: 10 },
+                characters: [null, null, null, null, null],
+                stage: null
+            };
+        }
+
+        let matchState = {
+            player1: freshPlayer('Player 1'),
+            player2: freshPlayer('Player 2'),
+            currentTurn: 1,
+            timer: { minutes: 50, seconds: 0 },
+            timerDuration: { minutes: 50, seconds: 0 },
+            timerInterval: null,
+            gameNumber: 1,
+            matchFormat: 'Best of 3',
+            visible: false
+        };
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+
+        // ---- Socket handlers ----
+        socket.on('onepiece-match-state', (state) => { if (state) { applyFullState(state); updateDisplay(); } });
+
+        socket.on('onepiece-match-update', (data) => {
+            if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
+            if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
+            if (data.currentTurn !== undefined) matchState.currentTurn = data.currentTurn;
+            if (data.gameNumber !== undefined) matchState.gameNumber = data.gameNumber;
+            if (data.matchFormat !== undefined) matchState.matchFormat = data.matchFormat;
+            updateDisplay();
+        });
+
+        socket.on('onepiece-leader-update', (d) => {
+            const p = matchState[`player${d.player}`];
+            p.leader = d.leader;
+            if (d.life) p.life = d.life;
+            renderLeader(d.player); renderLife(d.player);
+        });
+        socket.on('onepiece-life-total', (d) => {
+            const p = matchState[`player${d.player}`];
+            p.life.total = d.total;
+            if (Array.isArray(d.taken)) p.life.taken = d.taken;
+            renderLife(d.player);
+        });
+        socket.on('onepiece-life-taken', (d) => {
+            const p = matchState[`player${d.player}`];
+            if (Array.isArray(d.taken)) p.life.taken = d.taken;
+            if (d.total !== undefined) p.life.total = d.total;
+            renderLife(d.player);
+        });
+        socket.on('onepiece-life-reset', (d) => {
+            if (d.player1) matchState.player1.life = d.player1;
+            if (d.player2) matchState.player2.life = d.player2;
+            renderLife(1); renderLife(2);
+        });
+        socket.on('onepiece-don-update', (d) => { matchState[`player${d.player}`].don = d.don; renderDon(d.player); });
+        socket.on('onepiece-character-update', (d) => { matchState[`player${d.player}`].characters[d.index] = d.character; renderChars(d.player); });
+        socket.on('onepiece-character-power', (d) => {
+            const c = matchState[`player${d.player}`].characters[d.index];
+            if (c) { c.power = d.power; renderChars(d.player); }
+        });
+        socket.on('onepiece-don-attach', (d) => {
+            const c = matchState[`player${d.player}`].characters[d.index];
+            if (c) { c.donAttached = d.donAttached; renderChars(d.player); }
+        });
+        socket.on('onepiece-stage-update', (d) => { matchState[`player${d.player}`].stage = d.stage; renderStage(d.player); });
+        socket.on('onepiece-record-update', (d) => { matchState[`player${d.player}`].record = d.record; renderHeader(d.player); updateMatchInfo(); });
+        socket.on('onepiece-games-won-update', (d) => { matchState[`player${d.player}`].gamesWon = d.gamesWon; renderHeader(d.player); });
+
+        socket.on('onepiece-match-reset', () => {
+            const wasVisible = matchState.visible;
+            const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            matchState = {
+                player1: freshPlayer('Player 1'), player2: freshPlayer('Player 2'),
+                currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
+                timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: 'Best of 3', visible: wasVisible
+            };
+            updateDisplay();
+        });
+
+        socket.on('toggle-onepiece-match', (d) => { matchState.visible = d.show; d.show ? showOverlay() : hideOverlay(); });
+
+        // Reused global match events
+        socket.on('turn-switch', (d) => { if (d && d.currentTurn) matchState.currentTurn = d.currentTurn; updateMatchInfo(); });
+        socket.on('match-settings', (d) => { if (d.gameNumber) matchState.gameNumber = d.gameNumber; if (d.matchFormat) matchState.matchFormat = d.matchFormat; updateMatchInfo(); });
+        socket.on('timer-start', startTimer);
+        socket.on('timer-pause', pauseTimer);
+        socket.on('timer-reset', (d) => {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            if (d && typeof d.minutes === 'number') matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds || 0 };
+            const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
+            matchState.timer = { minutes: dur.minutes, seconds: dur.seconds };
+            updateMatchInfo();
+        });
+        socket.on('timer-set', (d) => {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds };
+            matchState.timer = { minutes: d.minutes, seconds: d.seconds };
+            updateMatchInfo();
+        });
+
+        function applyFullState(s) {
+            ['player1', 'player2'].forEach(k => {
+                if (s[k]) matchState[k] = { ...freshPlayer(s[k].name || (k === 'player1' ? 'Player 1' : 'Player 2')), ...s[k] };
+            });
+            if (s.currentTurn !== undefined) matchState.currentTurn = s.currentTurn;
+            if (s.gameNumber !== undefined) matchState.gameNumber = s.gameNumber;
+            if (s.matchFormat !== undefined) matchState.matchFormat = s.matchFormat;
+            if (s.timer) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
+        }
+
+        // ---- Rendering ----
+        function updateDisplay() {
+            [1, 2].forEach(n => { renderHeader(n); renderLeader(n); renderLife(n); renderDon(n); renderChars(n); renderStage(n); });
+            updateMatchInfo();
+        }
+
+        function renderHeader(n) {
+            const p = matchState[`player${n}`];
+            document.getElementById(`p${n}Name`).textContent = p.name || `Player ${n}`;
+            const r = p.record || { wins: 0, losses: 0, ties: 0 };
+            document.getElementById(`p${n}Record`).textContent = `${r.wins}-${r.losses}-${r.ties}`;
+            document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${p.gamesWon || 0}`;
+        }
+
+        function renderLeader(n) {
+            const l = matchState[`player${n}`].leader;
+            const el = document.getElementById(`p${n}Leader`);
+            if (!l) {
+                el.innerHTML = '<div class="leader-empty">No Leader</div><div class="leader-info"><div class="leader-none">No Leader selected</div></div>';
+                return;
+            }
+            const dots = colorList(l.colors).map(c =>
+                `<span class="color-dot" style="background:${OP_COLOR_HEX[c.toLowerCase()] || '#94a3b8'}" title="${esc(c)}"></span>`).join('');
+            const power = (l.power != null && l.power !== '') ? `<span class="power-chip">${esc(l.power)}</span>` : '';
+            el.innerHTML = `
+                ${l.image ? `<img class="leader-art" src="${esc(l.image)}" alt="${esc(l.name)}" onerror="this.src=window.CARD_BACK">` : '<div class="leader-empty">Leader</div>'}
+                <div class="leader-info">
+                    <div class="leader-name">${esc(l.name)}</div>
+                    <div class="leader-meta">${power}<span class="color-dots">${dots}</span></div>
+                </div>`;
+        }
+
+        function renderLife(n) {
+            const life = matchState[`player${n}`].life || { total: 4, taken: [] };
+            const total = life.total || 0;
+            const taken = life.taken || [];
+            let html = '';
+            for (let i = 0; i < total; i++) html += `<div class="life-pip${taken.includes(i) ? ' taken' : ''}"></div>`;
+            document.getElementById(`p${n}Life`).innerHTML = html;
+            const remaining = Math.max(0, total - taken.length);
+            document.getElementById(`p${n}LifeCount`).innerHTML = `<span class="rem">${remaining}</span> / ${total} Life`;
+        }
+
+        function renderDon(n) {
+            const don = matchState[`player${n}`].don || { active: 0, rested: 0, max: 10 };
+            const active = don.active || 0;
+            const rested = don.rested || 0;
+            const max = don.max || 10;
+            document.getElementById(`p${n}DonActive`).textContent = active;
+            document.getElementById(`p${n}DonMax`).textContent = `/${max}`;
+            document.getElementById(`p${n}DonRested`).textContent = `${rested} rested`;
+            let html = '';
+            for (let i = 0; i < max; i++) {
+                let cls = '';
+                if (i < active) cls = 'active';
+                else if (i < active + rested) cls = 'rested';
+                html += `<div class="don-pip ${cls}"></div>`;
+            }
+            document.getElementById(`p${n}DonTrack`).innerHTML = html;
+        }
+
+        function renderChars(n) {
+            const p = matchState[`player${n}`];
+            const grid = document.getElementById(`p${n}Chars`);
+            let html = '';
+            for (let i = 0; i < 5; i++) {
+                const c = p.characters[i];
+                if (!c) { html += '<div class="char-cell empty"></div>'; continue; }
+                const base = (c.power != null && c.power !== '') ? parseInt(c.power) || 0 : 0;
+                const don = c.donAttached || 0;
+                const total = base + don * 1000;
+                const boost = don > 0 ? `<span class="boost"> +${don * 1000}</span>` : '';
+                const counter = (c.counter != null && c.counter !== '') ? `<div class="counter-chip">C ${esc(c.counter)}</div>` : '';
+                let dons = '';
+                for (let d = 0; d < don; d++) dons += '<span class="char-don"></span>';
+                html += `
+                    <div class="char-cell">
+                        <img class="char-art" src="${esc(c.image)}" alt="${esc(c.name)}" onerror="this.src=window.CARD_BACK">
+                        <div class="char-power">${total}${boost}</div>
+                        ${counter}
+                        ${don > 0 ? `<div class="char-don-row">${dons}</div>` : ''}
+                    </div>`;
+            }
+            grid.innerHTML = html;
+        }
+
+        function renderStage(n) {
+            const s = matchState[`player${n}`].stage;
+            const el = document.getElementById(`p${n}Stage`);
+            if (!s) { el.innerHTML = '<div class="stage-empty">No Stage</div><div class="stage-info"><div class="stage-none">No Stage in play</div></div>'; return; }
+            el.innerHTML = `
+                ${s.image ? `<img class="stage-art" src="${esc(s.image)}" alt="${esc(s.name)}" onerror="this.src=window.CARD_BACK">` : '<div class="stage-empty">Stage</div>'}
+                <div class="stage-info"><div class="stage-name">${esc(s.name)}</div></div>`;
+        }
+
+        function updateMatchInfo() {
+            document.getElementById('matchTimer').textContent =
+                `${String(matchState.timer.minutes).padStart(2, '0')}:${String(matchState.timer.seconds).padStart(2, '0')}`;
+            const name = matchState[`player${matchState.currentTurn}`].name;
+            document.getElementById('turnIndicator').textContent = `${name}'s Turn`;
+            document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber}`;
+        }
+
+        function startTimer() {
+            if (matchState.timerInterval) return;
+            matchState.timerInterval = setInterval(() => {
+                if (matchState.timer.seconds > 0) matchState.timer.seconds--;
+                else if (matchState.timer.minutes > 0) { matchState.timer.minutes--; matchState.timer.seconds = 59; }
+                else { pauseTimer(); }
+                updateMatchInfo();
+            }, 1000);
+        }
+        function pauseTimer() {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+        }
+
+        function showOverlay() {
+            document.getElementById('player1Board').classList.add('active');
+            document.getElementById('player2Board').classList.add('active');
+            document.getElementById('matchInfo').classList.add('active');
+        }
+        function hideOverlay() {
+            document.getElementById('player1Board').classList.remove('active');
+            document.getElementById('player2Board').classList.remove('active');
+            document.getElementById('matchInfo').classList.remove('active');
+        }
+
+        // Init
+        updateDisplay();
+        socket.emit('register-overlay', 'onepiece-match');
+        setTimeout(() => { socket.emit('request-state', 'onepiece-match'); showOverlay(); }, 500);
+        setInterval(() => socket.emit('register-overlay', 'onepiece-match'), 5000);
+    </script>
+</body>
+</html>

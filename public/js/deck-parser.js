@@ -1,7 +1,8 @@
 /**
  * CardCast Deck Parser
  * Handles deck list parsing for multiple TCGs
- * Supports: Pokemon TCG, Magic: The Gathering, Gundam Card Game, Yu-Gi-Oh!
+ * Supports: Pokemon TCG, Magic: The Gathering, Gundam Card Game, Yu-Gi-Oh!,
+ * One Piece Card Game
  */
 
 /**
@@ -33,6 +34,11 @@ async function parseDeckList(text) {
         const cats = result.categories || {};
         console.log('Yugioh Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
         return result;
+    } else if (gameType === 'onepiece') {
+        const result = await parseOnePieceDeckList(lines);
+        const cats = result.categories || {};
+        console.log('One Piece Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
+        return result;
     } else {
         return parsePokemonDeckList(lines);
     }
@@ -44,6 +50,15 @@ async function parseDeckList(text) {
  * @returns {string} 'magic' or 'pokemon'
  */
 function detectGameType(text) {
+    // One Piece: card-number tokens. OP / PRB prefixes are unique to One Piece;
+    // ST / EB / EX are SHARED with Gundam, so One Piece is checked first on its
+    // unambiguous OP/PRB token. A real OP export always carries the OP-prefixed
+    // Leader, so this routes correctly; a pure Gundam deck has no OP/PRB token and
+    // falls through to the Gundam branch below.
+    if (/\b(?:OP|PRB)\d{2}-\d{3}/i.test(text)) {
+        return 'onepiece';
+    }
+
     // Gundam: card-number tokens like GD01-001 / ST01-012 / EB01-003 / EX01-001,
     // or a "Resource Deck" section header (builder exports). Checked first because
     // the GDxx-NNN token is unambiguous.
@@ -557,6 +572,139 @@ async function parseYugiohDeckList(lines) {
     return deck;
 }
 
+/**
+ * One Piece card_type -> deck category. Prefers the shared registry function
+ * (single source of truth); inlined fallback keeps the parser self-contained.
+ */
+function onePieceCategory(cardType) {
+    if (typeof window !== 'undefined' && typeof window.onePieceCategoryFromType === 'function') {
+        return window.onePieceCategoryFromType(cardType);
+    }
+    const t = (cardType || '').toLowerCase().trim();
+    if (t.includes('leader')) return 'Leader';
+    if (t.includes('event')) return 'Events';
+    if (t.includes('stage')) return 'Stages';
+    return 'Characters';
+}
+
+/**
+ * Resolve a One Piece deck-list token to a DB card via the local search endpoint
+ * (no new external calls). search_text includes the card_number, so a number
+ * lookup like "OP01-001" resolves exactly; names fall back to a name match.
+ * @param {{number?: string, name?: string}} token
+ * @returns {Promise<Object|null>} the matched card row, or null
+ */
+async function resolveOnePieceCard(token) {
+    const q = token.number || token.name;
+    if (!q) return null;
+    try {
+        const res = await fetch(`/api/search/onepiece?q=${encodeURIComponent(q)}`);
+        if (!res.ok) return null;
+        const results = await res.json();
+        if (!Array.isArray(results) || results.length === 0) return null;
+
+        if (token.number) {
+            const want = token.number.toUpperCase();
+            const exact = results.find(c => (c.card_number || '').toUpperCase() === want);
+            if (exact) return exact;
+        }
+        if (token.name) {
+            const want = token.name.toLowerCase();
+            const exact = results.find(c => (c.name || '').toLowerCase() === want);
+            if (exact) return exact;
+        }
+        return results[0];
+    } catch (e) {
+        console.error('One Piece resolve error for', q, e);
+        return null;
+    }
+}
+
+/**
+ * Parse a One Piece deck list (ExBurst / EGMAN / onepiece.gg / official sim
+ * exports). Card-number-keyed and tolerant: each non-header line is matched for a
+ * leading quantity and an OP/ST/EB/EX/PRB-style number token, resolved against the
+ * DB, and bucketed by its card_type. The single Leader becomes deck.leader (it
+ * sets the deck colors + starting Life). Lines with no number fall back to a name
+ * lookup. The uniform 10-card DON!! deck is not represented in the categories.
+ * @param {Array<string>} lines
+ * @returns {Promise<Object>} { game:'onepiece', leader, categories: { Leader, Characters, Events, Stages } }
+ */
+async function parseOnePieceDeckList(lines) {
+    const deck = { game: 'onepiece', leader: null, categories: { Leader: [], Characters: [], Events: [], Stages: [] } };
+
+    const QTY = /^(\d+)\s*x?\s+/i;
+    const NUM = /([A-Z]{2,4}\d{2}-\d{3}[A-Za-z0-9_]*)/;
+    const HEADER = /^(leader|character|characters|event|events|stage|stages|don|don deck|main deck|deck|total cards|total|cards)\s*:?\s*\d*\s*$/i;
+
+    for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+        if (line.startsWith('//') || line.startsWith('#')) continue;
+        if (HEADER.test(line)) continue;
+
+        const qtyM = line.match(QTY);
+        const quantity = qtyM ? parseInt(qtyM[1], 10) : 1;
+
+        const numM = line.match(NUM);
+
+        // The uniform 10-card DON!! deck is not part of the main-deck categories.
+        // Real cards always carry an OP/ST/EB-style number; a numberless "DON!!"
+        // line (e.g. "10 DON!! card" or "DON!! x10") is the DON deck - skip it so a
+        // loose name match can't smuggle it into Characters.
+        if (!numM && /\bdon!!/i.test(line)) continue;
+
+        let resolved = null;
+        if (numM) {
+            resolved = await resolveOnePieceCard({ number: numM[1] });
+        }
+        if (!resolved) {
+            const name = line.replace(QTY, '').replace(NUM, '').replace(/\s+/g, ' ').trim();
+            if (name) resolved = await resolveOnePieceCard({ name });
+        }
+        if (!resolved) continue;
+
+        const category = onePieceCategory(resolved.card_type);
+        if (!deck.categories[category]) deck.categories[category] = [];
+        const bucket = deck.categories[category];
+
+        const number = resolved.card_number || (numM ? numM[1] : '');
+        const image = resolved.display_image || resolved.image_url || resolved.local_image || '';
+        const entry = {
+            quantity,
+            name: resolved.name,
+            setCode: resolved.set_abbreviation || resolved.set_code || '',
+            number,
+            cardType: resolved.card_type || '',
+            colors: resolved.colors || '',
+            image,
+            fullName: `${quantity} ${resolved.name} ${number}`.trim()
+        };
+
+        const existing = bucket.find(c => (number && c.number === number) || c.name === resolved.name);
+        if (existing) {
+            existing.quantity += quantity;
+        } else {
+            bucket.push(entry);
+        }
+
+        // First Leader seen headlines the deck (sets colors + starting Life).
+        if (category === 'Leader' && !deck.leader) {
+            deck.leader = {
+                id: resolved.id,
+                name: resolved.name,
+                number,
+                image,
+                power: resolved.op_power != null ? resolved.op_power : null,
+                life: resolved.life != null ? resolved.life : 4,
+                colors: resolved.colors || ''
+            };
+        }
+    }
+
+    return deck;
+}
+
 // Export functions for use in other files
 if (typeof module !== 'undefined' && module.exports) {
     // Node.js environment
@@ -566,6 +714,7 @@ if (typeof module !== 'undefined' && module.exports) {
         parseMTGDeckList,
         parsePokemonDeckList,
         parseGundamDeckList,
-        parseYugiohDeckList
+        parseYugiohDeckList,
+        parseOnePieceDeckList
     };
 }
