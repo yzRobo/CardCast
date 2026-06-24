@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>CardCast - Yu-Gi-Oh! Match Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            width: 1920px;
+            height: 1080px;
+            background: transparent;
+            font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Player boards - vertical panels on the sides */
+        .player-board {
+            position: absolute;
+            width: 390px;
+            height: 1000px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            top: 50%;
+            opacity: 0;
+            transition: all 0.5s ease;
+        }
+        .player-board.left { left: 20px; transform: translateX(-430px) translateY(-50%); }
+        .player-board.left.active { transform: translateX(0) translateY(-50%); }
+        .player-board.right { right: 20px; transform: translateX(430px) translateY(-50%); }
+        .player-board.right.active { transform: translateX(0) translateY(-50%); }
+        .player-board.active { opacity: 1; }
+
+        .panel {
+            background: linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(20,20,30,0.95) 100%);
+            border: 2px solid #7c3aed;
+            border-radius: 12px;
+            padding: 11px;
+            backdrop-filter: blur(10px);
+        }
+        .player-board.right .panel { border-color: #ef4444; }
+        .panel.soft { border-color: rgba(124,58,237,0.5); }
+        .player-board.right .panel.soft { border-color: rgba(239,68,68,0.5); }
+
+        .section-title {
+            font-size: 12px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        /* Header */
+        .player-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .player-name {
+            font-size: 22px; font-weight: 800; color: #fff;
+            text-transform: uppercase; letter-spacing: 1.2px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+        }
+        .player-record {
+            font-size: 15px; color: #94a3b8; font-weight: 700;
+            background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+        }
+        .games-won {
+            background: rgba(16,185,129,0.2); border: 2px solid #10b981; color: #10b981;
+            padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; text-align: center;
+        }
+
+        /* Life Points headline */
+        .lp-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .lp-block { text-align: left; }
+        .lp-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
+        .lp-value {
+            font-size: 52px; font-weight: 800; line-height: 1;
+            font-family: 'Inter', monospace; color: #22d3ee;
+            text-shadow: 0 0 18px rgba(34,211,238,0.4);
+        }
+        .lp-value.low { color: #fbbf24; text-shadow: 0 0 18px rgba(251,191,36,0.4); }
+        .lp-value.critical { color: #ef4444; text-shadow: 0 0 18px rgba(239,68,68,0.5); }
+        .ns-flag {
+            display: flex; flex-direction: column; align-items: center; gap: 3px;
+            padding: 6px 12px; border-radius: 10px;
+            background: rgba(0,0,0,0.5); border: 2px solid transparent; transition: all 0.3s ease;
+        }
+        .ns-flag.used { border-color: #f59e0b; background: rgba(245,158,11,0.18); }
+        .ns-label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+        .ns-flag.used .ns-label { color: #fbbf24; }
+        .ns-icon { font-size: 16px; opacity: 0.35; }
+        .ns-flag.used .ns-icon { opacity: 1; }
+
+        /* Card zone rows (Monsters, Spell/Trap) */
+        .zone-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+        .zone-cell {
+            position: relative; aspect-ratio: 59/86;
+            background: rgba(255,255,255,0.04);
+            border: 2px solid rgba(255,255,255,0.1); border-radius: 6px;
+            overflow: hidden;
+        }
+        .zone-cell.empty { border-style: dashed; }
+        .zone-cell img.card-art { width: 100%; height: 100%; object-fit: cover; }
+        /* Defense-position monsters are laid sideways. */
+        .zone-cell.def img.card-art { transform: rotate(90deg) scale(0.7); }
+
+        .pos-badge {
+            position: absolute; top: 3px; left: 3px;
+            font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 4px;
+            text-transform: uppercase; letter-spacing: 0.3px; color: #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+        }
+        .pos-badge.atk { background: #16a34a; }
+        .pos-badge.def { background: #2563eb; }
+        .pos-badge.set { background: #6b7280; }
+
+        .atkdef {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: linear-gradient(180deg, transparent, rgba(0,0,0,0.92) 45%);
+            padding: 12px 3px 3px; display: flex; justify-content: center; gap: 5px;
+        }
+        .ad-chip { font-size: 10px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+        .ad-chip .k { color: #94a3b8; font-weight: 700; }
+        .ad-chip.atk .k { color: #fca5a5; }
+        .ad-chip.def .k { color: #93c5fd; }
+
+        /* Field spell slot */
+        .field-row { display: flex; gap: 9px; align-items: center; min-height: 70px; }
+        .field-art { width: 48px; aspect-ratio: 59/86; object-fit: cover; border-radius: 5px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
+        .field-empty {
+            width: 48px; aspect-ratio: 59/86; border: 2px dashed rgba(255,255,255,0.15); border-radius: 5px;
+            display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 9px; text-align: center; flex-shrink: 0;
+        }
+        .field-info { flex: 1; min-width: 0; }
+        .field-name { color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .field-none { color: #64748b; font-size: 12px; }
+
+        /* Zone counts */
+        .counts-row { display: flex; justify-content: space-between; gap: 5px; }
+        .count-item { flex: 1; text-align: center; background: rgba(0,0,0,0.45); border-radius: 6px; padding: 5px 2px; }
+        .count-label { font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; display: block; }
+        .count-value { font-size: 19px; font-weight: 800; color: #c4b5fd; display: block; }
+        .player-board.right .count-value { color: #fca5a5; }
+
+        /* Shared match-info bar */
+        .match-info {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(0,0,0,0.98) 0%, rgba(20,20,30,0.98) 100%);
+            border: 2px solid #7c3aed; border-radius: 12px; padding: 12px 26px;
+            display: flex; flex-direction: column; align-items: center; gap: 10px; backdrop-filter: blur(10px);
+            opacity: 0; transition: all 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+        .match-info.active { opacity: 1; }
+        .match-info-top { display: flex; align-items: center; gap: 25px; }
+        .match-format { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+        .timer { font-size: 36px; font-weight: bold; color: #00d4ff; font-family: 'Courier New', monospace; text-shadow: 0 0 15px rgba(0,212,255,0.5); }
+        .turn-indicator {
+            padding: 8px 16px; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            border-radius: 24px; color: #fff; font-weight: bold; font-size: 14px;
+            text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(124,58,237,0.4);
+        }
+        /* Phase stepper */
+        .phase-stepper { display: flex; gap: 6px; }
+        .phase-chip {
+            font-size: 11px; font-weight: 700; color: #64748b; padding: 3px 9px; border-radius: 999px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+            text-transform: uppercase; letter-spacing: 0.4px; transition: all 0.2s ease;
+        }
+        .phase-chip.on { color: #fff; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); border-color: #7c3aed; box-shadow: 0 2px 8px rgba(124,58,237,0.5); }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <!-- Player 1 (Left) -->
+    <div class="player-board left" id="player1Board">
+        <div class="panel">
+            <div class="player-name-row">
+                <div class="player-name" id="p1Name">Player 1</div>
+                <div class="player-record" id="p1Record">0-0-0</div>
+            </div>
+            <div class="games-won" id="p1GamesWon">Games Won: 0</div>
+        </div>
+        <div class="panel">
+            <div class="lp-row">
+                <div class="lp-block">
+                    <div class="lp-label">Life Points</div>
+                    <div class="lp-value" id="p1LP">8000</div>
+                </div>
+                <div class="ns-flag" id="p1NS">
+                    <span class="ns-icon">&#9889;</span>
+                    <span class="ns-label">Normal<br>Summon</span>
+                </div>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Monster Zones</div>
+            <div class="zone-row" id="p1Monsters"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Spell / Trap</div>
+            <div class="zone-row" id="p1SpellsTraps"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Field Spell</div>
+            <div class="field-row" id="p1Field"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Zones</div>
+            <div class="counts-row" id="p1Counts"></div>
+        </div>
+    </div>
+
+    <!-- Player 2 (Right) -->
+    <div class="player-board right" id="player2Board">
+        <div class="panel">
+            <div class="player-name-row">
+                <div class="player-name" id="p2Name">Player 2</div>
+                <div class="player-record" id="p2Record">0-0-0</div>
+            </div>
+            <div class="games-won" id="p2GamesWon">Games Won: 0</div>
+        </div>
+        <div class="panel">
+            <div class="lp-row">
+                <div class="lp-block">
+                    <div class="lp-label">Life Points</div>
+                    <div class="lp-value" id="p2LP">8000</div>
+                </div>
+                <div class="ns-flag" id="p2NS">
+                    <span class="ns-icon">&#9889;</span>
+                    <span class="ns-label">Normal<br>Summon</span>
+                </div>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="section-title">Monster Zones</div>
+            <div class="zone-row" id="p2Monsters"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Spell / Trap</div>
+            <div class="zone-row" id="p2SpellsTraps"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Field Spell</div>
+            <div class="field-row" id="p2Field"></div>
+        </div>
+        <div class="panel soft">
+            <div class="section-title">Zones</div>
+            <div class="counts-row" id="p2Counts"></div>
+        </div>
+    </div>
+
+    <!-- Shared match-info bar -->
+    <div class="match-info" id="matchInfo">
+        <div class="match-info-top">
+            <div class="match-format" id="matchFormat">BEST OF 3 &bull; GAME 1</div>
+            <div class="timer" id="matchTimer">40:00</div>
+            <div class="turn-indicator" id="turnIndicator">Player 1's Turn</div>
+        </div>
+        <div class="phase-stepper" id="phaseStepper"></div>
+    </div>
+
+    <script>
+        const socket = io('http://localhost:3888');
+
+        const PHASES = ['Draw', 'Standby', 'Main1', 'Battle', 'Main2', 'End'];
+        // Self-contained card back (no asset dependency) - used for face-down
+        // monsters / set Spell-Traps and as the broken-image fallback.
+        const CARD_BACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 59 86">' +
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+            '<stop offset="0" stop-color="#7c5b2e"/><stop offset="1" stop-color="#3b2a14"/></linearGradient></defs>' +
+            '<rect width="59" height="86" rx="5" fill="url(#g)"/>' +
+            '<rect x="4" y="4" width="51" height="78" rx="4" fill="none" stroke="#caa45a" stroke-width="1.5"/>' +
+            '<circle cx="29.5" cy="43" r="13" fill="none" stroke="#caa45a" stroke-width="1.5"/>' +
+            '<text x="29.5" y="47.5" font-family="serif" font-size="12" fill="#caa45a" text-anchor="middle">YG</text></svg>');
+        window.CARD_BACK = CARD_BACK;
+
+        function freshPlayer(name) {
+            return {
+                name, record: { wins: 0, losses: 0, ties: 0 }, gamesWon: 0,
+                lifePoints: 8000, normalSummonUsed: false,
+                monsters: [null, null, null, null, null],
+                spellsTraps: [null, null, null, null, null],
+                fieldSpell: null,
+                counts: { hand: 0, deck: 0, extra: 0, graveyard: 0, banished: 0 }
+            };
+        }
+
+        let matchState = {
+            player1: freshPlayer('Player 1'),
+            player2: freshPlayer('Player 2'),
+            currentTurn: 1,
+            currentPhase: 'Main1',
+            timer: { minutes: 40, seconds: 0 },
+            timerDuration: { minutes: 40, seconds: 0 },
+            timerInterval: null,
+            gameNumber: 1,
+            matchFormat: 'Best of 3',
+            visible: false
+        };
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+        function lpClass(lp) {
+            if (lp < 1000) return 'critical';
+            if (lp < 4000) return 'low';
+            return '';
+        }
+
+        // ---- Socket handlers ----
+        socket.on('yugioh-match-state', (state) => { if (state) { applyFullState(state); updateDisplay(); } });
+
+        socket.on('yugioh-match-update', (data) => {
+            if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
+            if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
+            if (data.currentTurn !== undefined) matchState.currentTurn = data.currentTurn;
+            if (data.currentPhase !== undefined) matchState.currentPhase = data.currentPhase;
+            if (data.gameNumber !== undefined) matchState.gameNumber = data.gameNumber;
+            if (data.matchFormat !== undefined) matchState.matchFormat = data.matchFormat;
+            updateDisplay();
+        });
+
+        socket.on('yugioh-life-update', (d) => { matchState[`player${d.player}`].lifePoints = d.lifePoints; renderLife(d.player); });
+        socket.on('yugioh-monster-update', (d) => { matchState[`player${d.player}`].monsters[d.index] = d.monster; renderMonsters(d.player); });
+        socket.on('yugioh-monster-position', (d) => {
+            const m = matchState[`player${d.player}`].monsters[d.index];
+            if (m) { m.position = d.position; renderMonsters(d.player); }
+        });
+        socket.on('yugioh-spelltrap-update', (d) => { matchState[`player${d.player}`].spellsTraps[d.index] = d.card; renderSpellsTraps(d.player); });
+        socket.on('yugioh-field-update', (d) => { matchState[`player${d.player}`].fieldSpell = d.field; renderField(d.player); });
+        socket.on('yugioh-counts-update', (d) => { matchState[`player${d.player}`].counts = d.counts; renderCounts(d.player); });
+        socket.on('yugioh-normal-summon', (d) => { matchState[`player${d.player}`].normalSummonUsed = d.used; renderNormalSummon(d.player); });
+        socket.on('yugioh-phase-update', (d) => { matchState.currentPhase = d.phase; renderPhase(); });
+        socket.on('yugioh-record-update', (d) => { matchState[`player${d.player}`].record = d.record; renderHeader(d.player); updateMatchInfo(); });
+        socket.on('yugioh-games-won-update', (d) => { matchState[`player${d.player}`].gamesWon = d.gamesWon; renderHeader(d.player); });
+
+        socket.on('yugioh-match-reset', () => {
+            const wasVisible = matchState.visible;
+            const dur = matchState.timerDuration || { minutes: 40, seconds: 0 };
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            matchState = {
+                player1: freshPlayer('Player 1'), player2: freshPlayer('Player 2'),
+                currentTurn: 1, currentPhase: 'Main1',
+                timer: { minutes: dur.minutes, seconds: dur.seconds },
+                timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: 'Best of 3', visible: wasVisible
+            };
+            updateDisplay();
+        });
+
+        socket.on('toggle-yugioh-match', (d) => { matchState.visible = d.show; d.show ? showOverlay() : hideOverlay(); });
+
+        // Reused global match events
+        socket.on('turn-switch', (d) => { if (d && d.currentTurn) matchState.currentTurn = d.currentTurn; updateMatchInfo(); });
+        socket.on('match-settings', (d) => { if (d.gameNumber) matchState.gameNumber = d.gameNumber; if (d.matchFormat) matchState.matchFormat = d.matchFormat; updateMatchInfo(); });
+        socket.on('timer-start', startTimer);
+        socket.on('timer-pause', pauseTimer);
+        socket.on('timer-reset', (d) => {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            if (d && typeof d.minutes === 'number') matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds || 0 };
+            const dur = matchState.timerDuration || { minutes: 40, seconds: 0 };
+            matchState.timer = { minutes: dur.minutes, seconds: dur.seconds };
+            updateMatchInfo();
+        });
+        socket.on('timer-set', (d) => {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds };
+            matchState.timer = { minutes: d.minutes, seconds: d.seconds };
+            updateMatchInfo();
+        });
+
+        function applyFullState(s) {
+            ['player1', 'player2'].forEach(k => {
+                if (s[k]) matchState[k] = { ...freshPlayer(s[k].name || (k === 'player1' ? 'Player 1' : 'Player 2')), ...s[k] };
+            });
+            if (s.currentTurn !== undefined) matchState.currentTurn = s.currentTurn;
+            if (s.currentPhase !== undefined) matchState.currentPhase = s.currentPhase;
+            if (s.gameNumber !== undefined) matchState.gameNumber = s.gameNumber;
+            if (s.matchFormat !== undefined) matchState.matchFormat = s.matchFormat;
+            if (s.timer) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
+        }
+
+        // ---- Rendering ----
+        function updateDisplay() {
+            [1, 2].forEach(n => { renderHeader(n); renderLife(n); renderNormalSummon(n); renderMonsters(n); renderSpellsTraps(n); renderField(n); renderCounts(n); });
+            updateMatchInfo();
+        }
+
+        function renderHeader(n) {
+            const p = matchState[`player${n}`];
+            document.getElementById(`p${n}Name`).textContent = p.name || `Player ${n}`;
+            const r = p.record || { wins: 0, losses: 0, ties: 0 };
+            document.getElementById(`p${n}Record`).textContent = `${r.wins}-${r.losses}-${r.ties}`;
+            document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${p.gamesWon || 0}`;
+        }
+
+        function renderLife(n) {
+            const p = matchState[`player${n}`];
+            const lp = (p.lifePoints != null ? p.lifePoints : 8000);
+            const el = document.getElementById(`p${n}LP`);
+            el.textContent = lp.toLocaleString('en-US');
+            el.className = `lp-value ${lpClass(lp)}`;
+        }
+
+        function renderNormalSummon(n) {
+            document.getElementById(`p${n}NS`).classList.toggle('used', !!matchState[`player${n}`].normalSummonUsed);
+        }
+
+        function renderMonsters(n) {
+            const p = matchState[`player${n}`];
+            const row = document.getElementById(`p${n}Monsters`);
+            let html = '';
+            for (let i = 0; i < 5; i++) {
+                const m = p.monsters[i];
+                if (!m) { html += '<div class="zone-cell empty"></div>'; continue; }
+                const pos = m.position || 'atk';
+                const faceDown = pos === 'set';
+                const img = faceDown ? CARD_BACK : (m.image || CARD_BACK);
+                const badge = pos === 'def' ? 'DEF' : (pos === 'set' ? 'SET' : 'ATK');
+                const atk = (m.atk != null && m.atk !== '') ? m.atk : '?';
+                const def = (m.def != null && m.def !== '') ? m.def : '?';
+                const stats = faceDown ? '' : `
+                    <div class="atkdef">
+                        <span class="ad-chip atk"><span class="k">ATK</span> ${esc(atk)}</span>
+                        <span class="ad-chip def"><span class="k">DEF</span> ${esc(def)}</span>
+                    </div>`;
+                html += `
+                    <div class="zone-cell ${pos === 'def' ? 'def' : ''}">
+                        <img class="card-art" src="${esc(img)}" alt="${esc(m.name)}" onerror="this.src=window.CARD_BACK">
+                        <span class="pos-badge ${pos}">${badge}</span>
+                        ${stats}
+                    </div>`;
+            }
+            row.innerHTML = html;
+        }
+
+        function renderSpellsTraps(n) {
+            const p = matchState[`player${n}`];
+            const row = document.getElementById(`p${n}SpellsTraps`);
+            let html = '';
+            for (let i = 0; i < 5; i++) {
+                const c = p.spellsTraps[i];
+                if (!c) { html += '<div class="zone-cell empty"></div>'; continue; }
+                const faceDown = !!c.faceDown;
+                const img = faceDown ? CARD_BACK : (c.image || CARD_BACK);
+                html += `
+                    <div class="zone-cell">
+                        <img class="card-art" src="${esc(img)}" alt="${esc(c.name)}" onerror="this.src=window.CARD_BACK">
+                        ${faceDown ? '<span class="pos-badge set">SET</span>' : ''}
+                    </div>`;
+            }
+            row.innerHTML = html;
+        }
+
+        function renderField(n) {
+            const f = matchState[`player${n}`].fieldSpell;
+            const el = document.getElementById(`p${n}Field`);
+            if (!f) { el.innerHTML = '<div class="field-empty">No Field</div><div class="field-info"><div class="field-none">No Field Spell</div></div>'; return; }
+            el.innerHTML = `
+                ${f.image ? `<img class="field-art" src="${esc(f.image)}" alt="${esc(f.name)}" onerror="this.src=window.CARD_BACK">` : '<div class="field-empty">Field</div>'}
+                <div class="field-info"><div class="field-name">${esc(f.name)}</div></div>`;
+        }
+
+        function renderCounts(n) {
+            const c = matchState[`player${n}`].counts || {};
+            const items = [['Hand', 'hand'], ['Deck', 'deck'], ['Extra', 'extra'], ['GY', 'graveyard'], ['Ban', 'banished']];
+            document.getElementById(`p${n}Counts`).innerHTML = items.map(([label, key]) => `
+                <div class="count-item">
+                    <span class="count-label">${label}</span>
+                    <span class="count-value">${c[key] != null ? c[key] : 0}</span>
+                </div>`).join('');
+        }
+
+        function renderPhase() {
+            const cur = matchState.currentPhase || 'Main1';
+            document.getElementById('phaseStepper').innerHTML = PHASES.map(ph =>
+                `<span class="phase-chip ${ph === cur ? 'on' : ''}">${ph}</span>`).join('');
+        }
+
+        function updateMatchInfo() {
+            document.getElementById('matchTimer').textContent =
+                `${String(matchState.timer.minutes).padStart(2, '0')}:${String(matchState.timer.seconds).padStart(2, '0')}`;
+            const name = matchState[`player${matchState.currentTurn}`].name;
+            document.getElementById('turnIndicator').textContent = `${name}'s Turn`;
+            document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber}`;
+            renderPhase();
+        }
+
+        function startTimer() {
+            if (matchState.timerInterval) return;
+            matchState.timerInterval = setInterval(() => {
+                if (matchState.timer.seconds > 0) matchState.timer.seconds--;
+                else if (matchState.timer.minutes > 0) { matchState.timer.minutes--; matchState.timer.seconds = 59; }
+                else { pauseTimer(); }
+                updateMatchInfo();
+            }, 1000);
+        }
+        function pauseTimer() {
+            if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+        }
+
+        function showOverlay() {
+            document.getElementById('player1Board').classList.add('active');
+            document.getElementById('player2Board').classList.add('active');
+            document.getElementById('matchInfo').classList.add('active');
+        }
+        function hideOverlay() {
+            document.getElementById('player1Board').classList.remove('active');
+            document.getElementById('player2Board').classList.remove('active');
+            document.getElementById('matchInfo').classList.remove('active');
+        }
+
+        // Init
+        updateDisplay();
+        socket.emit('register-overlay', 'yugioh-match');
+        setTimeout(() => { socket.emit('request-state', 'yugioh-match'); showOverlay(); }, 500);
+        setInterval(() => socket.emit('register-overlay', 'yugioh-match'), 5000);
+    </script>
+</body>
+</html>

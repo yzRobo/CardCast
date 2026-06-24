@@ -201,11 +201,16 @@
         const CATEGORY_ORDER = [
             'Pokemon', 'Trainers', 'Energy',
             'Units', 'Pilots', 'Commands', 'Bases', 'Resources',
-            'Deck', 'Creatures', 'Spells', 'Artifacts', 'Enchantments', 'Planeswalkers', 'Lands', 'Sideboard'
+            // Yu-Gi-Oh keys are interleaved around 'Spells' so a YGO deck reads
+            // Monsters, Spells, Traps, Extra, Side; MTG decks never contain these
+            // keys, so MTG section order is unchanged.
+            'Deck', 'Creatures', 'Monsters', 'Spells', 'Traps', 'Extra', 'Side',
+            'Artifacts', 'Enchantments', 'Planeswalkers', 'Lands', 'Sideboard'
         ];
         const CATEGORY_ACCENT = {
             Pokemon: '#f87171', Trainers: '#fbbf24', Energy: '#34d399',
             Units: '#38bdf8', Pilots: '#fbbf24', Commands: '#f87171', Bases: '#34d399', Resources: '#94a3b8',
+            Monsters: '#fb923c', Traps: '#22c55e', Extra: '#22d3ee', Side: '#c084fc',
             Deck: '#818cf8', Sideboard: '#c084fc', Creatures: '#38bdf8',
             Spells: '#a855f7', Artifacts: '#94a3b8', Enchantments: '#f0abfc', Planeswalkers: '#fb923c', Lands: '#facc15'
         };

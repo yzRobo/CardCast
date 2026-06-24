@@ -114,8 +114,59 @@ const GAME_REGISTRY = {
             if (card.gd_hp !== undefined && card.gd_hp !== null && card.gd_hp !== '') parts.push(`HP ${card.gd_hp}`);
             return parts.length ? parts.join(' / ') : (card.card_type || '');
         }
+    },
+
+    yugioh: {
+        name: 'Yu-Gi-Oh!',
+        matchControls: [
+            { label: 'Yu-Gi-Oh! Match Control', route: '/yugioh-match-control', style: 'btn-warning' }
+        ],
+        overlays: [
+            { label: 'Main Display', route: '/overlay' },
+            { label: 'Yu-Gi-Oh! Match', route: '/yugioh-match' },
+            { label: 'Deck List', route: '/decklist' }
+        ],
+        deck: {
+            // Side is import-driven only (categorize never returns it). Extra holds
+            // Fusion/Synchro/XYZ/Link monsters routed out of the Main deck.
+            categories: ['Monsters', 'Spells', 'Traps', 'Extra', 'Side'],
+            categorize: (card) => yugiohCategoryFromType(card.card_type),
+            // Main 40-60, Extra 0-15, Side 0-15, max 3 copies per card name.
+            rules: { main: [40, 60], extra: 15, side: 15, copyLimit: 3 },
+            // Label-only by default; opt-in legality can use banlist[] later.
+            formats: ['Advanced (TCG)', 'Traditional', 'Advanced (OCG)'],
+            // Forbidden & Limited snapshot per format. Seeded empty; fill from the
+            // official Konami F&L list (yugioh-card.com/en/limited).
+            banlist: {
+                'Advanced (TCG)': { forbidden: [], limited: [], semiLimited: [] },
+                'Traditional': { forbidden: [], limited: [], semiLimited: [] },
+                'Advanced (OCG)': { forbidden: [], limited: [], semiLimited: [] }
+            }
+        },
+        searchMeta: (card) => {
+            const has = (v) => v !== undefined && v !== null && v !== '';
+            if (has(card.attack) || has(card.defense)) {
+                const atk = has(card.attack) ? card.attack : '?';
+                const def = has(card.defense) ? card.defense : '?';
+                return `ATK ${atk} / DEF ${def}`;
+            }
+            return card.card_type || '';
+        }
     }
 };
+
+// Yu-Gi-Oh! card_type -> deck category. Shared by the registry categorize() above
+// and parseYugiohDeckList in deck-parser.js (single source of truth). Extra-Deck
+// monster types (Fusion/Synchro/XYZ/Link) route into Extra; everything else that
+// is a monster (Effect/Normal/Ritual/Pendulum/Tuner/Flip) stays in Monsters. Side
+// is never derived from card_type - it is import-driven via the deck-list markers.
+function yugiohCategoryFromType(cardType) {
+    const t = (cardType || '').toLowerCase().trim();
+    if (t.includes('spell')) return 'Spells';
+    if (t.includes('trap')) return 'Traps';
+    if (t.includes('fusion') || t.includes('synchro') || t.includes('xyz') || t.includes('link')) return 'Extra';
+    return 'Monsters';
+}
 
 // Gundam card_type -> deck category. Shared by the registry categorize() above
 // and parseGundamDeckList in deck-parser.js (kept here as the single source of
@@ -294,6 +345,7 @@ if (typeof window !== 'undefined') {
     window.deckToText = deckToText;
     window.getDeckCardNameSet = getDeckCardNameSet;
     window.gundamCategoryFromType = gundamCategoryFromType;
+    window.yugiohCategoryFromType = yugiohCategoryFromType;
 }
 
 // Allow Node (tests/tooling) to require the registry + deck helpers.
@@ -301,6 +353,7 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         GAME_REGISTRY, getGameConfig,
         getDeckCategories, getDeckCategoryArray, getDeckSectionNames,
-        deckCardCount, deckToText, getDeckCardNameSet, gundamCategoryFromType
+        deckCardCount, deckToText, getDeckCardNameSet, gundamCategoryFromType,
+        yugiohCategoryFromType
     };
 }

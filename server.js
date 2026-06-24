@@ -604,6 +604,14 @@ app.get('/gundam-match-control', (req, res) => {
     res.sendFile(path.join(__dirname, 'gundam-match-control.html'));
 });
 
+app.get('/yugioh-match', (req, res) => {
+    res.sendFile(path.join(__dirname, 'overlays', 'yugioh-match.html'));
+});
+
+app.get('/yugioh-match-control', (req, res) => {
+    res.sendFile(path.join(__dirname, 'yugioh-match-control.html'));
+});
+
 // Main card-display overlay (dual card display controlled from the dashboard)
 app.get('/overlay', (req, res) => {
     res.sendFile(path.join(__dirname, 'overlays', 'main.html'));
@@ -629,7 +637,8 @@ let overlayStates = {
     'decklist': false,
     'main': false,
     'mtg-match': false,
-    'gundam-match': false
+    'gundam-match': false,
+    'yugioh-match': false
 };
 
 // Socket.io events
@@ -676,6 +685,17 @@ io.on('connection', (socket) => {
                 currentTurn: state.gundamMatch.currentTurn,
                 gameNumber: state.gundamMatch.gameNumber,
                 matchFormat: state.gundamMatch.matchFormat
+            });
+        } else if (type === 'yugioh-match') {
+            socket.emit('yugioh-match-state', state.yugiohMatch);
+            // Also send as update so a freshly-loaded overlay renders immediately
+            socket.emit('yugioh-match-update', {
+                player1: state.yugiohMatch.player1,
+                player2: state.yugiohMatch.player2,
+                currentTurn: state.yugiohMatch.currentTurn,
+                currentPhase: state.yugiohMatch.currentPhase,
+                gameNumber: state.yugiohMatch.gameNumber,
+                matchFormat: state.yugiohMatch.matchFormat
             });
         }
     });
@@ -737,6 +757,16 @@ io.on('connection', (socket) => {
                 currentTurn: state.gundamMatch.currentTurn,
                 gameNumber: state.gundamMatch.gameNumber,
                 matchFormat: state.gundamMatch.matchFormat
+            });
+        } else if (type === 'yugioh-match') {
+            socket.emit('yugioh-match-state', state.yugiohMatch);
+            socket.emit('yugioh-match-update', {
+                player1: state.yugiohMatch.player1,
+                player2: state.yugiohMatch.player2,
+                currentTurn: state.yugiohMatch.currentTurn,
+                currentPhase: state.yugiohMatch.currentPhase,
+                gameNumber: state.yugiohMatch.gameNumber,
+                matchFormat: state.yugiohMatch.matchFormat
             });
         }
     });
@@ -1050,6 +1080,60 @@ io.on('connection', (socket) => {
         io.emit('toggle-gundam-match', data);
     });
 
+    // Yu-Gi-Oh! Match events (the overlay-server mutators re-broadcast to overlays)
+    socket.on('yugioh-match-update', (data) => {
+        overlayServer.updateYugiohMatch(data);
+    });
+
+    socket.on('yugioh-life-update', (data) => {
+        overlayServer.updateYugiohLife(data.player, data.lifePoints);
+    });
+
+    socket.on('yugioh-monster-update', (data) => {
+        overlayServer.setYugiohMonster(data.player, data.index, data.monster);
+    });
+
+    socket.on('yugioh-monster-position', (data) => {
+        overlayServer.setYugiohMonsterPosition(data.player, data.index, data.position);
+    });
+
+    socket.on('yugioh-spelltrap-update', (data) => {
+        overlayServer.setYugiohSpellTrap(data.player, data.index, data.card);
+    });
+
+    socket.on('yugioh-field-update', (data) => {
+        overlayServer.setYugiohField(data.player, data.field);
+    });
+
+    socket.on('yugioh-counts-update', (data) => {
+        overlayServer.setYugiohCounts(data.player, data.counts);
+    });
+
+    socket.on('yugioh-normal-summon', (data) => {
+        overlayServer.setYugiohNormalSummon(data.player, data.used);
+    });
+
+    socket.on('yugioh-phase-update', (data) => {
+        overlayServer.updateYugiohPhase(data.phase);
+    });
+
+    socket.on('yugioh-record-update', (data) => {
+        overlayServer.updateYugiohRecord(data.player, data.record);
+    });
+
+    socket.on('yugioh-games-won-update', (data) => {
+        overlayServer.updateYugiohGamesWon(data.player, data.gamesWon);
+    });
+
+    socket.on('yugioh-match-reset', () => {
+        overlayServer.resetYugiohMatch();
+    });
+
+    socket.on('toggle-yugioh-match', (data) => {
+        console.log('Toggle yugioh match overlay:', data.show);
+        io.emit('toggle-yugioh-match', data);
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
@@ -1071,6 +1155,7 @@ io.on('connection', (socket) => {
             io.emit('overlay-disconnected', 'pokemon-match');
             io.emit('overlay-disconnected', 'mtg-match');
             io.emit('overlay-disconnected', 'gundam-match');
+            io.emit('overlay-disconnected', 'yugioh-match');
             
             // If no more overlays are connected, notify main clients
             if (overlayClients.size === 0) {
@@ -1113,11 +1198,13 @@ OBS Overlays:
   - Pokemon Match: http://localhost:${PORT}/pokemon-match
   - MTG Match: http://localhost:${PORT}/mtg-match
   - Gundam Match: http://localhost:${PORT}/gundam-match
+  - Yu-Gi-Oh Match: http://localhost:${PORT}/yugioh-match
 
 Control Panels:
   - Pokemon: http://localhost:${PORT}/pokemon-match-control
   - MTG: http://localhost:${PORT}/mtg-match-control
   - Gundam: http://localhost:${PORT}/gundam-match-control
+  - Yu-Gi-Oh: http://localhost:${PORT}/yugioh-match-control
 
 Currently Available:
   ✓ Pokemon TCG (20,000+ cards)

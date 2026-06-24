@@ -64,9 +64,11 @@ try {
     check('magic: deck select synced', mg.deckSelect === 'magic', mg.deckSelect);
 
     const yg = await panelsFor(page, 'yugioh');
-    check('yugioh: shows no-match-controls hint', /no dedicated match controls/i.test(yg.match), yg.match);
-    check('yugioh: OBS fallback overlay + decklist', yg.obs.includes('/overlay') && yg.obs.includes('/decklist'), yg.obs);
+    check('yugioh: shows Yu-Gi-Oh! Match Control', yg.match.includes('Yu-Gi-Oh! Match Control'), yg.match);
+    check('yugioh: dropped Pokemon Match Control', !yg.match.includes('Pokemon Match Control'), yg.match);
+    check('yugioh: OBS has yugioh-match overlay + decklist', yg.obs.includes('/yugioh-match') && yg.obs.includes('/decklist'), yg.obs);
     check('yugioh: OBS leaked no pokemon/mtg/prizes', !yg.obs.includes('/pokemon-match') && !yg.obs.includes('/mtg-match') && !yg.obs.includes('/prizes'), yg.obs);
+    check('yugioh: deck select synced', yg.deckSelect === 'yugioh', yg.deckSelect);
 
     // ===== Phase 2: per-game search/preview meta =====
     // Pokemon: HP shown on results + preview
@@ -132,13 +134,13 @@ try {
     check('dropdown: switches game to magic', viaDropdown.gameSel === 'magic' && viaDropdown.deckSel === 'magic', JSON.stringify(viaDropdown));
     check('dropdown: rebuilt Match Controls (MTG)', viaDropdown.match.includes('MTG Match Control'), viaDropdown.match);
 
-    // dropdown to a registry-less game -> fallback, no leakage
+    // dropdown to yugioh -> its own match controls, no leakage
     await page.selectOption('#gameSelect', 'yugioh');
     const viaDropdownYg = await page.evaluate(() => ({
         match: document.getElementById('matchControlsList').innerText,
         obs: document.getElementById('obsSourcesList').innerText
     }));
-    check('dropdown: yugioh fallback hint', /no dedicated match controls/i.test(viaDropdownYg.match), viaDropdownYg.match);
+    check('dropdown: rebuilt Match Controls (Yu-Gi-Oh!)', viaDropdownYg.match.includes('Yu-Gi-Oh! Match Control'), viaDropdownYg.match);
     check('dropdown: yugioh no MTG/pokemon leak', !viaDropdownYg.obs.includes('/mtg-match') && !viaDropdownYg.obs.includes('/pokemon-match'), viaDropdownYg.obs);
 
     // ===== Phase 2: saved-decks list filters per game =====

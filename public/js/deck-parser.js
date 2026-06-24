@@ -1,7 +1,7 @@
 /**
  * CardCast Deck Parser
  * Handles deck list parsing for multiple TCGs
- * Supports: Pokemon TCG, Magic: The Gathering, Gundam Card Game
+ * Supports: Pokemon TCG, Magic: The Gathering, Gundam Card Game, Yu-Gi-Oh!
  */
 
 /**
@@ -28,6 +28,11 @@ async function parseDeckList(text) {
         const cats = result.categories || {};
         console.log('Gundam Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
         return result;
+    } else if (gameType === 'yugioh') {
+        const result = await parseYugiohDeckList(lines);
+        const cats = result.categories || {};
+        console.log('Yugioh Parse result:', Object.keys(cats).map(k => `${k}:${cats[k].length}`).join(', '));
+        return result;
     } else {
         return parsePokemonDeckList(lines);
     }
@@ -44,6 +49,13 @@ function detectGameType(text) {
     // the GDxx-NNN token is unambiguous.
     if (/\b(?:GD|ST|EB|EX)\d{2}-\d{3}/i.test(text) || /^\s*resource deck\s*$/mi.test(text)) {
         return 'gundam';
+    }
+
+    // Yu-Gi-Oh: YDK exports use #main / #extra / !side section markers (and a
+    // "#created by" comment). Checked before Pokemon/MTG; these markers are unique
+    // to YDK and never appear in the other games' exports.
+    if (/^\s*#(main|extra|created)\b/mi.test(text) || /^\s*!side\b/mi.test(text)) {
+        return 'yugioh';
     }
 
     // Strong Pokemon indicators - check first
@@ -431,6 +443,120 @@ async function parseGundamDeckList(lines) {
     return deck;
 }
 
+/**
+ * Yu-Gi-Oh! card_type -> deck category. Prefers the shared registry function
+ * (single source of truth); inlined fallback keeps the parser self-contained.
+ */
+function yugiohCategory(cardType) {
+    if (typeof window !== 'undefined' && typeof window.yugiohCategoryFromType === 'function') {
+        return window.yugiohCategoryFromType(cardType);
+    }
+    const t = (cardType || '').toLowerCase().trim();
+    if (t.includes('spell')) return 'Spells';
+    if (t.includes('trap')) return 'Traps';
+    if (t.includes('fusion') || t.includes('synchro') || t.includes('xyz') || t.includes('link')) return 'Extra';
+    return 'Monsters';
+}
+
+/**
+ * Resolve a Yu-Gi-Oh! deck-list token to a DB card. A YDK passcode is the card's
+ * product_id, so it resolves directly via /api/card/yugioh/yugioh_<passcode>
+ * (search_text does NOT contain the passcode). Names fall back to /api/search.
+ * @param {{passcode?: string, name?: string}} token
+ * @returns {Promise<Object|null>} the matched card row, or null
+ */
+async function resolveYugiohCard(token) {
+    if (token.passcode) {
+        try {
+            const res = await fetch(`/api/card/yugioh/yugioh_${token.passcode}`);
+            if (res.ok) return await res.json();
+        } catch (e) {
+            console.error('Yugioh passcode resolve error for', token.passcode, e);
+        }
+        return null;
+    }
+    if (token.name) {
+        try {
+            const res = await fetch(`/api/search/yugioh?q=${encodeURIComponent(token.name)}`);
+            if (!res.ok) return null;
+            const results = await res.json();
+            if (!Array.isArray(results) || results.length === 0) return null;
+            const want = token.name.toLowerCase();
+            return results.find(c => (c.name || '').toLowerCase() === want) || results[0];
+        } catch (e) {
+            console.error('Yugioh name resolve error for', token.name, e);
+            return null;
+        }
+    }
+    return null;
+}
+
+/**
+ * Parse a Yu-Gi-Oh! deck list. Honors YDK section markers (#main / #extra /
+ * !side) and a "#created by" comment. Each entry is resolved by passcode (a bare
+ * 8-digit product_id, one line per copy in YDK) or by name (text exports like
+ * "3 Dark Magician"). Bucketing: !side -> Side, #extra -> Extra, #main / no
+ * marker -> by card_type (Fusion/Synchro/XYZ/Link route to Extra automatically).
+ * @param {Array<string>} lines
+ * @returns {Promise<Object>} { game:'yugioh', categories: { Monsters, Spells, Traps, Extra, Side } }
+ */
+async function parseYugiohDeckList(lines) {
+    const deck = { game: 'yugioh', categories: { Monsters: [], Spells: [], Traps: [], Extra: [], Side: [] } };
+
+    const QTY = /^(\d+)\s*x?\s+/i;
+    const PASSCODE = /^\d{4,9}$/;
+
+    let section = 'main'; // main | extra | side
+
+    for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+
+        // Section markers (YDK). "#created by" is a comment - skip without resetting.
+        const lower = line.toLowerCase();
+        if (/^#main\b/.test(lower)) { section = 'main'; continue; }
+        if (/^#extra\b/.test(lower)) { section = 'extra'; continue; }
+        if (/^!side\b/.test(lower)) { section = 'side'; continue; }
+        if (line.startsWith('#') || line.startsWith('//')) continue; // comments (e.g. #created by)
+
+        // Quantity prefix is optional (YDK repeats a passcode per copy; text uses "3 Name").
+        const qtyM = line.match(QTY);
+        const quantity = qtyM ? parseInt(qtyM[1], 10) : 1;
+        const rest = qtyM ? line.slice(qtyM[0].length).trim() : line;
+        if (!rest) continue;
+
+        const token = PASSCODE.test(rest) ? { passcode: rest } : { name: rest };
+        const resolved = await resolveYugiohCard(token);
+        if (!resolved) continue;
+
+        // Marker wins; otherwise derive from card_type (auto-routes Extra-Deck types).
+        let category;
+        if (section === 'side') category = 'Side';
+        else if (section === 'extra') category = 'Extra';
+        else category = yugiohCategory(resolved.card_type);
+
+        if (!deck.categories[category]) deck.categories[category] = [];
+        const bucket = deck.categories[category];
+
+        const number = resolved.card_number || '';
+        const existing = bucket.find(c => c.name === resolved.name);
+        if (existing) {
+            existing.quantity += quantity;
+        } else {
+            bucket.push({
+                quantity,
+                name: resolved.name,
+                setCode: resolved.set_abbreviation || resolved.set_code || '',
+                number,
+                cardType: resolved.card_type || '',
+                fullName: `${quantity} ${resolved.name}`.trim()
+            });
+        }
+    }
+
+    return deck;
+}
+
 // Export functions for use in other files
 if (typeof module !== 'undefined' && module.exports) {
     // Node.js environment
@@ -439,6 +565,7 @@ if (typeof module !== 'undefined' && module.exports) {
         detectGameType,
         parseMTGDeckList,
         parsePokemonDeckList,
-        parseGundamDeckList
+        parseGundamDeckList,
+        parseYugiohDeckList
     };
 }

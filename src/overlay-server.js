@@ -75,6 +75,36 @@ class OverlayServer {
             gameNumber: 1,
             matchFormat: 'Best of 3'
         };
+
+        // Yu-Gi-Oh! Match State (mirrors gundamMatch; design: 8000 LP headline, a
+        // row of 5 Monster Zones with ATK/DEF + battle position, a 5-slot Spell/
+        // Trap row + Field Spell slot, a once-per-turn Normal Summon flag, a phase
+        // stepper, and optional zone counts).
+        this.yugiohMatch = {
+            player1: this.freshYugiohPlayer('Player 1'),
+            player2: this.freshYugiohPlayer('Player 2'),
+            currentTurn: 1,
+            currentPhase: 'Main1',
+            timer: { minutes: 40, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: 'Best of 3'
+        };
+    }
+
+    // A blank Yu-Gi-Oh! player board. monsters / spellsTraps are fixed 5-slot
+    // rows (null = empty zone). 8000 starting LP; one Normal Summon per turn.
+    freshYugiohPlayer(name) {
+        return {
+            name,
+            record: { wins: 0, losses: 0, ties: 0 },
+            gamesWon: 0,
+            lifePoints: 8000,
+            normalSummonUsed: false,
+            monsters: [null, null, null, null, null],   // {id,name,image,atk,def,position:'atk'|'def'|'set'}
+            spellsTraps: [null, null, null, null, null], // {id,name,image,faceDown:bool}
+            fieldSpell: null,                            // {id,name,image}|null
+            counts: { hand: 0, deck: 0, extra: 0, graveyard: 0, banished: 0 }
+        };
     }
 
     // A blank Gundam player board. units is a fixed 6-slot grid (null = empty cell).
@@ -545,6 +575,106 @@ class OverlayServer {
 
     // ============ END GUNDAM METHODS ============
 
+    // ============ YU-GI-OH! MATCH METHODS ============
+
+    // Bulk update (player boards / turn / phase / game / format) - control load + show.
+    updateYugiohMatch(data) {
+        if (data.player1) this.yugiohMatch.player1 = { ...this.yugiohMatch.player1, ...data.player1 };
+        if (data.player2) this.yugiohMatch.player2 = { ...this.yugiohMatch.player2, ...data.player2 };
+        if (data.currentTurn !== undefined) this.yugiohMatch.currentTurn = data.currentTurn;
+        if (data.currentPhase !== undefined) this.yugiohMatch.currentPhase = data.currentPhase;
+        if (data.gameNumber !== undefined) this.yugiohMatch.gameNumber = data.gameNumber;
+        if (data.matchFormat !== undefined) this.yugiohMatch.matchFormat = data.matchFormat;
+        this.io.emit('yugioh-match-update', data);
+    }
+
+    updateYugiohLife(player, lifePoints) {
+        const key = `player${player}`;
+        if (!this.yugiohMatch[key]) return;
+        this.yugiohMatch[key].lifePoints = Math.max(0, lifePoints | 0);
+        this.io.emit('yugioh-life-update', { player, lifePoints: this.yugiohMatch[key].lifePoints, timestamp: Date.now() });
+    }
+
+    // Set or clear (monster=null) a Monster Zone (0-4).
+    setYugiohMonster(player, index, monster) {
+        const key = `player${player}`;
+        if (!this.yugiohMatch[key] || index < 0 || index > 4) return;
+        this.yugiohMatch[key].monsters[index] = monster;
+        this.io.emit('yugioh-monster-update', { player, index, monster, timestamp: Date.now() });
+    }
+
+    setYugiohMonsterPosition(player, index, position) {
+        const key = `player${player}`;
+        const m = this.yugiohMatch[key] && this.yugiohMatch[key].monsters[index];
+        if (!m) return;
+        m.position = position;
+        this.io.emit('yugioh-monster-position', { player, index, position, timestamp: Date.now() });
+    }
+
+    // Set or clear (card=null) a Spell/Trap Zone (0-4).
+    setYugiohSpellTrap(player, index, card) {
+        const key = `player${player}`;
+        if (!this.yugiohMatch[key] || index < 0 || index > 4) return;
+        this.yugiohMatch[key].spellsTraps[index] = card;
+        this.io.emit('yugioh-spelltrap-update', { player, index, card, timestamp: Date.now() });
+    }
+
+    setYugiohField(player, field) {
+        const key = `player${player}`;
+        if (!this.yugiohMatch[key]) return;
+        this.yugiohMatch[key].fieldSpell = field;
+        this.io.emit('yugioh-field-update', { player, field, timestamp: Date.now() });
+    }
+
+    setYugiohCounts(player, counts) {
+        const key = `player${player}`;
+        if (!this.yugiohMatch[key]) return;
+        this.yugiohMatch[key].counts = { ...this.yugiohMatch[key].counts, ...counts };
+        this.io.emit('yugioh-counts-update', { player, counts: this.yugiohMatch[key].counts, timestamp: Date.now() });
+    }
+
+    setYugiohNormalSummon(player, used) {
+        const key = `player${player}`;
+        if (!this.yugiohMatch[key]) return;
+        this.yugiohMatch[key].normalSummonUsed = !!used;
+        this.io.emit('yugioh-normal-summon', { player, used: !!used, timestamp: Date.now() });
+    }
+
+    updateYugiohPhase(phase) {
+        this.yugiohMatch.currentPhase = phase;
+        this.io.emit('yugioh-phase-update', { phase, timestamp: Date.now() });
+    }
+
+    updateYugiohRecord(player, record) {
+        const key = `player${player}`;
+        if (this.yugiohMatch[key]) this.yugiohMatch[key].record = record;
+        this.io.emit('yugioh-record-update', { player, record, timestamp: Date.now() });
+    }
+
+    updateYugiohGamesWon(player, gamesWon) {
+        const key = `player${player}`;
+        if (this.yugiohMatch[key]) this.yugiohMatch[key].gamesWon = gamesWon;
+        this.io.emit('yugioh-games-won-update', { player, gamesWon, timestamp: Date.now() });
+    }
+
+    resetYugiohMatch() {
+        const p1 = this.yugiohMatch.player1.name;
+        const p2 = this.yugiohMatch.player2.name;
+        this.yugiohMatch = {
+            player1: this.freshYugiohPlayer(p1),
+            player2: this.freshYugiohPlayer(p2),
+            currentTurn: 1,
+            currentPhase: 'Main1',
+            timer: { minutes: 40, seconds: 0 },
+            gameNumber: 1,
+            matchFormat: this.yugiohMatch.matchFormat || 'Best of 3'
+        };
+        this.io.emit('yugioh-match-reset', { timestamp: Date.now() });
+        console.log('Yu-Gi-Oh match reset');
+    }
+
+    // ============ END YU-GI-OH! METHODS ============
+
     updateDecklist(deckData) {
         if (deckData.deck) {
             this.decklist = { ...this.decklist, ...deckData.deck };
@@ -727,7 +857,8 @@ class OverlayServer {
             gameSettings: this.gameSettings,
             pokemonMatch: this.pokemonMatch,
             mtgMatch: this.mtgMatch,
-            gundamMatch: this.gundamMatch
+            gundamMatch: this.gundamMatch,
+            yugiohMatch: this.yugiohMatch
         };
     }
     

@@ -960,14 +960,29 @@ async function importDeck() {
     const parsed = await parseDeckList(deckText);
     const { game, categories } = await deckToCategories(parsed);
 
-    const totalCards = Object.values(categories)
-        .reduce((sum, arr) => sum + arr.reduce((s, c) => s + (c.quantity || 1), 0), 0);
+    const catCount = (arr) => arr.reduce((s, c) => s + (c.quantity || 1), 0);
+    const totalCards = Object.values(categories).reduce((sum, arr) => sum + catCount(arr), 0);
 
-    // Soft-warn against the active game's main-deck size (e.g. 60 for MTG/Pokemon).
-    const target = getGameConfig(game).deck?.rules?.main;
-    if (target && totalCards !== target) {
-        if (!confirm(`Deck has ${totalCards} cards (should be ${target}). Import anyway?`)) {
-            return;
+    // Soft-warn against the active game's main-deck size. Most games compare the
+    // whole deck to a single number (e.g. 60); games with separate Extra/Side
+    // decks (Yu-Gi-Oh) use a [min,max] range applied to the main categories only.
+    const rules = getGameConfig(game).deck?.rules;
+    const target = rules?.main;
+    if (target) {
+        const hasSideDecks = rules.extra !== undefined || rules.side !== undefined;
+        const mainCount = hasSideDecks
+            ? Object.entries(categories)
+                .filter(([name]) => name !== 'Extra' && name !== 'Side')
+                .reduce((sum, [, arr]) => sum + catCount(arr), 0)
+            : totalCards;
+        const ok = Array.isArray(target)
+            ? (mainCount >= target[0] && mainCount <= target[1])
+            : (mainCount === target);
+        if (!ok) {
+            const want = Array.isArray(target) ? `${target[0]}-${target[1]}` : target;
+            if (!confirm(`Main deck has ${mainCount} cards (should be ${want}). Import anyway?`)) {
+                return;
+            }
         }
     }
 
@@ -992,9 +1007,10 @@ async function importDeck() {
 //   Gundam:  { categories: {...} }  (already generic)
 //   Magic:   { cards, sideboard }   -> resolve types against the DB and bucket
 async function deckToCategories(parsed) {
-    // Gundam (and any future parser) already returns the generic shape.
+    // Gundam / Yu-Gi-Oh (and any future parser) already return the generic shape.
+    // They tag their own game id; default to gundam for older callers.
     if (parsed.categories && typeof parsed.categories === 'object') {
-        return { game: 'gundam', categories: parsed.categories };
+        return { game: parsed.game || 'gundam', categories: parsed.categories };
     }
 
     // Pokemon shape.
