@@ -356,15 +356,16 @@ window.addCardToDeck = function(cardName, cardImage, cardNumber) {
     const category = document.getElementById('addCardCategory').value;
     const arr = getDeckCategoryArray(editingDeck, category);
 
-    // Key by the card's unique number so different cards that share a name (very
-    // common in Digimon/One Piece) are separate entries, each with its own copy
-    // count. Fall back to name only for cards that have no number. The copy limit
-    // then applies per distinct card, not per name.
+    // Key by whatever the game counts copies BY: card number for the Bandai games
+    // (distinct numbers are distinct cards) or name for the rest (copy limit is
+    // per name; different printings of a card count together).
+    const rules = GAME_REGISTRY[editingDeck.game]?.deck?.rules || {};
+    const byNumber = rules.copyBy === 'number';
     const num = cardNumber || '';
     const existingCard = arr.find(c =>
-        num ? c.number === num : (c.name === cardName && !c.number)
+        (byNumber && num) ? c.number === num : c.name === cardName
     );
-    const limit = (GAME_REGISTRY[editingDeck.game]?.deck?.rules?.copyLimit) || 4;
+    const limit = rules.copyLimit || 4;
 
     if (existingCard) {
         if (existingCard.quantity < limit) {

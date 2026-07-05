@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.4] - 2026-07-05
+
+### Fixed
+- Deck builder copy counting is now correct per game. Games where the copy limit is per card number (Digimon, One Piece, Gundam) keep distinct same-named cards as separate entries (as in 2.0.3); games where the limit is per card name (Pokemon, Magic, Yu-Gi-Oh, Lorcana) now correctly merge different printings of the same card into a single entry counted by name, instead of splitting them by printing.
+
 ## [2.0.3] - 2026-07-05
 
 ### Fixed

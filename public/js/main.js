@@ -780,13 +780,15 @@ function addSelectedToDeck() {
     if (!currentDeckList.categories[category]) currentDeckList.categories[category] = [];
     const bucket = currentDeckList.categories[category];
 
-    // Find if this exact card already exists. Key by the card's unique number
-    // (e.g. "BT11-046") - many cards share a name (Digimon has ~40 different
-    // "Agumon"), so keying by name would wrongly merge distinct cards and block
-    // adding them. Fall back to name only for cards that have no number.
+    // Find if this exact card already exists. Key by whatever the game counts
+    // copies BY: card number for the Bandai games (Digimon/One Piece/Gundam,
+    // where distinct numbers are distinct cards - e.g. ~40 different "Agumon")
+    // or name for the rest (Pokemon/Magic/Yu-Gi-Oh/Lorcana, where the copy limit
+    // is per name and different printings of a card count together).
+    const byNumber = cfg.deck.rules && cfg.deck.rules.copyBy === 'number';
     const cardNumber = selectedCard.card_number || '';
     const existingCard = bucket.find(c =>
-        cardNumber ? c.number === cardNumber : (c.name === selectedCard.name && !c.number)
+        (byNumber && cardNumber) ? c.number === cardNumber : c.name === selectedCard.name
     );
 
     if (existingCard) {

@@ -35,7 +35,7 @@ const GAME_REGISTRY = {
                 if (type.includes('energy')) return 'Energy';
                 return 'Pokemon';
             },
-            rules: { main: 60, copyLimit: 4 },
+            rules: { main: 60, copyLimit: 4, copyBy: 'name' },
             formats: ['Standard', 'Expanded']
         },
         searchMeta: (card) => (card.hp ? `HP ${card.hp}` : '')
@@ -63,7 +63,7 @@ const GAME_REGISTRY = {
                 if (type.includes('instant') || type.includes('sorcery')) return 'Spells';
                 return 'Spells';
             },
-            rules: { main: 60, copyLimit: 4 },
+            rules: { main: 60, copyLimit: 4, copyBy: 'name' },
             // Label-only by default (an opt-in legality filter can use banlist later).
             // Commander is intentionally dropped - CardCast Magic is MTG proper (60-card,
             // 20 life); re-add it later as its own format if needed.
@@ -94,7 +94,7 @@ const GAME_REGISTRY = {
             categories: ['Units', 'Pilots', 'Commands', 'Bases', 'Resources'],
             categorize: (card) => gundamCategoryFromType(card.card_type),
             // Main deck = Units+Pilots+Commands+Bases (50). Resource deck = 10. Max 4 copies/number.
-            rules: { main: 50, resources: 10, copyLimit: 4 },
+            rules: { main: 50, resources: 10, copyLimit: 4, copyBy: 'number' },
             // Label-only by default (an opt-in legality filter can use formatSets later).
             formats: ['Unlimited', 'GD04 Standard', 'GD03', 'GD02', 'GD01'],
             // Best-effort set pools for the future opt-in legality filter.
@@ -131,7 +131,7 @@ const GAME_REGISTRY = {
             categories: ['Monsters', 'Spells', 'Traps', 'Extra', 'Side'],
             categorize: (card) => yugiohCategoryFromType(card.card_type),
             // Main 40-60, Extra 0-15, Side 0-15, max 3 copies per card name.
-            rules: { main: [40, 60], extra: 15, side: 15, copyLimit: 3 },
+            rules: { main: [40, 60], extra: 15, side: 15, copyLimit: 3, copyBy: 'name' },
             // Label-only by default; opt-in legality can use banlist[] later.
             formats: ['Advanced (TCG)', 'Traditional', 'Advanced (OCG)'],
             // Forbidden & Limited snapshot per format. Seeded empty; fill from the
@@ -169,7 +169,7 @@ const GAME_REGISTRY = {
             // not built from these categories, so it is intentionally not listed.
             categories: ['Leader', 'Characters', 'Events', 'Stages'],
             categorize: (card) => onePieceCategoryFromType(card.card_type),
-            rules: { main: 50, leader: 1, copyLimit: 4 },
+            rules: { main: 50, leader: 1, copyLimit: 4, copyBy: 'number' },
             // Label-only by default; an opt-in legality filter can use the banlist later.
             formats: ['Standard', 'Unlimited'],
             // Official restricted list snapshot. Seeded empty; fill from the Bandai
@@ -209,7 +209,7 @@ const GAME_REGISTRY = {
             // (ink identity from the shared colors, split on "/"). maxInks is
             // label-only metadata; the 2-ink limit is NOT yet enforced anywhere
             // (lorcanaInks() is available for a future deck-stats validation).
-            rules: { main: 60, copyLimit: 4, maxInks: 2 },
+            rules: { main: 60, copyLimit: 4, maxInks: 2, copyBy: 'name' },
             // Core = current rotation (default competitive); Infinity = all sets.
             // Label-only by default; an opt-in legality filter can use banlist later.
             formats: ['Core', 'Infinity'],
@@ -249,7 +249,7 @@ const GAME_REGISTRY = {
             // card_type; Dual cards are played as Digimon so they bucket there.
             categories: ['Digimon', 'Tamers', 'Options', 'Digi-Egg'],
             categorize: (card) => digimonCategoryFromType(card.card_type),
-            rules: { main: 50, egg: 5, copyLimit: 4 },
+            rules: { main: 50, egg: 5, copyLimit: 4, copyBy: 'number' },
             // Color is informational only - multi-color decks are legal and there is no
             // color-identity limit (unlike OP/Lorcana/Gundam). Label-only by default.
             formats: ['Standard', 'Unlimited'],
