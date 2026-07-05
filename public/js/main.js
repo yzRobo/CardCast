@@ -780,10 +780,13 @@ function addSelectedToDeck() {
     if (!currentDeckList.categories[category]) currentDeckList.categories[category] = [];
     const bucket = currentDeckList.categories[category];
 
-    // Find if card already exists
+    // Find if this exact card already exists. Key by the card's unique number
+    // (e.g. "BT11-046") - many cards share a name (Digimon has ~40 different
+    // "Agumon"), so keying by name would wrongly merge distinct cards and block
+    // adding them. Fall back to name only for cards that have no number.
+    const cardNumber = selectedCard.card_number || '';
     const existingCard = bucket.find(c =>
-        c.name === selectedCard.name &&
-        c.setCode === (selectedCard.set_code || '')
+        cardNumber ? c.number === cardNumber : (c.name === selectedCard.name && !c.number)
     );
 
     if (existingCard) {
@@ -793,8 +796,8 @@ function addSelectedToDeck() {
             quantity: 1,
             name: selectedCard.name,
             setCode: selectedCard.set_code || '',
-            number: selectedCard.card_number || '',
-            fullName: `${selectedCard.name} ${selectedCard.set_code || ''} ${selectedCard.card_number || ''}`.trim()
+            number: cardNumber,
+            fullName: `${selectedCard.name} ${selectedCard.set_code || ''} ${cardNumber}`.trim()
         });
     }
 

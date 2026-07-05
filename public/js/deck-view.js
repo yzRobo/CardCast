@@ -161,35 +161,22 @@ async function renderDeckCards(cards, game, category) {
         let cardImage = '/images/card-back.png';
         
         try {
-            let searchQuery = '';
-            
-            if (card.setCode && card.number) {
-                searchQuery = `${card.name} ${card.setCode.toUpperCase()} ${card.number}`;
-            } else if (card.setCode) {
-                searchQuery = `${card.name} ${card.setCode.toUpperCase()}`;
-            } else {
-                searchQuery = card.name;
+            // Prefer the unique card number so we show the exact art for cards that
+            // share a name; fall back to a name (+ set) search otherwise.
+            let results = [];
+            if (card.number) {
+                results = await (await fetch(`/api/search/${game}?q=${encodeURIComponent(card.number)}`)).json();
             }
-            
-            const response = await fetch(`/api/search/${game}?q=${encodeURIComponent(searchQuery)}`);
-            const results = await response.json();
-            
-            if (results.length > 0) {
-                let matchedCard = null;
-                if (card.setCode && card.number) {
-                    matchedCard = results.find(r => 
-                        r.set_abbreviation === card.setCode.toUpperCase() && 
-                        r.card_number === card.number
-                    );
-                }
-                
-                if (!matchedCard) {
-                    matchedCard = results[0];
-                }
-                
-                if (matchedCard) {
-                    cardImage = matchedCard.image_url || cardImage;
-                }
+            if (!results || results.length === 0) {
+                const q = card.setCode ? `${card.name} ${card.setCode.toUpperCase()}` : card.name;
+                results = await (await fetch(`/api/search/${game}?q=${encodeURIComponent(q)}`)).json();
+            }
+            if (results && results.length > 0) {
+                let matchedCard = card.number
+                    ? results.find(r => r.card_number === card.number)
+                    : null;
+                if (!matchedCard) matchedCard = results[0];
+                if (matchedCard) cardImage = matchedCard.image_url || cardImage;
             }
         } catch (error) {
             console.error(`Error fetching card image for ${card.name}:`, error);
@@ -348,8 +335,8 @@ window.searchCardsToAdd = async function(event) {
         const results = await response.json();
         
         const resultsHTML = results.slice(0, 24).map(card => `
-            <div class="add-card-result" 
-                 onclick="addCardToDeck('${card.name.replace(/'/g, "\\'")}', '${card.image_url || '/images/card-back.png'}')">
+            <div class="add-card-result"
+                 onclick="addCardToDeck('${card.name.replace(/'/g, "\\'")}', '${card.image_url || '/images/card-back.png'}', '${(card.card_number || '').replace(/'/g, "\\'")}')">
                 <img src="${card.image_url || '/images/card-back.png'}" 
                      alt="${card.name}"
                      title="${card.name}">
@@ -365,11 +352,18 @@ window.searchCardsToAdd = async function(event) {
 /**
  * Add card to deck
  */
-window.addCardToDeck = function(cardName, cardImage) {
+window.addCardToDeck = function(cardName, cardImage, cardNumber) {
     const category = document.getElementById('addCardCategory').value;
     const arr = getDeckCategoryArray(editingDeck, category);
 
-    const existingCard = arr.find(c => c.name === cardName);
+    // Key by the card's unique number so different cards that share a name (very
+    // common in Digimon/One Piece) are separate entries, each with its own copy
+    // count. Fall back to name only for cards that have no number. The copy limit
+    // then applies per distinct card, not per name.
+    const num = cardNumber || '';
+    const existingCard = arr.find(c =>
+        num ? c.number === num : (c.name === cardName && !c.number)
+    );
     const limit = (GAME_REGISTRY[editingDeck.game]?.deck?.rules?.copyLimit) || 4;
 
     if (existingCard) {
@@ -382,6 +376,7 @@ window.addCardToDeck = function(cardName, cardImage) {
     } else {
         arr.push({
             name: cardName,
+            number: num,
             quantity: 1
         });
     }
