@@ -451,7 +451,7 @@ async function parseGundamDeckList(lines) {
         const bucket = deck.categories[category];
 
         const number = resolved.card_number || (numM ? numM[1] : '');
-        const existing = bucket.find(c => (number && c.number === number) || c.name === resolved.name);
+        const existing = bucket.find(c => number ? c.number === number : (c.name === resolved.name && !c.number));
         if (existing) {
             existing.quantity += quantity;
         } else {
@@ -692,7 +692,7 @@ async function parseOnePieceDeckList(lines) {
             fullName: `${quantity} ${resolved.name} ${number}`.trim()
         };
 
-        const existing = bucket.find(c => (number && c.number === number) || c.name === resolved.name);
+        const existing = bucket.find(c => number ? c.number === number : (c.name === resolved.name && !c.number));
         if (existing) {
             existing.quantity += quantity;
         } else {
@@ -925,7 +925,7 @@ async function parseDigimonDeckList(lines) {
 
         const number = resolved.card_number || (numM ? numM[1] : '');
         const image = resolved.display_image || resolved.image_url || resolved.local_image || '';
-        const existing = bucket.find(c => (number && c.number === number) || c.name === resolved.name);
+        const existing = bucket.find(c => number ? c.number === number : (c.name === resolved.name && !c.number));
         if (existing) {
             existing.quantity += quantity;
         } else {

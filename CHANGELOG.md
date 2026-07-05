@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Deck builder: you can now add multiple different cards that share a name (for example the many distinct "Agumon" in Digimon). Cards are keyed by their unique card number instead of by name, so distinct same-named cards stay separate entries - each with its own copy count - and the deck view fetches the correct art for each. Previously they merged into one entry and shared the copy limit, which blocked adding a legitimately different same-named card.
+- Deck import/export: pasting a decklist, or exporting a deck and re-importing it, no longer merges different cards that share a name. The text export now includes each card's number even when it has no set code (e.g. Digimon), and the Digimon / One Piece / Gundam importers key by card number, so distinct same-named cards round-trip correctly.
 
 ## [2.0.2] - 2026-06-24
 

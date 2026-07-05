@@ -472,8 +472,12 @@ function deckToText(deck) {
         const lines = cards.map(c => {
             const setCode = c.setCode || '';
             const number = c.number || c.cardNumber || '';
-            return (setCode && number)
-                ? `${c.quantity || 1} ${c.name} ${setCode} ${number}`
+            // Include the card number whenever we have it (even without a set code,
+            // e.g. Digimon) so different cards that share a name round-trip back to
+            // distinct cards on re-import instead of merging by name.
+            const suffix = [setCode, number].filter(Boolean).join(' ');
+            return suffix
+                ? `${c.quantity || 1} ${c.name} ${suffix}`
                 : `${c.quantity || 1} ${c.name}`;
         }).join('\n');
         return `${header}: ${count}\n${lines}`;
