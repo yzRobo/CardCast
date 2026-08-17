@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.5] - 2026-08-17
+
+### Fixed
+- Deck view showed completely unrelated cards. Adding a card, or importing a decklist, could put a different card entirely into the deck: searching for Pikachu and clicking it produced Aegislash, Lightning Bolt produced Abzan Guide, Iono produced Ampharos-GX. The deck stored only a card's name and collector number and re-found the artwork later by searching for that number on its own, which matched any card sharing the number and returned the first one alphabetically. Deck entries now keep the card that was actually chosen (its id, set and art), and the fallback lookup will only ever accept a card whose name matches the deck entry. Existing saved decks are corrected the next time they are opened. This affected Pokemon, Magic and Lorcana, whose collector numbers are plain digits, and was introduced in 2.0.3; Yu-Gi-Oh, One Piece, Digimon and Gundam were unaffected, and no deck data was damaged - only the picture shown in the app was wrong, so the deck list on the stream overlay was correct throughout.
+- Cards added from the main page recorded an empty set code, because the search results carry the set abbreviation under a different field than the one being read. The set code is now stored correctly, which also gives imported and hand-built decks a reliable way to tell printings apart.
+- Card names containing quotes or ampersands no longer break the "Add Cards" picker in deck edit mode.
+
 ## [2.0.4] - 2026-07-05
 
 ### Fixed

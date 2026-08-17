@@ -794,12 +794,19 @@ function addSelectedToDeck() {
     if (existingCard) {
         existingCard.quantity++;
     } else {
+        // Keep the id and art of the row that was actually selected. Search results
+        // carry set_abbreviation, not set_code, so the old set_code read always came
+        // back empty and left the deck with nothing but a name and a number to
+        // re-find the card by.
+        const setCode = selectedCard.set_abbreviation || selectedCard.set_code || '';
         bucket.push({
             quantity: 1,
             name: selectedCard.name,
-            setCode: selectedCard.set_code || '',
+            id: selectedCard.id || '',
+            setCode,
             number: cardNumber,
-            fullName: `${selectedCard.name} ${selectedCard.set_code || ''} ${cardNumber}`.trim()
+            image: selectedCard.image_url || selectedCard.display_image || '',
+            fullName: `${selectedCard.name} ${setCode} ${cardNumber}`.trim()
         });
     }
 

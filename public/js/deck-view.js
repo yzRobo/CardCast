@@ -12,6 +12,112 @@ let draggedCard = null;
 let draggedFromCategory = null;
 let draggedFromIndex = null;
 
+// Rows behind the current "Add Cards" results, so a click can store the whole
+// card (id, art, set) instead of squeezing fields through an onclick string.
+let addCardResults = [];
+
+// Resolved art per deck entry, so re-renders (quantity tweaks, drag/drop) cost
+// no network work.
+const cardArtCache = new Map();
+
+function escapeAttr(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+async function searchGame(game, query) {
+    try {
+        const res = await fetch(`/api/search/${game}?q=${encodeURIComponent(query)}`);
+        if (!res.ok) return [];
+        const results = await res.json();
+        return Array.isArray(results) ? results : [];
+    } catch (error) {
+        console.error('Card lookup failed for', query, error);
+        return [];
+    }
+}
+
+/**
+ * Find the DB row for a deck entry from its name/set/number.
+ *
+ * Only ever accepts a row whose NAME matches the entry. Matching on the collector
+ * number alone is what made decks show unrelated cards: a bare "185" query has no
+ * number column to hit, so it runs against search_text (name + set + number + card
+ * text) and returns an alphabetical window of whatever mentions "185" anywhere -
+ * then the first row numbered 185, from any set with any name, looked like a match.
+ *
+ * The set-qualified queries are tried first but cannot be relied on alone: the
+ * server's set+number pattern requires a purely alphabetic set code, so codes with
+ * digits (4BB, 3ED, M12, B2) fall through to the bare-name query.
+ */
+async function lookupDeckCard(game, card) {
+    const name = card.name || '';
+    if (!name) return null;
+
+    const number = card.number || '';
+    const setCode = (card.setCode || '').toUpperCase();
+
+    const queries = [];
+    if (setCode && number) queries.push(`${name} ${setCode} ${number}`);
+    if (setCode) queries.push(`${name} ${setCode}`);
+    queries.push(name);
+
+    const wanted = name.toLowerCase();
+    for (const query of queries) {
+        const results = await searchGame(game, query);
+        if (!results.length) continue;
+
+        const named = results.filter(r => (r.name || '').toLowerCase() === wanted);
+        if (!named.length) continue;
+
+        if (number) {
+            const exact = named.find(r => (r.card_number || '') === number);
+            if (exact) return exact;
+        }
+        return named[0];
+    }
+    return null;
+}
+
+/**
+ * Art for one deck entry: stored image, then the card's id, then a name lookup.
+ * Backfills id/image/setCode onto the entry so later renders skip the network and
+ * saving the deck upgrades entries that predate those fields being stored.
+ */
+async function resolveCardArt(game, card) {
+    if (card.image) return card.image;
+
+    const key = `${game}|${card.id || ''}|${card.name || ''}|${card.setCode || ''}|${card.number || ''}`;
+    if (cardArtCache.has(key)) return cardArtCache.get(key);
+
+    let resolved = null;
+    try {
+        if (card.id) {
+            const res = await fetch(`/api/card/${game}/${encodeURIComponent(card.id)}`);
+            if (res.ok) {
+                const full = await res.json();
+                if (full && !full.error) resolved = full;
+            }
+        }
+        if (!resolved) resolved = await lookupDeckCard(game, card);
+    } catch (error) {
+        console.error(`Error fetching card image for ${card.name}:`, error);
+    }
+
+    const image = (resolved && (resolved.image_url || resolved.display_image || resolved.local_image)) || '';
+    if (resolved) {
+        if (image) card.image = image;
+        if (resolved.id && !card.id) card.id = resolved.id;
+        if (resolved.set_abbreviation && !card.setCode) card.setCode = resolved.set_abbreviation;
+    }
+
+    cardArtCache.set(key, image);
+    return image;
+}
+
 /**
  * Display deck view - main entry point
  */
@@ -155,37 +261,18 @@ function buildAddCardSection() {
  */
 async function renderDeckCards(cards, game, category) {
     let cardsHTML = '';
-    
+
+    // Resolve the whole section at once; each entry caches its own result.
+    const images = await Promise.all(cards.map(c => resolveCardArt(game, c)));
+
     for (let i = 0; i < cards.length; i++) {
         const card = cards[i];
-        let cardImage = '/images/card-back.png';
-        
-        try {
-            // Prefer the unique card number so we show the exact art for cards that
-            // share a name; fall back to a name (+ set) search otherwise.
-            let results = [];
-            if (card.number) {
-                results = await (await fetch(`/api/search/${game}?q=${encodeURIComponent(card.number)}`)).json();
-            }
-            if (!results || results.length === 0) {
-                const q = card.setCode ? `${card.name} ${card.setCode.toUpperCase()}` : card.name;
-                results = await (await fetch(`/api/search/${game}?q=${encodeURIComponent(q)}`)).json();
-            }
-            if (results && results.length > 0) {
-                let matchedCard = card.number
-                    ? results.find(r => r.card_number === card.number)
-                    : null;
-                if (!matchedCard) matchedCard = results[0];
-                if (matchedCard) cardImage = matchedCard.image_url || cardImage;
-            }
-        } catch (error) {
-            console.error(`Error fetching card image for ${card.name}:`, error);
-        }
-        
-        const cardTitle = card.setCode ? 
-            `${card.name} (${card.setCode} ${card.number || ''})` : 
-            card.name;
-        
+        const cardImage = images[i] || '/images/card-back.png';
+
+        const cardTitle = escapeAttr(card.setCode ?
+            `${card.name} (${card.setCode} ${card.number || ''})` :
+            card.name);
+
         if (isEditMode) {
             cardsHTML += `
                 <div class="deck-card-item edit-mode" 
@@ -324,35 +411,36 @@ window.removeCardFromDeck = function(category, index) {
 window.searchCardsToAdd = async function(event) {
     const query = event.target.value.trim();
     if (query.length < 2) {
+        addCardResults = [];
         document.getElementById('addCardResults').innerHTML = '';
         return;
     }
-    
+
     const game = editingDeck.game;
-    
-    try {
-        const response = await fetch(`/api/search/${game}?q=${encodeURIComponent(query)}`);
-        const results = await response.json();
-        
-        const resultsHTML = results.slice(0, 24).map(card => `
-            <div class="add-card-result"
-                 onclick="addCardToDeck('${card.name.replace(/'/g, "\\'")}', '${card.image_url || '/images/card-back.png'}', '${(card.card_number || '').replace(/'/g, "\\'")}')">
-                <img src="${card.image_url || '/images/card-back.png'}" 
-                     alt="${card.name}"
-                     title="${card.name}">
-            </div>
-        `).join('');
-        
-        document.getElementById('addCardResults').innerHTML = resultsHTML || '<p class="col-span-full text-center opacity-50">No cards found</p>';
-    } catch (error) {
-        console.error('Error searching cards:', error);
-    }
+
+    const results = await searchGame(game, query);
+    addCardResults = results.slice(0, 24);
+
+    // Click by index into the stored rows - the full row is what the deck entry
+    // needs, and it keeps card names out of an onclick string.
+    const resultsHTML = addCardResults.map((card, i) => `
+        <div class="add-card-result" onclick="addCardToDeck(${i})">
+            <img src="${escapeAttr(card.image_url || '/images/card-back.png')}"
+                 alt="${escapeAttr(card.name)}"
+                 title="${escapeAttr(card.name)}">
+        </div>
+    `).join('');
+
+    document.getElementById('addCardResults').innerHTML = resultsHTML || '<p class="col-span-full text-center opacity-50">No cards found</p>';
 }
 
 /**
  * Add card to deck
  */
-window.addCardToDeck = function(cardName, cardImage, cardNumber) {
+window.addCardToDeck = function(index) {
+    const source = addCardResults[index];
+    if (!source) return;
+
     const category = document.getElementById('addCardCategory').value;
     const arr = getDeckCategoryArray(editingDeck, category);
 
@@ -361,9 +449,9 @@ window.addCardToDeck = function(cardName, cardImage, cardNumber) {
     // per name; different printings of a card count together).
     const rules = GAME_REGISTRY[editingDeck.game]?.deck?.rules || {};
     const byNumber = rules.copyBy === 'number';
-    const num = cardNumber || '';
+    const num = source.card_number || '';
     const existingCard = arr.find(c =>
-        (byNumber && num) ? c.number === num : c.name === cardName
+        (byNumber && num) ? c.number === num : c.name === source.name
     );
     const limit = rules.copyLimit || 4;
 
@@ -375,16 +463,22 @@ window.addCardToDeck = function(cardName, cardImage, cardNumber) {
             return;
         }
     } else {
+        // Keep the row that was actually clicked, so the deck never has to guess
+        // this card back from its number.
         arr.push({
-            name: cardName,
+            name: source.name,
+            id: source.id || '',
+            setCode: source.set_abbreviation || '',
             number: num,
+            image: source.image_url || source.display_image || '',
             quantity: 1
         });
     }
 
     document.getElementById('addCardSearch').value = '';
     document.getElementById('addCardResults').innerHTML = '';
-    
+    addCardResults = [];
+
     renderDeckView();
 }
 

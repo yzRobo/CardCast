@@ -458,9 +458,11 @@ async function parseGundamDeckList(lines) {
             bucket.push({
                 quantity,
                 name: resolved.name,
+                id: resolved.id || '',
                 setCode: resolved.set_abbreviation || resolved.set_code || '',
                 number,
                 cardType: resolved.card_type || '',
+                image: resolved.display_image || resolved.image_url || resolved.local_image || '',
                 fullName: `${quantity} ${resolved.name} ${number}`.trim()
             });
         }
@@ -572,9 +574,11 @@ async function parseYugiohDeckList(lines) {
             bucket.push({
                 quantity,
                 name: resolved.name,
+                id: resolved.id || '',
                 setCode: resolved.set_abbreviation || resolved.set_code || '',
                 number,
                 cardType: resolved.card_type || '',
+                image: resolved.display_image || resolved.image_url || resolved.local_image || '',
                 fullName: `${quantity} ${resolved.name}`.trim()
             });
         }
@@ -684,6 +688,7 @@ async function parseOnePieceDeckList(lines) {
         const entry = {
             quantity,
             name: resolved.name,
+            id: resolved.id || '',
             setCode: resolved.set_abbreviation || resolved.set_code || '',
             number,
             cardType: resolved.card_type || '',
@@ -818,6 +823,7 @@ async function parseLorcanaDeckList(lines) {
             bucket.push({
                 quantity,
                 name: resolved.name,
+                id: resolved.id || '',
                 setCode: resolved.set_abbreviation || resolved.set_code || '',
                 number,
                 cardType: resolved.card_type || '',
@@ -932,6 +938,7 @@ async function parseDigimonDeckList(lines) {
             bucket.push({
                 quantity,
                 name: resolved.name,
+                id: resolved.id || '',
                 setCode: resolved.set_abbreviation || resolved.set_code || '',
                 number,
                 cardType: resolved.card_type || '',
