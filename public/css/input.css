@@ -164,6 +164,21 @@
     box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18), 0 0 8px rgba(52, 211, 153, 0.5);
   }
 
+  /* Update download progress, under the header's Check for Updates button.
+     Hidden until the desktop shell reports a download in flight. */
+  .update-progress {
+    @apply w-full overflow-hidden rounded-full;
+    height: 3px;
+    margin-top: 2px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .update-progress-fill {
+    @apply h-full rounded-full;
+    width: 0%;
+    background: linear-gradient(90deg, var(--cc-accent, #6366f1), #a855f7);
+    transition: width 0.25s ease;
+  }
+
   /* De-flashed leftovers (kept for markup compatibility) */
   .neon-glow, .neon-glow-sm { box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.18); }
   .text-glow { text-shadow: none; }

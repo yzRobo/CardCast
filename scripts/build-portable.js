@@ -109,7 +109,9 @@ const directories = [
     { name: 'src', exclude: [] },
     { name: 'public', exclude: [] },
     { name: 'overlays', exclude: [] },
-    { name: 'scripts', exclude: [] }
+    { name: 'scripts', exclude: [] },
+    // Application icon artwork; server.js serves it at /assets for the favicon.
+    { name: 'assets', exclude: [] }
 ];
 
 directories.forEach(dir => {

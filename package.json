@@ -1,14 +1,14 @@
 {
   "name": "cardcast",
-  "version": "2.0.5",
+  "version": "2.1.0",
   "description": "Streaming overlay tool for TCG content creators",
   "main": "electron-main.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
     "electron": "electron .",
-    "dist": "electron-builder --win",
-    "dist:dir": "electron-builder --win --dir",
+    "dist": "electron-builder --win --publish never",
+    "dist:dir": "electron-builder --win --dir --publish never",
     "rebuild-node": "npm rebuild better-sqlite3",
     "build": "node scripts/build-portable.js",
     "build-portable": "node scripts/build-portable.js",
@@ -40,6 +40,7 @@
     "better-sqlite3": "^12.11.1",
     "cheerio": "^1.0.0-rc.12",
     "csv-parser": "^3.2.0",
+    "electron-updater": "^6.8.9",
     "express": "^4.18.2",
     "socket.io": "^4.6.0"
   },
@@ -81,6 +82,13 @@
         "to": "cardcast-seed.db"
       }
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "yzRobo",
+        "repo": "CardCast"
+      }
+    ],
     "win": {
       "target": [
         {
@@ -90,15 +98,18 @@
           ]
         }
       ],
+      "icon": "assets/icon.ico",
       "artifactName": "CardCast-Setup-${version}.exe"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CardCast"
+      "shortcutName": "CardCast",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico"
     },
     "directories": {
       "output": "dist-electron"

@@ -113,6 +113,29 @@ async function initVersionAndUpdates() {
             }
         });
     }
+
+    // While the desktop app downloads an update, turn the button into a live
+    // progress readout. The native dialogs still drive the decisions; this is so
+    // the user can see something is happening instead of a frozen-looking button.
+    if (desktop && desktop.onUpdateProgress && btn) {
+        const label = btn.querySelector('span');
+        const original = label ? label.textContent : '';
+        const bar = document.getElementById('updateProgress');
+        const fill = bar ? bar.querySelector('.update-progress-fill') : null;
+
+        desktop.onUpdateProgress(({ state, percent }) => {
+            if (bar) bar.classList.toggle('hidden', state !== 'start' && state !== 'downloading');
+            if (fill && typeof percent === 'number') fill.style.width = `${percent}%`;
+
+            if (state === 'start' || state === 'downloading') {
+                btn.disabled = true;
+                if (label) label.textContent = `Updating ${percent || 0}%`;
+            } else {
+                btn.disabled = false;
+                if (label) label.textContent = state === 'ready' ? 'Restart to update' : original;
+            }
+        });
+    }
 }
 
 // Initialize event listeners

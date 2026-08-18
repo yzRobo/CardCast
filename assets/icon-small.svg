@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- CardCast application icon, simplified variant for 16px and 24px, where the
+       full design's second card and outer arc collapse into noise. Same palette
+       and silhouette, fewer parts, heavier strokes: one upright card and one arc.
+       After editing, regenerate with:  node scripts/build-icon.mjs -->
+  <defs>
+    <linearGradient id="tileSmall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="0.55" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#9333ea"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="114" fill="url(#tileSmall)"/>
+
+  <!-- The card is pulled left and the arc pushed right so a full pixel of tile
+       still separates them once this is 16px wide. -->
+  <path d="M336 172 A 112 112 0 0 1 448 284" fill="none" stroke="#ffffff"
+        stroke-width="50" stroke-linecap="round"/>
+
+  <rect x="84" y="156" width="196" height="280" rx="34" fill="#ffffff"/>
+  <circle cx="182" cy="296" r="52" fill="#7c3aed"/>
+</svg>

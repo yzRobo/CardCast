@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-18
+
+### Added
+- The desktop app now installs its own updates. When a new version is found it asks once, downloads it with a progress bar in the header and on the taskbar button, then asks to restart. Choosing Restart Now closes CardCast, installs silently and reopens on the new version - no browser, no downloads folder, no installer wizard. Choosing Later keeps the download and installs it the next time you quit. If an update cannot be installed automatically for any reason, CardCast falls back to the previous behaviour and offers to open the download page.
+- CardCast has a real application icon: two fanned cards under a broadcast arc, in the app's indigo-to-violet palette. It is used for the window, taskbar, Start Menu, installer and the browser tab. A simplified version is drawn at 16 and 24 pixels, where the full artwork would be unreadable. The artwork lives in `assets/icon.svg` and is regenerated with `node scripts/build-icon.mjs`.
+
+### Changed
+- The Windows installer is now one-click. It installs for the current user without prompting for a folder or administrator rights, which is what lets updates install silently. If you previously installed CardCast for all users (typically in Program Files), the new version installs alongside it and offers, once, to remove the old copy - the old install is no longer used, but its Start Menu shortcut would otherwise still open it.
+
+### Note
+- Updating to 2.1.0 itself is still a manual download, because self-updating only exists from this version onward. Every update after this one installs itself.
+
 ## [2.0.5] - 2026-08-17
 
 ### Fixed

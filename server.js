@@ -97,6 +97,9 @@ const overlayServer = new OverlayServer(io);
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+// Application icon artwork, used as the browser/window favicon. Lives outside
+// public/ because .gitignore excludes any directory named "images".
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // Lazy image resolution for cached card images. Three tiers:
 //   1. file already on disk  -> fall through to express.static below
@@ -1430,6 +1433,26 @@ async function bootstrap() {
     tcgApi = new TCGCSVApi(db, apiKeys);
 }
 
+// Report why the server could not start, instead of letting the failure vanish
+// into the global uncaughtException handler. Without this, a port clash left the
+// desktop shell waiting on a port that would never open, and it eventually gave
+// up with a generic "CardCast could not start" - see CARDCAST_STARTUP_ERROR in
+// electron-main.js, which reads this and fails fast with the real reason.
+function reportStartupFailure(message) {
+    console.error(message);
+    global.CARDCAST_STARTUP_ERROR = message;
+    // Standalone (npm start / portable): nothing else is watching, so stop here.
+    if (!process.env.CARDCAST_ELECTRON) process.exit(1);
+}
+
+server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+        reportStartupFailure(`Port ${PORT} is already in use. CardCast may already be running, or another program is using that port.`);
+    } else {
+        reportStartupFailure(`The CardCast server could not start: ${error.message}`);
+    }
+});
+
 bootstrap().then(() => {
 server.listen(PORT, () => {
     console.log(`
@@ -1497,8 +1520,7 @@ ${process.env.CARDCAST_ELECTRON ? 'Running inside the CardCast desktop app.' : '
     }
 });
 }).catch((error) => {
-    console.error('Failed to start CardCast:', error);
-    process.exit(1);
+    reportStartupFailure(`Failed to start CardCast: ${error.message || error}`);
 });
 
 // Graceful shutdown
