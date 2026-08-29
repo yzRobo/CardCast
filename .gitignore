@@ -20,7 +20,11 @@ out/
 data/
 cache/
 cards/
+# Downloaded card art (cache/images/<game>/). Scoped so it stops swallowing
+# public/images/, which holds shipped app assets like the card-back fallback.
 images/
+!public/images/
+!public/images/**
 
 # Environment variables
 .env

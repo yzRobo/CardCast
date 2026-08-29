@@ -940,6 +940,11 @@ io.on('connection', (socket) => {
     
     socket.on('turn-switch', (data) => {
         console.log('Turn switch:', data);
+        // Persist it. `turn-switch` is shared by every game, and each game's
+        // stored state is replayed to overlays on every 5s re-registration; if
+        // the switch is only relayed, that replay carries a stale currentTurn
+        // and reverts the active-player emphasis within seconds.
+        overlayServer.setCurrentTurn(data && data.currentTurn);
         io.emit('turn-switch', data);
     });
     

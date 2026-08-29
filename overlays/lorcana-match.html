@@ -19,6 +19,12 @@
             position: relative;
         }
 
+        /* Empty-slot motif: a monochrome ink drop, the one shape that is
+           unmistakably Lorcana without being a logo. */
+        :root {
+            --ink-drop: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='7' stroke-linejoin='round'%3E%3Cpath d='M50 10C50 10 78 46 78 62a28 28 0 0 1-56 0C22 46 50 10 50 10Z'/%3E%3C/g%3E%3C/svg%3E");
+        }
+
         /* Player boards - vertical panels on the sides */
         .player-board {
             position: absolute;
@@ -29,7 +35,18 @@
             gap: 9px;
             top: 50%;
             opacity: 0;
-            transition: all 0.5s ease;
+            transition: opacity 0.5s ease, transform 0.5s ease, filter 0.45s ease;
+
+            /* Per-side accent, referenced by every panel and by the turn rail.
+               Same hues the board has always used - just named. */
+            --accent: #7c3aed;
+            --accent-soft: rgba(124, 58, 237, 0.5);
+            --accent-glow: rgba(124, 58, 237, 0.32);
+        }
+        .player-board.right {
+            --accent: #d97706;
+            --accent-soft: rgba(217, 119, 6, 0.5);
+            --accent-glow: rgba(217, 119, 6, 0.32);
         }
         .player-board.left { left: 20px; transform: translateX(-440px) translateY(-50%); }
         .player-board.left.active { transform: translateX(0) translateY(-50%); }
@@ -37,16 +54,49 @@
         .player-board.right.active { transform: translateX(0) translateY(-50%); }
         .player-board.active { opacity: 1; }
 
+        /* ---- Whose turn it is -------------------------------------------------
+           The idle side settles back; the active side keeps its full weight. The
+           dim alone is hard to judge when the two boards are 1080px apart and are
+           different hues, so the active side also gets a lit rail on its inner
+           edge - present or absent, nothing to compare. Note `.active` on these
+           boards means VISIBLE, so turn state uses its own class names. */
+        .player-board.active.idle-turn { opacity: 0.8; }
+        .player-board.idle-turn { filter: saturate(0.7) brightness(0.86); }
+
+        .player-board.active-turn .panel:not(.soft):not(.lore-panel),
+        .player-board.active-turn .lore-panel:not(.leading) {
+            box-shadow: 0 0 0 1px var(--accent-soft), 0 0 22px var(--accent-glow), 0 8px 24px rgba(0, 0, 0, 0.45);
+        }
+
+        /* The board box is a fixed 1010px but its panels are shorter - the Items
+           panel only appears when there are items, and the Ink track's height
+           varies. A rail sized to the box would hang below the last panel, so it
+           is sized to the measured content column instead (--rail-height). */
+        .player-board::after {
+            content: '';
+            position: absolute;
+            top: 6px;
+            height: calc(var(--rail-height, 1010px) - 12px);
+            width: 4px;
+            border-radius: 4px;
+            background: linear-gradient(180deg, transparent 0%, var(--accent) 10%, var(--accent) 90%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.45s ease;
+            pointer-events: none;
+        }
+        .player-board.left::after  { right: -11px; }
+        .player-board.right::after { left: -11px; }
+        .player-board.active-turn::after { opacity: 1; box-shadow: 0 0 16px var(--accent); }
+
         .panel {
             background: linear-gradient(135deg, rgba(8,6,20,0.95) 0%, rgba(24,18,46,0.95) 100%);
-            border: 2px solid #7c3aed;
+            border: 2px solid var(--accent);
             border-radius: 12px;
             padding: 11px;
             backdrop-filter: blur(10px);
+            transition: box-shadow 0.45s ease;
         }
-        .player-board.right .panel { border-color: #d97706; }
-        .panel.soft { border-color: rgba(124,58,237,0.5); }
-        .player-board.right .panel.soft { border-color: rgba(217,119,6,0.5); }
+        .panel.soft { border-color: var(--accent-soft); }
 
         .section-title {
             font-size: 12px;
@@ -55,32 +105,55 @@
             letter-spacing: 1.2px;
             margin-bottom: 8px;
             font-weight: 600;
-            display: flex; align-items: center; justify-content: space-between;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
         .player-board.right .section-title { color: #e6c79a; }
+        .section-title > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .slot-count { flex-shrink: 0; font-variant-numeric: tabular-nums; opacity: 0.85; }
 
         /* Header */
-        .player-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .player-name-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
         .player-name {
             font-size: 22px; font-weight: 800; color: #fff;
             text-transform: uppercase; letter-spacing: 1.2px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            /* Takes every pixel the record chip does not need, instead of the old
+               fixed 240px cap that ellipsised names with 60px still free. */
+            flex: 1; min-width: 0;
         }
+        /* Both boards keep the name on the left. This layout has never mirrored -
+           its section titles, stat chips and card grids all read left-to-right on
+           both sides - and a mirrored header alone would look like a mistake. */
         .player-record {
             font-size: 15px; color: #cbb8f0; font-weight: 700;
             background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+            flex-shrink: 0; font-variant-numeric: tabular-nums; white-space: nowrap;
         }
         .games-won {
             background: rgba(245,158,11,0.2); border: 2px solid #f59e0b; color: #f5b94b;
             padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
         /* LORE race (headline - counts UP to 20, first to 20 wins) */
         .lore-panel { position: relative; }
         .lore-head { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin-bottom: 10px; }
-        .lore-count { font-size: 52px; font-weight: 800; color: #fbbf24; line-height: 1; text-shadow: 0 0 22px rgba(251,191,36,0.5); }
-        .lore-goal { font-size: 26px; font-weight: 700; color: #6b7280; }
+        /* Shrink-wraps the numeral so the +/- ticker anchors to the digits rather
+           than to the panel, which is far wider. Nothing on this path clips. */
+        .lore-count-wrap { position: relative; display: inline-block; }
+        .lore-count {
+            display: block;
+            font-size: 52px; font-weight: 800; color: #fbbf24; line-height: 1;
+            text-shadow: 0 0 22px rgba(251,191,36,0.5); font-variant-numeric: tabular-nums;
+        }
+        /* Within two of the goal is match point - the moment a caster calls out. */
+        .lore-count.match-point { animation: soft-pulse 1.5s ease-in-out infinite; }
+        .lore-count.at-goal {
+            color: #fff;
+            text-shadow: 0 0 26px rgba(251,191,36,0.95), 0 0 10px rgba(255,255,255,0.8);
+        }
+        .lore-goal { font-size: 26px; font-weight: 700; color: #6b7280; font-variant-numeric: tabular-nums; }
         .lore-bar {
             display: grid; grid-template-columns: repeat(20, 1fr); gap: 2px;
             height: 22px; padding: 3px; border-radius: 7px;
@@ -90,6 +163,24 @@
         .lore-seg.filled { background: linear-gradient(180deg, #fde68a, #f59e0b); box-shadow: 0 0 6px rgba(251,191,36,0.5); }
         /* The 20th segment glows as the win marker. */
         .lore-seg.goal { box-shadow: inset 0 0 0 1px rgba(251,191,36,0.6); }
+
+        /* Lore ticker - sits left of the numeral, where the centred head leaves
+           ~120px of empty panel, and fades out on its own. */
+        .lore-pop {
+            position: absolute; right: 100%; top: 50%; margin-right: 10px;
+            font-size: 20px; font-weight: 800; color: #fde68a;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+            white-space: nowrap; pointer-events: none;
+            font-variant-numeric: tabular-nums;
+            animation: lore-pop 1.1s ease-out forwards;
+        }
+        .lore-pop.down { color: #fca5a5; }
+        @keyframes lore-pop {
+            0%   { opacity: 0; transform: translateY(-10%); }
+            25%  { opacity: 1; transform: translateY(-50%); }
+            100% { opacity: 0; transform: translateY(-130%); }
+        }
+
         .lead-badge {
             display: none; position: absolute; top: 9px; right: 11px;
             background: linear-gradient(135deg, #f59e0b, #b45309); color: #fff;
@@ -101,11 +192,20 @@
 
         /* Ink resource (available / total) */
         .ink-head { display: flex; align-items: baseline; justify-content: center; gap: 6px; margin-bottom: 8px; }
-        .ink-avail { font-size: 30px; font-weight: 800; color: #38bdf8; font-family: 'Inter', monospace; text-shadow: 0 0 12px rgba(56,189,248,0.4); }
-        .ink-total { font-size: 18px; font-weight: 700; color: #6b7280; }
+        .ink-avail { font-size: 30px; font-weight: 800; color: #38bdf8; font-family: 'Inter', monospace; text-shadow: 0 0 12px rgba(56,189,248,0.4); font-variant-numeric: tabular-nums; }
+        .ink-total { font-size: 18px; font-weight: 700; color: #6b7280; font-variant-numeric: tabular-nums; }
         .ink-label { font-size: 12px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
         .ink-track { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
-        .ink-pip { width: 18px; height: 24px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); transform: rotate(8deg); }
+        .ink-pip {
+            width: 18px; height: 24px; border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05);
+            transform: rotate(8deg); flex-shrink: 0;
+            transition: background 0.25s ease, border-color 0.25s ease, opacity 0.25s ease;
+        }
+        /* Past ~14 pips a 18px row wraps onto a second line and pushes the board
+           past its 1010px height, so the pips tighten instead of spilling. */
+        .ink-track.dense { gap: 3px; }
+        .ink-track.dense .ink-pip { width: 13px; height: 19px; border-radius: 3px; }
         .ink-pip.ready { background: radial-gradient(circle at 35% 30%, #7dd3fc, #0369a1); border-color: #38bdf8; box-shadow: 0 0 8px rgba(56,189,248,0.5); }
         .ink-pip.spent { background: #1f2937; border-color: #374151; opacity: 0.6; }
 
@@ -120,15 +220,57 @@
         .char-cell.empty { border-style: dashed; }
         .char-cell.exerted { transform: rotate(9deg) scale(0.94); }
         .char-cell.exerted::after {
-            content: 'EXERTED'; position: absolute; bottom: 22px; left: 0; right: 0; text-align: center;
-            font-size: 9px; font-weight: 800; letter-spacing: 1px; color: #fbbf24; text-shadow: 0 1px 3px #000;
+            content: 'EXERTED'; position: absolute; bottom: 26px; left: 0; right: 0; text-align: center;
+            font-size: 9px; font-weight: 800; letter-spacing: 1px; color: #fde68a;
+            padding: 1px 0; text-shadow: 0 1px 3px #000;
+            /* Without a backing the gold sat straight on card art and vanished. */
+            background: linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.85) 16%, rgba(0,0,0,0.85) 84%, rgba(0,0,0,0) 100%);
         }
         .char-cell.banished { filter: grayscale(0.7) brightness(0.6); border-color: #ef4444; }
         .char-cell.banished::before {
             content: 'BANISHED'; position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%);
             text-align: center; font-size: 11px; font-weight: 800; letter-spacing: 1px; color: #fca5a5; z-index: 3; text-shadow: 0 1px 4px #000;
+            background: none; animation: none; opacity: 1; width: auto; height: auto; margin: 0;
         }
-        .char-cell img.char-art { width: 100%; height: 100%; object-fit: cover; }
+        .char-cell img.char-art { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        /* A card entering a slot eases in. The animation rides the image, not the
+           cell, so it never fights the exerted rotation on the cell itself. */
+        .char-cell img.char-art,
+        .loc-cell img.loc-art {
+            animation: card-enter 0.45s cubic-bezier(0.16, 0.84, 0.44, 1);
+        }
+        @keyframes card-enter {
+            0%   { opacity: 0; transform: translateY(8px) scale(0.96); }
+            100% { opacity: 1; transform: none; }
+        }
+
+        /* Idle slots get an ink drop drifting through - enough motion to keep the
+           dead space alive, slow and dim enough to ignore. No rotation: a
+           tumbling teardrop reads as a glitch rather than as drift. */
+        .char-cell.empty::before,
+        .loc-cell.empty::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 30px; height: 30px;
+            margin: -15px 0 0 -15px;
+            background: var(--ink-drop) center / contain no-repeat;
+            opacity: 0;
+            animation: slot-drift 7s linear infinite;
+            animation-delay: var(--drift-delay, 0s);
+            pointer-events: none;
+        }
+        .loc-cell.empty::before { width: 24px; height: 24px; margin: -12px 0 0 -12px; }
+
+        @keyframes slot-drift {
+            0%   { opacity: 0;    transform: translate(-160%, 0); }
+            18%  { opacity: 0.17; }
+            50%  { transform: translate(0, -6px); }
+            82%  { opacity: 0.17; }
+            100% { opacity: 0;    transform: translate(160%, 0); }
+        }
+
         .char-stats {
             position: absolute; top: 3px; left: 3px; right: 3px;
             display: flex; gap: 3px; justify-content: flex-start;
@@ -137,11 +279,13 @@
             font-size: 11px; font-weight: 800; color: #fff; line-height: 1;
             padding: 2px 4px; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.6);
             display: inline-flex; align-items: center; gap: 1px;
+            font-variant-numeric: tabular-nums; min-width: 0;
         }
         .stat .lbl { font-size: 7px; opacity: 0.85; font-weight: 700; }
         .stat.str { background: linear-gradient(135deg, rgba(239,68,68,0.95), rgba(127,29,29,0.95)); }
         .stat.wil { background: linear-gradient(135deg, rgba(56,189,248,0.95), rgba(12,74,110,0.95)); }
         .stat.lore { background: linear-gradient(135deg, rgba(251,191,36,0.95), rgba(146,64,14,0.95)); }
+
         /* Damage bar = remaining Willpower (depletes like a Pokemon HP bar) */
         .dmg-wrap {
             position: absolute; bottom: 3px; left: 3px; right: 3px; height: 6px;
@@ -149,11 +293,31 @@
         }
         .dmg-bar { height: 100%; width: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); transition: width 0.3s ease; }
         .dmg-bar.warn { background: linear-gradient(90deg, #f59e0b, #d97706); }
-        .dmg-bar.crit { background: linear-gradient(90deg, #ef4444, #b91c1c); }
+        .dmg-bar.crit { background: linear-gradient(90deg, #ef4444, #b91c1c); animation: soft-pulse 1.6s ease-in-out infinite; }
         .dmg-text {
             position: absolute; bottom: 11px; right: 3px;
             font-size: 9px; font-weight: 800; color: #fff; background: rgba(0,0,0,0.75);
-            padding: 0 4px; border-radius: 4px;
+            padding: 0 4px; border-radius: 4px; font-variant-numeric: tabular-nums;
+            white-space: nowrap; max-width: calc(100% - 6px); overflow: hidden;
+        }
+
+        /* Damage flash. A permanent layer whose opacity is animated - the cell
+           clips its overflow, so a spawned ticker would render zero pixels, and
+           both ::before and ::after are already spoken for on this element. */
+        .dmg-flash {
+            position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(239,68,68,0.6) 0%, rgba(239,68,68,0) 72%);
+        }
+        .char-cell.flash .dmg-flash { animation: dmg-flash 0.6s ease-out; }
+        @keyframes dmg-flash {
+            0%   { opacity: 0; }
+            22%  { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        @keyframes soft-pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.62; }
         }
 
         /* Locations: up to 3 */
@@ -164,7 +328,7 @@
             border: 2px solid rgba(16,185,129,0.4); border-radius: 7px; overflow: hidden;
         }
         .loc-cell.empty { border-style: dashed; border-color: rgba(255,255,255,0.1); }
-        .loc-cell img.loc-art { width: 100%; height: 100%; object-fit: cover; }
+        .loc-cell img.loc-art { width: 100%; height: 100%; object-fit: cover; display: block; }
         .loc-name {
             position: absolute; bottom: 0; left: 0; right: 0;
             font-size: 9px; font-weight: 700; color: #fff; padding: 2px 4px;
@@ -173,13 +337,27 @@
         }
         .loc-stats { position: absolute; top: 3px; left: 3px; display: flex; gap: 3px; }
 
-        /* Items chips */
-        .items-row { display: flex; gap: 6px; flex-wrap: wrap; }
+        /* Items chips. Deliberately a single non-wrapping row: this panel is last
+           in a fixed-height board, so a wrapping list of long item names grows
+           downward and pushes the column past the 1010px box. Chips shrink and
+           ellipsise instead, and the count chip - which never shrinks - says how
+           many are not shown, so nothing is lost silently. The cap is set by
+           legibility (see MAX_ITEM_CHIPS): a chip too narrow to name its item is
+           worth less than the +N that would have counted it. */
+        .items-row { display: flex; gap: 5px; flex-wrap: nowrap; overflow: hidden; }
         .item-chip {
             background: rgba(148,163,184,0.18); border: 1px solid rgba(148,163,184,0.5); color: #e2e8f0;
-            font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
-            white-space: nowrap; max-width: 170px; overflow: hidden; text-overflow: ellipsis;
+            /* 6px of side padding and a 5px gap rather than 9px/6px. The row is
+               374px wide and three chips plus the count chip land within a pixel
+               of that at the old spacing - and a sub-pixel overflow still costs a
+               whole ellipsis plus a character or two. These 13px of slack are the
+               difference between "Musketeer Tabard" reading in full and reading
+               as "Musketeer Tab...". */
+            font-size: 11px; font-weight: 600; padding: 3px 6px; border-radius: 999px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            flex: 0 1 auto; min-width: 0; max-width: 150px;
         }
+        .item-chip.more { background: rgba(148,163,184,0.32); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
         /* Shared match-info bar */
         .match-info {
@@ -187,15 +365,25 @@
             background: linear-gradient(135deg, rgba(8,6,20,0.98) 0%, rgba(24,18,46,0.98) 100%);
             border: 2px solid #7c3aed; border-radius: 12px; padding: 14px 30px;
             display: flex; align-items: center; gap: 25px; backdrop-filter: blur(10px);
-            opacity: 0; transition: all 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+            opacity: 0; transition: opacity 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
         }
         .match-info.active { opacity: 1; }
-        .match-format { font-size: 14px; color: #b9a7e6; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
-        .timer { font-size: 36px; font-weight: bold; color: #fbbf24; font-family: 'Courier New', monospace; text-shadow: 0 0 15px rgba(251,191,36,0.5); }
+        .match-format { font-size: 14px; color: #b9a7e6; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; white-space: nowrap; }
+        .timer {
+            font-size: 36px; font-weight: bold; color: #fbbf24;
+            font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums;
+            text-shadow: 0 0 15px rgba(251,191,36,0.5);
+        }
+        /* Last minute on the clock reads red so it is obvious on stream. */
+        .timer.expiring {
+            color: #f87171; text-shadow: 0 0 15px rgba(248,113,113,0.6);
+            animation: soft-pulse 1.2s ease-in-out infinite;
+        }
         .turn-indicator {
             padding: 8px 16px; background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
             border-radius: 24px; color: #fff; font-weight: bold; font-size: 14px;
             text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(124,58,237,0.4);
+            max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
     </style>
     <script src="/socket.io/socket.io.js"></script>
@@ -212,12 +400,15 @@
         </div>
         <div class="panel lore-panel" id="p1LorePanel">
             <div class="lead-badge">Leading</div>
-            <div class="section-title">Lore &mdash; Race to 20</div>
-            <div class="lore-head"><span class="lore-count" id="p1Lore">0</span><span class="lore-goal" id="p1LoreGoal">/ 20</span></div>
+            <div class="section-title"><span>Lore &mdash; Race to 20</span></div>
+            <div class="lore-head">
+                <span class="lore-count-wrap"><span class="lore-count" id="p1Lore">0</span></span>
+                <span class="lore-goal" id="p1LoreGoal">/ 20</span>
+            </div>
             <div class="lore-bar" id="p1LoreBar"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Ink</div>
+            <div class="section-title"><span>Ink</span></div>
             <div class="ink-head">
                 <span class="ink-avail" id="p1InkAvail">0</span>
                 <span class="ink-total" id="p1InkTotal">/0</span>
@@ -226,15 +417,15 @@
             <div class="ink-track" id="p1InkTrack"></div>
         </div>
         <div class="panel">
-            <div class="section-title">Characters in Play</div>
+            <div class="section-title"><span>Characters in Play</span><span class="slot-count" id="p1CharCount"></span></div>
             <div class="chars-grid" id="p1Chars"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Locations</div>
+            <div class="section-title"><span>Locations</span><span class="slot-count" id="p1LocCount"></span></div>
             <div class="locs-grid" id="p1Locs"></div>
         </div>
         <div class="panel soft" id="p1ItemsPanel" style="display:none">
-            <div class="section-title">Items</div>
+            <div class="section-title"><span>Items</span></div>
             <div class="items-row" id="p1Items"></div>
         </div>
     </div>
@@ -250,12 +441,15 @@
         </div>
         <div class="panel lore-panel" id="p2LorePanel">
             <div class="lead-badge">Leading</div>
-            <div class="section-title">Lore &mdash; Race to 20</div>
-            <div class="lore-head"><span class="lore-count" id="p2Lore">0</span><span class="lore-goal" id="p2LoreGoal">/ 20</span></div>
+            <div class="section-title"><span>Lore &mdash; Race to 20</span></div>
+            <div class="lore-head">
+                <span class="lore-count-wrap"><span class="lore-count" id="p2Lore">0</span></span>
+                <span class="lore-goal" id="p2LoreGoal">/ 20</span>
+            </div>
             <div class="lore-bar" id="p2LoreBar"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Ink</div>
+            <div class="section-title"><span>Ink</span></div>
             <div class="ink-head">
                 <span class="ink-avail" id="p2InkAvail">0</span>
                 <span class="ink-total" id="p2InkTotal">/0</span>
@@ -264,15 +458,15 @@
             <div class="ink-track" id="p2InkTrack"></div>
         </div>
         <div class="panel">
-            <div class="section-title">Characters in Play</div>
+            <div class="section-title"><span>Characters in Play</span><span class="slot-count" id="p2CharCount"></span></div>
             <div class="chars-grid" id="p2Chars"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Locations</div>
+            <div class="section-title"><span>Locations</span><span class="slot-count" id="p2LocCount"></span></div>
             <div class="locs-grid" id="p2Locs"></div>
         </div>
         <div class="panel soft" id="p2ItemsPanel" style="display:none">
-            <div class="section-title">Items</div>
+            <div class="section-title"><span>Items</span></div>
             <div class="items-row" id="p2Items"></div>
         </div>
     </div>
@@ -286,6 +480,14 @@
 
     <script>
         const socket = io('http://localhost:3888');
+
+        const CHAR_SLOTS = 6;
+        const LOC_SLOTS = 3;
+        // Four chips split the 374px row into ~60px of text each - about six
+        // characters at 11px, which turned every real item name ("Musketeer
+        // Tabard", "Shield of Virtue") into the same illegible stub. Three chips
+        // leave ~85-100px, enough for a typical 14-16 character name in full.
+        const MAX_ITEM_CHIPS = 3;
 
         // Self-contained card back (no asset dependency) - broken-image fallback.
         const CARD_BACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
@@ -320,10 +522,55 @@
             visible: false
         };
 
+        // ---- Render caching ---------------------------------------------------
+        // Every counter tick used to rebuild whole sections with innerHTML, which
+        // reloads card images (visible flicker in OBS) and restarts the idle-slot
+        // animation. Markup is now regenerated only when a slot's content
+        // signature changes; numbers, bars and state classes update in place.
+        const renderCache = { chars: {}, locs: {}, items: {}, lore: {}, ink: {} };
+
+        // A replaced card can be an identical copy of the one it replaced, which a
+        // content-only signature cannot see - so per-slot tracking state (the
+        // damage baseline) would go stale. These counters are bumped by the
+        // placement events and make every placement distinct.
+        const placement = { 1: {}, 2: {} };
+        const locPlacement = { 1: {}, 2: {} };
+        const lastDamage = { 1: {}, 2: {} };
+        const lastLore = { 1: null, 2: null };
+
+        function clearRenderCaches() {
+            renderCache.chars = {}; renderCache.locs = {}; renderCache.items = {};
+            renderCache.lore = {}; renderCache.ink = {};
+            placement[1] = {}; placement[2] = {};
+            locPlacement[1] = {}; locPlacement[2] = {};
+            lastDamage[1] = {}; lastDamage[2] = {};
+            lastLore[1] = null; lastLore[2] = null;
+        }
+
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
         }
         const numOr = (v, d = 0) => { const n = parseInt(v); return isNaN(n) ? d : n; };
+        // State saved by older sessions may not carry these arrays at all.
+        const listOf = (v) => (Array.isArray(v) ? v : []);
+        const playerOf = (n) => matchState[`player${n}`] || (matchState[`player${n}`] = freshPlayer(`Player ${n}`));
+
+        // ---- Whose turn survives a state replay --------------------------------
+        // `turn-switch` is broadcast-only: the server never records it. But the
+        // overlay re-registers every 5s and the server answers with a full state
+        // (and an update) still carrying its own stale currentTurn - which used to
+        // snap the emphasis back to player 1 seconds after every switch. So an
+        // explicit switch outranks a replay that carries no new information; a
+        // replay whose value actually moved is still honoured, which is how the
+        // control page's push corrects us after a missed switch.
+        let turnSwitched = false;
+        let lastReplayTurn = 1;          // matches matchState.currentTurn at boot
+        function acceptReplayTurn(v) {
+            if (v === undefined) return;
+            const carriesNews = v !== lastReplayTurn;
+            lastReplayTurn = v;
+            if (!turnSwitched || carriesNews) matchState.currentTurn = v;
+        }
 
         // ---- Socket handlers ----
         socket.on('lorcana-match-state', (state) => { if (state) { applyFullState(state); updateDisplay(); } });
@@ -331,32 +578,45 @@
         socket.on('lorcana-match-update', (data) => {
             if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
             if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
-            if (data.currentTurn !== undefined) matchState.currentTurn = data.currentTurn;
+            acceptReplayTurn(data.currentTurn);
             if (data.gameNumber !== undefined) matchState.gameNumber = data.gameNumber;
             if (data.matchFormat !== undefined) matchState.matchFormat = data.matchFormat;
             updateDisplay();
         });
 
         socket.on('lorcana-lore-update', (d) => {
-            const p = matchState[`player${d.player}`];
+            const p = playerOf(d.player);
             p.lore = d.lore;
             if (d.loreGoal !== undefined) p.loreGoal = d.loreGoal;
-            renderLore(d.player); updateLoreLeader();
+            renderLore(d.player, true); updateLoreLeader();
         });
-        socket.on('lorcana-ink-update', (d) => { matchState[`player${d.player}`].ink = d.ink; renderInk(d.player); });
-        socket.on('lorcana-character-update', (d) => { matchState[`player${d.player}`].characters[d.index] = d.character; renderChars(d.player); });
+        socket.on('lorcana-ink-update', (d) => { playerOf(d.player).ink = d.ink; renderInk(d.player); });
+        socket.on('lorcana-character-update', (d) => {
+            const p = playerOf(d.player);
+            if (!Array.isArray(p.characters)) p.characters = [null, null, null, null, null, null];
+            p.characters[d.index] = d.character;
+            // Placement token: this event is always a fresh card in the slot.
+            placement[d.player][d.index] = (placement[d.player][d.index] || 0) + 1;
+            renderChars(d.player);
+        });
         socket.on('lorcana-character-damage', (d) => {
-            const c = matchState[`player${d.player}`].characters[d.index];
+            const c = listOf(playerOf(d.player).characters)[d.index];
             if (c) { c.damage = d.damage; renderChars(d.player); }
         });
         socket.on('lorcana-character-exert', (d) => {
-            const c = matchState[`player${d.player}`].characters[d.index];
+            const c = listOf(playerOf(d.player).characters)[d.index];
             if (c) { c.exerted = d.exerted; renderChars(d.player); }
         });
-        socket.on('lorcana-location-update', (d) => { matchState[`player${d.player}`].locations[d.index] = d.location; renderLocs(d.player); });
-        socket.on('lorcana-item-update', (d) => { matchState[`player${d.player}`].items = d.items || []; renderItems(d.player); });
-        socket.on('lorcana-record-update', (d) => { matchState[`player${d.player}`].record = d.record; renderHeader(d.player); updateMatchInfo(); });
-        socket.on('lorcana-games-won-update', (d) => { matchState[`player${d.player}`].gamesWon = d.gamesWon; renderHeader(d.player); });
+        socket.on('lorcana-location-update', (d) => {
+            const p = playerOf(d.player);
+            if (!Array.isArray(p.locations)) p.locations = [null, null, null];
+            p.locations[d.index] = d.location;
+            locPlacement[d.player][d.index] = (locPlacement[d.player][d.index] || 0) + 1;
+            renderLocs(d.player);
+        });
+        socket.on('lorcana-item-update', (d) => { playerOf(d.player).items = d.items || []; renderItems(d.player); });
+        socket.on('lorcana-record-update', (d) => { playerOf(d.player).record = d.record; renderHeader(d.player); updateMatchInfo(); });
+        socket.on('lorcana-games-won-update', (d) => { playerOf(d.player).gamesWon = d.gamesWon; renderHeader(d.player); });
 
         socket.on('lorcana-match-reset', () => {
             const wasVisible = matchState.visible;
@@ -367,13 +627,19 @@
                 currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
                 timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: 'Best of 3', visible: wasVisible
             };
+            clearRenderCaches();
+            turnSwitched = false; lastReplayTurn = 1;   // the reset itself is authoritative
             updateDisplay();
         });
 
         socket.on('toggle-lorcana-match', (d) => { matchState.visible = d.show; d.show ? showOverlay() : hideOverlay(); });
 
         // Reused global match events
-        socket.on('turn-switch', (d) => { if (d && d.currentTurn) matchState.currentTurn = d.currentTurn; updateMatchInfo(); });
+        socket.on('turn-switch', (d) => {
+            // Explicit and authoritative - it outranks any replayed currentTurn.
+            if (d && d.currentTurn) { matchState.currentTurn = d.currentTurn; turnSwitched = true; }
+            updateMatchInfo();
+        });
         socket.on('match-settings', (d) => { if (d.gameNumber) matchState.gameNumber = d.gameNumber; if (d.matchFormat) matchState.matchFormat = d.matchFormat; updateMatchInfo(); });
         socket.on('timer-start', startTimer);
         socket.on('timer-pause', pauseTimer);
@@ -395,10 +661,18 @@
             ['player1', 'player2'].forEach(k => {
                 if (s[k]) matchState[k] = { ...freshPlayer(s[k].name || (k === 'player1' ? 'Player 1' : 'Player 2')), ...s[k] };
             });
-            if (s.currentTurn !== undefined) matchState.currentTurn = s.currentTurn;
+            acceptReplayTurn(s.currentTurn);
             if (s.gameNumber !== undefined) matchState.gameNumber = s.gameNumber;
             if (s.matchFormat !== undefined) matchState.matchFormat = s.matchFormat;
             if (s.timer) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
+            // Deliberately does NOT clear the render caches. This path is not
+            // rare: the overlay re-registers every 5s and the server replies with
+            // a full state, and an open control page pushes its full state on
+            // every one of those registrations. Dropping the caches here would
+            // rebuild every card image twice a minute for the whole broadcast -
+            // the exact flicker the caching exists to stop. The content
+            // signatures already catch anything that genuinely changed; only a
+            // real reset (below) invalidates the per-slot baselines.
         }
 
         // ---- Rendering ----
@@ -408,116 +682,271 @@
             updateMatchInfo();
         }
 
-        function renderHeader(n) {
-            const p = matchState[`player${n}`];
-            document.getElementById(`p${n}Name`).textContent = p.name || `Player ${n}`;
-            const r = p.record || { wins: 0, losses: 0, ties: 0 };
-            document.getElementById(`p${n}Record`).textContent = `${r.wins}-${r.losses}-${r.ties}`;
-            document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${p.gamesWon || 0}`;
+        // The turn rail spans the panels, not the fixed board box. Measured after
+        // paint so a just-shown/hidden Items panel is already in the layout.
+        let railSyncQueued = false;
+        function scheduleRailSync() {
+            if (railSyncQueued) return;
+            railSyncQueued = true;
+            requestAnimationFrame(() => {
+                railSyncQueued = false;
+                [1, 2].forEach(n => {
+                    const board = document.getElementById(`player${n}Board`);
+                    if (!board) return;
+                    const panels = Array.from(board.children)
+                        .filter(el => el.classList.contains('panel') && el.style.display !== 'none');
+                    const last = panels[panels.length - 1];
+                    const height = last ? last.offsetTop + last.offsetHeight : board.clientHeight;
+                    board.style.setProperty('--rail-height', `${Math.round(height)}px`);
+                });
+            });
         }
 
-        function renderLore(n) {
-            const p = matchState[`player${n}`];
-            const goal = p.loreGoal || 20;
-            const lore = Math.max(0, Math.min(goal, p.lore || 0));
-            document.getElementById(`p${n}Lore`).textContent = lore;
+        function renderHeader(n) {
+            const p = playerOf(n);
+            document.getElementById(`p${n}Name`).textContent = p.name || `Player ${n}`;
+            const r = p.record || { wins: 0, losses: 0, ties: 0 };
+            document.getElementById(`p${n}Record`).textContent = `${numOr(r.wins, 0)}-${numOr(r.losses, 0)}-${numOr(r.ties, 0)}`;
+            document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${numOr(p.gamesWon, 0)}`;
+        }
+
+        // `allowPop` is set only by the lore-update event - the one path that is a
+        // real scoring change. A full state is a replay (it lands on every page
+        // load and on the 5s re-registration), and popping "+14" there would
+        // announce a score that happened minutes ago.
+        function renderLore(n, allowPop) {
+            const p = playerOf(n);
+            const goal = Math.max(1, numOr(p.loreGoal, 20));
+            const lore = Math.max(0, Math.min(goal, numOr(p.lore, 0)));
+            const countEl = document.getElementById(`p${n}Lore`);
+            countEl.textContent = lore;
+            // Within two of the goal is match point; at the goal it is the win.
+            countEl.classList.toggle('match-point', lore >= goal - 2 && lore < goal);
+            countEl.classList.toggle('at-goal', lore >= goal);
             document.getElementById(`p${n}LoreGoal`).textContent = `/ ${goal}`;
-            let html = '';
-            for (let i = 0; i < goal; i++) {
-                const filled = i < lore ? ' filled' : '';
-                const goalSeg = i === goal - 1 ? ' goal' : '';
-                html += `<div class="lore-seg${filled}${goalSeg}"></div>`;
+
+            const bar = document.getElementById(`p${n}LoreBar`);
+            // Segments are structural: rebuilt only when the goal itself changes.
+            if (renderCache.lore[n] !== goal) {
+                bar.style.gridTemplateColumns = `repeat(${goal}, 1fr)`;
+                bar.innerHTML = Array.from({ length: goal },
+                    (_, i) => `<div class="lore-seg${i === goal - 1 ? ' goal' : ''}"></div>`).join('');
+                renderCache.lore[n] = goal;
             }
-            document.getElementById(`p${n}LoreBar`).innerHTML = html;
+            Array.from(bar.children).forEach((seg, i) => seg.classList.toggle('filled', i < lore));
+
+            // Lore is this game's headline total, so it gets the +/- ticker.
+            const prev = lastLore[n];
+            if (allowPop && prev !== null && prev !== lore) {
+                const delta = lore - prev;
+                const anchor = countEl.parentElement;
+                if (anchor) {
+                    const pop = document.createElement('div');
+                    pop.className = delta > 0 ? 'lore-pop' : 'lore-pop down';
+                    pop.textContent = delta > 0 ? `+${delta}` : `${delta}`;
+                    anchor.appendChild(pop);
+                    setTimeout(() => pop.remove(), 1200);
+                }
+            }
+            lastLore[n] = lore;
         }
 
         // Highlight whichever player is ahead in the LORE race (no badge when tied).
         function updateLoreLeader() {
-            const l1 = matchState.player1.lore || 0;
-            const l2 = matchState.player2.lore || 0;
-            const p1 = document.getElementById('p1LorePanel');
-            const p2 = document.getElementById('p2LorePanel');
-            p1.classList.toggle('leading', l1 > l2);
-            p2.classList.toggle('leading', l2 > l1);
+            const l1 = numOr(playerOf(1).lore, 0);
+            const l2 = numOr(playerOf(2).lore, 0);
+            document.getElementById('p1LorePanel').classList.toggle('leading', l1 > l2);
+            document.getElementById('p2LorePanel').classList.toggle('leading', l2 > l1);
         }
 
         function renderInk(n) {
-            const ink = matchState[`player${n}`].ink || { available: 0, total: 0 };
-            const total = Math.max(0, ink.total || 0);
-            const avail = Math.max(0, Math.min(total, ink.available || 0));
+            const ink = playerOf(n).ink || { available: 0, total: 0 };
+            const total = Math.max(0, Math.min(30, numOr(ink.total, 0)));
+            const avail = Math.max(0, Math.min(total, numOr(ink.available, 0)));
             document.getElementById(`p${n}InkAvail`).textContent = avail;
             document.getElementById(`p${n}InkTotal`).textContent = `/${total}`;
-            let html = '';
-            for (let i = 0; i < total; i++) html += `<div class="ink-pip ${i < avail ? 'ready' : 'spent'}"></div>`;
-            document.getElementById(`p${n}InkTrack`).innerHTML = html;
+
+            const track = document.getElementById(`p${n}InkTrack`);
+            if (renderCache.ink[n] !== total) {
+                track.innerHTML = Array.from({ length: total }, () => '<div class="ink-pip"></div>').join('');
+                renderCache.ink[n] = total;
+            }
+            track.classList.toggle('dense', total > 14);
+            Array.from(track.children).forEach((pip, i) => {
+                pip.classList.toggle('ready', i < avail);
+                pip.classList.toggle('spent', i >= avail);
+            });
+            scheduleRailSync();   // the track's height changes the board's extent
         }
 
+        const statHTML = (kind, lbl, v) => `<span class="stat ${kind}"><span class="lbl">${lbl}</span>${esc(v)}</span>`;
+
         function renderChars(n) {
-            const p = matchState[`player${n}`];
+            const p = playerOf(n);
             const grid = document.getElementById(`p${n}Chars`);
-            let html = '';
-            for (let i = 0; i < 6; i++) {
-                const c = p.characters[i];
-                if (!c) { html += '<div class="char-cell empty"></div>'; continue; }
+            const chars = listOf(p.characters);
+
+            // The six cells exist for the life of the page. Only a cell whose card
+            // actually changed is rebuilt, so a damage tick on one character never
+            // reloads the other five images.
+            if (grid.children.length !== CHAR_SLOTS) {
+                grid.innerHTML = Array.from({ length: CHAR_SLOTS }, (_, i) =>
+                    // Negative delay starts each idle slot part-way through the
+                    // drift, so they never march across in step.
+                    `<div class="char-cell empty" style="--drift-delay:-${(i * 1.15).toFixed(2)}s"></div>`).join('');
+                renderCache.chars[n] = {};
+                lastDamage[n] = {};
+            }
+            const cache = renderCache.chars[n] || (renderCache.chars[n] = {});
+
+            let filled = 0;
+            for (let i = 0; i < CHAR_SLOTS; i++) {
+                const cell = grid.children[i];
+                const c = chars[i];
+                if (c) filled++;
+                const sig = c ? [
+                    placement[n][i] || 0, c.id, c.name, c.image,
+                    numOr(c.strength, 0), numOr(c.willpower, 0), numOr(c.lore, 0)
+                ].join('~') : 'empty';
+
+                let rebuilt = false;
+                if (cache[i] !== sig) {
+                    cache[i] = sig;
+                    rebuilt = true;
+                    if (!c) {
+                        cell.innerHTML = '';
+                        cell.className = 'char-cell empty';
+                    } else {
+                        cell.className = 'char-cell';
+                        cell.innerHTML =
+                            `<img class="char-art" src="${esc(c.image)}" alt="${esc(c.name)}" onerror="this.src=window.CARD_BACK">` +
+                            `<div class="char-stats">` +
+                                statHTML('str', 'S', numOr(c.strength, 0)) +
+                                statHTML('wil', 'W', numOr(c.willpower, 0)) +
+                                statHTML('lore', 'L', numOr(c.lore, 0)) +
+                            `</div>` +
+                            `<div class="dmg-text"></div>` +
+                            `<div class="dmg-wrap"><div class="dmg-bar"></div></div>` +
+                            `<div class="dmg-flash"></div>`;
+                    }
+                    // A rebuilt cell starts fresh: sync the damage baseline without
+                    // flashing, or a newly placed card would flash as if it were hit.
+                    lastDamage[n][i] = c ? Math.max(0, numOr(c.damage, 0)) : null;
+                }
+                if (!c) continue;
+
                 const wp = numOr(c.willpower, 0);
                 const dmg = Math.max(0, numOr(c.damage, 0));
                 const banished = wp > 0 && dmg >= wp;
                 const remain = wp > 0 ? Math.max(0, wp - dmg) : 0;
-                const pct = wp > 0 ? Math.round((remain / wp) * 100) : 100;
-                let barCls = 'dmg-bar';
-                if (wp > 0) { const ratio = remain / wp; if (ratio <= 0.34) barCls += ' crit'; else if (ratio <= 0.67) barCls += ' warn'; }
-                const cls = `char-cell${c.exerted ? ' exerted' : ''}${banished ? ' banished' : ''}`;
-                const stat = (kind, lbl, v) => `<span class="stat ${kind}"><span class="lbl">${lbl}</span>${esc(v)}</span>`;
-                html += `
-                    <div class="${cls}">
-                        <img class="char-art" src="${esc(c.image)}" alt="${esc(c.name)}" onerror="this.src=window.CARD_BACK">
-                        <div class="char-stats">
-                            ${stat('str', 'S', numOr(c.strength, 0))}
-                            ${stat('wil', 'W', wp)}
-                            ${stat('lore', 'L', numOr(c.lore, 0))}
-                        </div>
-                        ${dmg > 0 ? `<div class="dmg-text">${dmg}/${wp}</div>` : ''}
-                        <div class="dmg-wrap"><div class="${barCls}" style="width:${pct}%"></div></div>
-                    </div>`;
+                const ratio = wp > 0 ? remain / wp : 1;
+
+                const bar = cell.querySelector('.dmg-bar');
+                if (bar) {
+                    bar.style.width = `${Math.round(ratio * 100)}%`;
+                    bar.classList.toggle('crit', ratio <= 0.34);
+                    bar.classList.toggle('warn', ratio > 0.34 && ratio <= 0.67);
+                }
+                const txt = cell.querySelector('.dmg-text');
+                if (txt) {
+                    txt.textContent = dmg > 0 ? `${dmg}/${wp}` : '';
+                    txt.style.display = dmg > 0 ? '' : 'none';
+                }
+                cell.classList.toggle('exerted', !!c.exerted);
+                cell.classList.toggle('banished', banished);
+
+                // Flash only on an in-place increase - never on a fresh placement.
+                const prev = lastDamage[n][i];
+                if (!rebuilt && prev != null && dmg > prev) {
+                    cell.classList.remove('flash');
+                    void cell.offsetWidth;   // restart the animation
+                    cell.classList.add('flash');
+                }
+                lastDamage[n][i] = dmg;
             }
-            grid.innerHTML = html;
+
+            const countEl = document.getElementById(`p${n}CharCount`);
+            if (countEl) countEl.textContent = `${filled}/${CHAR_SLOTS}`;
         }
 
         function renderLocs(n) {
-            const p = matchState[`player${n}`];
+            const p = playerOf(n);
             const grid = document.getElementById(`p${n}Locs`);
-            let html = '';
-            for (let i = 0; i < 3; i++) {
-                const l = p.locations[i];
-                if (!l) { html += '<div class="loc-cell empty"></div>'; continue; }
-                const stat = (kind, lbl, v) => (v != null && v !== '') ? `<span class="stat ${kind}"><span class="lbl">${lbl}</span>${esc(v)}</span>` : '';
-                html += `
-                    <div class="loc-cell">
-                        <img class="loc-art" src="${esc(l.image)}" alt="${esc(l.name)}" onerror="this.src=window.CARD_BACK">
-                        <div class="loc-stats">
-                            ${stat('wil', 'W', l.willpower)}
-                            ${stat('lore', 'L', l.lore)}
-                        </div>
-                        <div class="loc-name">${esc(l.name)}</div>
-                    </div>`;
+            const locs = listOf(p.locations);
+
+            if (grid.children.length !== LOC_SLOTS) {
+                grid.innerHTML = Array.from({ length: LOC_SLOTS }, (_, i) =>
+                    `<div class="loc-cell empty" style="--drift-delay:-${(i * 2.3).toFixed(2)}s"></div>`).join('');
+                renderCache.locs[n] = {};
             }
-            grid.innerHTML = html;
+            const cache = renderCache.locs[n] || (renderCache.locs[n] = {});
+
+            let filled = 0;
+            for (let i = 0; i < LOC_SLOTS; i++) {
+                const cell = grid.children[i];
+                const l = locs[i];
+                if (l) filled++;
+                const sig = l ? [
+                    locPlacement[n][i] || 0, l.id, l.name, l.image, l.willpower, l.lore
+                ].join('~') : 'empty';
+                if (cache[i] === sig) continue;
+                cache[i] = sig;
+
+                if (!l) {
+                    cell.innerHTML = '';
+                    cell.className = 'loc-cell empty';
+                } else {
+                    const opt = (kind, lbl, v) => (v != null && v !== '') ? statHTML(kind, lbl, v) : '';
+                    cell.className = 'loc-cell';
+                    cell.innerHTML =
+                        `<img class="loc-art" src="${esc(l.image)}" alt="${esc(l.name)}" onerror="this.src=window.CARD_BACK">` +
+                        `<div class="loc-stats">${opt('wil', 'W', l.willpower)}${opt('lore', 'L', l.lore)}</div>` +
+                        `<div class="loc-name">${esc(l.name)}</div>`;
+                }
+            }
+
+            const countEl = document.getElementById(`p${n}LocCount`);
+            if (countEl) countEl.textContent = `${filled}/${LOC_SLOTS}`;
         }
 
         function renderItems(n) {
-            const items = matchState[`player${n}`].items || [];
+            const items = listOf(playerOf(n).items);
             const panel = document.getElementById(`p${n}ItemsPanel`);
             const row = document.getElementById(`p${n}Items`);
             panel.style.display = items.length ? '' : 'none';
-            row.innerHTML = items.map(it => `<span class="item-chip">${esc(it.name)}</span>`).join('');
+            scheduleRailSync();   // showing/hiding this panel changes the extent
+
+            // Capped: an unbounded wrapping chip list grows the panel and pushes
+            // the board past its 1010px height.
+            const shown = items.slice(0, MAX_ITEM_CHIPS);
+            const sig = shown.map(it => (it && (it.id || it.name)) || '?').join('|') + `+${items.length}`;
+            if (renderCache.items[n] === sig) return;
+            renderCache.items[n] = sig;
+
+            let html = shown.map(it => `<span class="item-chip">${esc(it && it.name)}</span>`).join('');
+            if (items.length > shown.length) html += `<span class="item-chip more">+${items.length - shown.length}</span>`;
+            row.innerHTML = html;
         }
 
         function updateMatchInfo() {
-            document.getElementById('matchTimer').textContent =
-                `${String(matchState.timer.minutes).padStart(2, '0')}:${String(matchState.timer.seconds).padStart(2, '0')}`;
-            const name = matchState[`player${matchState.currentTurn}`].name;
-            document.getElementById('turnIndicator').textContent = `${name}'s Turn`;
-            document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber}`;
+            const t = matchState.timer || { minutes: 0, seconds: 0 };
+            const timerEl = document.getElementById('matchTimer');
+            timerEl.textContent =
+                `${String(numOr(t.minutes, 0)).padStart(2, '0')}:${String(numOr(t.seconds, 0)).padStart(2, '0')}`;
+            timerEl.classList.toggle('expiring', numOr(t.minutes, 0) === 0);
+
+            const cur = matchState.currentTurn === 2 ? 2 : 1;
+            document.getElementById('turnIndicator').textContent = `${playerOf(cur).name || `Player ${cur}`}'s Turn`;
+            document.getElementById('matchFormat').textContent =
+                `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${numOr(matchState.gameNumber, 1)}`;
+
+            // Lift the board whose turn it is; settle the other one back.
+            [1, 2].forEach(num => {
+                const board = document.getElementById(`player${num}Board`);
+                board.classList.toggle('active-turn', cur === num);
+                board.classList.toggle('idle-turn', cur !== num);
+            });
+            scheduleRailSync();
         }
 
         function startTimer() {

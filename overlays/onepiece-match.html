@@ -10,6 +10,13 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        /* Monochrome outline motif, used for idle slots and echoed on the Life
+           card backs. Data URIs rather than glyphs so they render identically on
+           every OBS browser-source build. */
+        :root {
+            --op-helm: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='6' stroke-linecap='round'%3E%3Ccircle cx='50' cy='50' r='29'/%3E%3Ccircle cx='50' cy='50' r='9'/%3E%3Cpath d='M50 9v13M50 78v13M9 50h13M78 50h13M20.9 20.9l9.2 9.2M69.9 69.9l9.2 9.2M79.1 20.9l-9.2 9.2M30.1 69.9l-9.2 9.2'/%3E%3C/g%3E%3C/svg%3E");
+        }
+
         body {
             width: 1920px;
             height: 1080px;
@@ -30,6 +37,27 @@
             top: 50%;
             opacity: 0;
             transition: all 0.5s ease;
+
+            /* Per-side accent, referenced by every panel below. Same hues the
+               board has always used, just named so state styling can reuse them. */
+            --accent: #6366f1;
+            --accent-soft: rgba(99, 102, 241, 0.5);
+            --accent-strong: rgba(99, 102, 241, 0.9);
+            --accent-glow: rgba(99, 102, 241, 0.35);
+            --accent-fill: rgba(99, 102, 241, 0.25);
+            --accent-deep: rgba(30, 27, 75, 0.5);
+            /* Face-down Life card, drawn at the pip's exact 30:44 box so it fills
+               it with no letterboxing. Carries the helm the idle slots drift. */
+            --op-life-card: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 88'%3E%3Cdefs%3E%3ClinearGradient id='f' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233b4cca'/%3E%3Cstop offset='1' stop-color='%23161b4d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='1.7' y='1.7' width='56.6' height='84.6' rx='7.5' fill='url(%23f)' stroke='%236366f1' stroke-width='3.4'/%3E%3Crect x='6.6' y='6.6' width='46.8' height='74.8' rx='4.5' fill='none' stroke='%23ffffff' stroke-opacity='0.22' stroke-width='1.8'/%3E%3Cg fill='none' stroke='%23c7d2fe' stroke-linecap='round'%3E%3Ccircle cx='30' cy='44' r='12' stroke-width='3.6'/%3E%3Ccircle cx='30' cy='44' r='4.2' stroke-width='3'/%3E%3Cpath d='M30 32v-7M30 56v7M18 44h-7M42 44h7M21.5 35.5l-4.9-4.9M38.5 52.5l4.9 4.9M38.5 35.5l4.9-4.9M21.5 52.5l-4.9 4.9' stroke-width='3.6'/%3E%3C/g%3E%3C/svg%3E");
+        }
+        .player-board.right {
+            --accent: #ef4444;
+            --accent-soft: rgba(239, 68, 68, 0.5);
+            --accent-strong: rgba(239, 68, 68, 0.9);
+            --accent-glow: rgba(239, 68, 68, 0.35);
+            --accent-fill: rgba(239, 68, 68, 0.25);
+            --accent-deep: rgba(75, 20, 20, 0.5);
+            --op-life-card: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 88'%3E%3Cdefs%3E%3ClinearGradient id='f' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23dc2626'/%3E%3Cstop offset='1' stop-color='%234a1212'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='1.7' y='1.7' width='56.6' height='84.6' rx='7.5' fill='url(%23f)' stroke='%23ef4444' stroke-width='3.4'/%3E%3Crect x='6.6' y='6.6' width='46.8' height='74.8' rx='4.5' fill='none' stroke='%23ffffff' stroke-opacity='0.22' stroke-width='1.8'/%3E%3Cg fill='none' stroke='%23fecaca' stroke-linecap='round'%3E%3Ccircle cx='30' cy='44' r='12' stroke-width='3.6'/%3E%3Ccircle cx='30' cy='44' r='4.2' stroke-width='3'/%3E%3Cpath d='M30 32v-7M30 56v7M18 44h-7M42 44h7M21.5 35.5l-4.9-4.9M38.5 52.5l4.9 4.9M38.5 35.5l4.9-4.9M21.5 52.5l-4.9 4.9' stroke-width='3.6'/%3E%3C/g%3E%3C/svg%3E");
         }
         .player-board.left { left: 20px; transform: translateX(-430px) translateY(-50%); }
         .player-board.left.active { transform: translateX(0) translateY(-50%); }
@@ -39,14 +67,48 @@
 
         .panel {
             background: linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(20,20,30,0.95) 100%);
-            border: 2px solid #6366f1;
+            border: 2px solid var(--accent);
             border-radius: 12px;
             padding: 11px;
             backdrop-filter: blur(10px);
         }
-        .player-board.right .panel { border-color: #ef4444; }
-        .panel.soft { border-color: rgba(99,102,241,0.5); }
-        .player-board.right .panel.soft { border-color: rgba(239,68,68,0.5); }
+        .panel.soft { border-color: var(--accent-soft); }
+
+        /* Whose turn it is: the active side lifts, the idle side settles back.
+           The idle side keeps its accent hue - that is player identity, not
+           state - so only saturation and brightness move. */
+        .player-board.active.idle-turn {
+            opacity: 0.8;
+            filter: saturate(0.7) brightness(0.86);
+        }
+        .player-board.active-turn .panel:not(.soft) {
+            box-shadow: 0 0 0 1px var(--accent-soft), 0 0 22px var(--accent-glow);
+        }
+
+        /* A dimming percentage alone is hard to judge when the two boards are
+           1500px apart and different hues, so the active side also gets a lit
+           rail on its inner edge - present or absent, nothing to compare.
+           --rail-h is measured from the real stack height: the board box is
+           taller than its content, and a rail running past the last panel
+           would read as a stray line. */
+        .player-board::after {
+            content: '';
+            position: absolute;
+            top: 4px;
+            height: calc(var(--rail-h, 100%) - 8px);
+            width: 4px;
+            border-radius: 4px;
+            background: linear-gradient(180deg, transparent 0%, var(--accent) 10%, var(--accent) 90%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.45s ease;
+            pointer-events: none;
+        }
+        .player-board.left::after  { right: -11px; }
+        .player-board.right::after { left: -11px; }
+        .player-board.active-turn::after {
+            opacity: 1;
+            box-shadow: 0 0 16px var(--accent);
+        }
 
         .section-title {
             font-size: 12px;
@@ -55,23 +117,39 @@
             letter-spacing: 1.2px;
             margin-bottom: 8px;
             font-weight: 600;
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .title-count {
+            font-size: 11px;
+            font-weight: 700;
+            color: #cbd5e1;
+            letter-spacing: 0.4px;
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
         }
 
         /* Header */
-        .player-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .player-name-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
         .player-name {
             font-size: 22px; font-weight: 800; color: #fff;
             text-transform: uppercase; letter-spacing: 1.2px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+            /* Long handles ellipsis instead of shoving the record off the panel. */
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            flex: 1; min-width: 0;
         }
         .player-record {
             font-size: 15px; color: #94a3b8; font-weight: 700;
             background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+            white-space: nowrap; flex-shrink: 0;
         }
         .games-won {
             background: rgba(16,185,129,0.2); border: 2px solid #10b981; color: #10b981;
             padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
         /* Featured Leader */
@@ -79,47 +157,87 @@
         .leader-art { width: 68px; aspect-ratio: 5/7; object-fit: cover; border-radius: 6px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
         .leader-empty {
             width: 68px; aspect-ratio: 5/7; border: 2px dashed rgba(255,255,255,0.15); border-radius: 6px;
-            display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; text-align: center; flex-shrink: 0;
+            flex-shrink: 0; position: relative; overflow: hidden;
         }
         .leader-info { flex: 1; min-width: 0; }
         .leader-name { color: #fff; font-size: 16px; font-weight: 800; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .leader-none { color: #64748b; font-size: 13px; }
         .leader-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .power-chip {
-            background: linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(30,27,75,0.5) 100%);
-            border: 1px solid rgba(99,102,241,0.9); color: #e0e7ff;
+            background: linear-gradient(135deg, var(--accent-fill) 0%, var(--accent-deep) 100%);
+            border: 1px solid var(--accent-strong); color: #e0e7ff;
             font-size: 15px; font-weight: 800; padding: 3px 10px; border-radius: 6px;
+            font-variant-numeric: tabular-nums; white-space: nowrap;
         }
-        .player-board.right .power-chip { border-color: rgba(239,68,68,0.9); background: linear-gradient(135deg, rgba(239,68,68,0.25) 0%, rgba(75,20,20,0.5) 100%); }
         .color-dots { display: flex; gap: 4px; }
         .color-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.4); box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
 
         /* Life pip-track (variable length, seeded from leader) */
+        .life-body { position: relative; }
         .life-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+        /* Life cards are literally face-down cards, so each pip is drawn as a
+           card back - one data-URI SVG, no glyphs, no text. The box stays 30x44
+           whatever the artwork does; OBS has this row framed. */
         .life-pip {
             width: 30px; height: 44px;
-            background: linear-gradient(135deg, #3b4cca 0%, #1a237e 100%);
-            border: 2px solid #6366f1; border-radius: 5px;
-            position: relative; box-shadow: 0 4px 8px rgba(0,0,0,0.5);
-            display: flex; align-items: center; justify-content: center;
+            background: var(--op-life-card) center / contain no-repeat;
+            filter: drop-shadow(0 3px 5px rgba(0,0,0,0.6));
+            transition: filter 0.35s ease, opacity 0.35s ease, transform 0.35s ease;
         }
-        .player-board.right .life-pip { border-color: #ef4444; background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%); }
-        .life-pip::before {
-            content: ''; position: absolute; width: 14px; height: 14px;
-            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%); border-radius: 50%;
+        /* The last Life card is the call-out moment on a broadcast. A static
+           glow, not a pulse - this source runs unattended for hours. */
+        .life-pip.last {
+            filter: drop-shadow(0 0 6px var(--accent)) drop-shadow(0 3px 5px rgba(0,0,0,0.6));
         }
-        .life-pip.taken { opacity: 0.2; background: #1a1a1a; border-color: #333; box-shadow: none; }
-        .life-pip.taken::after { content: '\2715'; font-size: 18px; color: #ef4444; font-weight: bold; }
+        /* A spent Life card is expressed by taking it away - drained, dimmed and
+           shrunk back into the row. Never stamp a mark on top: a cross over a
+           marker reads as an error state on stream.
+           Kept last so a legacy state that somehow carries both classes still
+           renders as spent rather than as the glowing final card. */
+        .life-pip.taken {
+            filter: grayscale(1) brightness(0.45);
+            opacity: 0.35;
+            transform: scale(0.86);
+        }
         .life-count { text-align: center; margin-top: 6px; font-size: 13px; color: #cbd5e1; font-weight: 700; }
         .life-count .rem { color: #fff; }
+        .life-count.critical { color: #fca5a5; animation: soft-pulse 1.6s ease-in-out infinite; }
+        .life-count.critical .rem { color: #fecaca; text-shadow: 0 0 12px rgba(248,113,113,0.7); }
+
+        /* Life ticker - anchored to .life-body, which sets no overflow, so it
+           is never clipped away. Fades out on its own, no cleanup needed. */
+        .life-pop {
+            position: absolute; right: 2px; bottom: 0;
+            font-size: 18px; font-weight: 800; color: #fca5a5;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+            font-variant-numeric: tabular-nums;
+            pointer-events: none;
+            animation: op-pop 1.1s ease-out forwards;
+        }
+        .life-pop.gain { color: #6ee7b7; }
+        @keyframes op-pop {
+            0%   { opacity: 0; transform: translateY(6px); }
+            25%  { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-14px); }
+        }
+        @keyframes soft-pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.6; }
+        }
 
         /* DON!! counter (X/10 active + rested) */
         .don-head { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin-bottom: 8px; }
-        .don-active { font-size: 32px; font-weight: 800; color: #fbbf24; font-family: 'Inter', monospace; text-shadow: 0 0 14px rgba(251,191,36,0.4); }
-        .don-max { font-size: 20px; font-weight: 700; color: #64748b; }
-        .don-rested-label { font-size: 12px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .don-active { font-size: 32px; font-weight: 800; color: #fbbf24; font-variant-numeric: tabular-nums; text-shadow: 0 0 14px rgba(251,191,36,0.4); }
+        .don-active.bump { animation: don-bump 0.4s cubic-bezier(0.16, 0.84, 0.44, 1); }
+        @keyframes don-bump {
+            0%   { transform: scale(1); }
+            35%  { transform: scale(1.18); }
+            100% { transform: scale(1); }
+        }
+        .don-max { font-size: 20px; font-weight: 700; color: #64748b; font-variant-numeric: tabular-nums; }
+        .don-rested-label { font-size: 12px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
         .don-track { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
-        .don-pip { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); }
+        .don-pip { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); transition: background 0.3s ease, box-shadow 0.3s ease; }
         .don-pip.active { background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b); border-color: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.5); }
         .don-pip.rested { background: #6b5524; border-color: #8a6d2f; opacity: 0.65; }
 
@@ -128,37 +246,79 @@
         .char-cell {
             position: relative; aspect-ratio: 5/7;
             background: rgba(255,255,255,0.04);
-            border: 2px solid rgba(255,255,255,0.1); border-radius: 6px;
+            border: 2px solid var(--accent-soft); border-radius: 6px;
             overflow: hidden;
         }
-        .char-cell.empty { border-style: dashed; }
-        .char-cell img.char-art { width: 100%; height: 100%; object-fit: cover; }
-        .char-power {
-            position: absolute; top: 3px; left: 3px;
-            background: linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(30,27,75,0.92) 100%);
-            border: 1px solid rgba(99,102,241,0.9); color: #e0e7ff;
-            font-size: 11px; font-weight: 800; padding: 1px 5px; border-radius: 5px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        .char-cell.empty { border-style: dashed; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.02); }
+        .char-cell img.char-art { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        /* Idle slots get a ship's wheel drifting through - enough motion to keep
+           dead space alive, slow and dim enough to ignore. */
+        .char-cell.empty::before,
+        .leader-empty::before,
+        .stage-empty::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 30px; height: 30px;
+            margin: -15px 0 0 -15px;
+            background: var(--op-helm) center / contain no-repeat;
+            opacity: 0;
+            animation: op-drift 7s linear infinite;
+            animation-delay: var(--drift-delay, 0s);
+            pointer-events: none;
         }
-        .player-board.right .char-power { border-color: rgba(239,68,68,0.9); }
-        .char-power .boost { color: #fbbf24; font-size: 9px; }
+        .leader-empty::before { width: 34px; height: 34px; margin: -17px 0 0 -17px; }
+        .stage-empty::before  { width: 24px; height: 24px; margin: -12px 0 0 -12px; }
+        @keyframes op-drift {
+            0%   { opacity: 0;    transform: translateX(-150%) rotate(0deg); }
+            18%  { opacity: 0.17; }
+            82%  { opacity: 0.17; }
+            100% { opacity: 0;    transform: translateX(150%) rotate(180deg); }
+        }
+
+        /* A card arriving in a slot slides in; number-only updates leave it be. */
+        @keyframes card-enter {
+            0%   { opacity: 0; transform: translateY(6px) scale(0.94); }
+            100% { opacity: 1; transform: none; }
+        }
+        .enter { animation: card-enter 0.45s cubic-bezier(0.16, 0.84, 0.44, 1); }
+
+        /* Power reads as a full-width footer rather than a corner chip: at 68px
+           a corner chip and the counter chip collided, and the power silently
+           lost its leading digits. Total power is what matters in combat, so
+           the DON!! boost is folded into the number and flagged by colour. */
+        .char-power {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.92) 55%);
+            color: #e0e7ff;
+            font-size: 13px; font-weight: 800; text-align: center;
+            padding: 2px 2px 3px;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.2px;
+            white-space: nowrap; overflow: hidden;
+            border-top: 1px solid var(--accent-soft);
+        }
+        .char-power.boosted { color: #fde68a; text-shadow: 0 0 10px rgba(251,191,36,0.5); }
         .counter-chip {
             position: absolute; top: 3px; right: 3px;
             background: rgba(0,0,0,0.85); border: 1px solid rgba(56,189,248,0.8); color: #bae6fd;
             font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 4px;
+            white-space: nowrap; max-width: calc(100% - 6px); overflow: hidden; text-overflow: ellipsis;
         }
         .char-don-row {
-            position: absolute; bottom: 3px; left: 0; right: 0;
-            display: flex; gap: 2px; justify-content: center;
+            position: absolute; bottom: 21px; left: 2px; right: 2px;
+            display: flex; gap: 2px; justify-content: center; align-items: center;
         }
-        .char-don { width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b); border: 1px solid #fbbf24; box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+        .char-don { width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b); border: 1px solid #fbbf24; box-shadow: 0 1px 3px rgba(0,0,0,0.6); flex-shrink: 0; }
+        .char-don-more { font-size: 8px; font-weight: 800; color: #fde68a; text-shadow: 0 1px 3px rgba(0,0,0,0.9); line-height: 1; white-space: nowrap; }
 
         /* Stage slot */
         .stage-slot { display: flex; gap: 9px; align-items: center; min-height: 64px; }
         .stage-art { width: 48px; aspect-ratio: 5/7; object-fit: cover; border-radius: 5px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
         .stage-empty {
             width: 48px; aspect-ratio: 5/7; border: 2px dashed rgba(255,255,255,0.15); border-radius: 5px;
-            display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 9px; text-align: center; flex-shrink: 0;
+            flex-shrink: 0; position: relative; overflow: hidden;
         }
         .stage-info { flex: 1; min-width: 0; }
         .stage-name { color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -173,12 +333,30 @@
             opacity: 0; transition: all 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
         }
         .match-info.active { opacity: 1; }
-        .match-format { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
-        .timer { font-size: 36px; font-weight: bold; color: #00d4ff; font-family: 'Courier New', monospace; text-shadow: 0 0 15px rgba(0,212,255,0.5); }
+        .match-format { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; white-space: nowrap; }
+        .timer {
+            font-size: 36px; font-weight: bold; color: #00d4ff;
+            font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums;
+            text-shadow: 0 0 15px rgba(0,212,255,0.5);
+        }
+        /* Last minute on the clock reads red so it's obvious on stream. */
+        .timer.expiring {
+            color: #f87171;
+            text-shadow: 0 0 15px rgba(248,113,113,0.6);
+            animation: soft-pulse 1.2s ease-in-out infinite;
+        }
         .turn-indicator {
             padding: 8px 16px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
             border-radius: 24px; color: #fff; font-weight: bold; font-size: 14px;
             text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+            max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            transition: background 0.4s ease, box-shadow 0.4s ease;
+        }
+        /* The pill carries the active player's own accent - the same signal the
+           board rail gives, repeated where the eye already is. */
+        .match-info.turn-p2 .turn-indicator {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+            box-shadow: 0 4px 12px rgba(239,68,68,0.4);
         }
     </style>
     <script src="/socket.io/socket.io.js"></script>
@@ -194,16 +372,18 @@
             <div class="games-won" id="p1GamesWon">Games Won: 0</div>
         </div>
         <div class="panel">
-            <div class="section-title">Leader</div>
+            <div class="section-title"><span>Leader</span></div>
             <div class="leader-slot" id="p1Leader"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Life</div>
-            <div class="life-row" id="p1Life"></div>
-            <div class="life-count" id="p1LifeCount"></div>
+            <div class="section-title"><span>Life</span></div>
+            <div class="life-body">
+                <div class="life-row" id="p1Life"></div>
+                <div class="life-count" id="p1LifeCount"></div>
+            </div>
         </div>
         <div class="panel soft">
-            <div class="section-title">DON!!</div>
+            <div class="section-title"><span>DON!!</span></div>
             <div class="don-head">
                 <span class="don-active" id="p1DonActive">0</span>
                 <span class="don-max" id="p1DonMax">/10</span>
@@ -212,11 +392,11 @@
             <div class="don-track" id="p1DonTrack"></div>
         </div>
         <div class="panel">
-            <div class="section-title">Character Area</div>
+            <div class="section-title"><span>Character Area</span><span class="title-count" id="p1CharCount">0/5</span></div>
             <div class="chars-grid" id="p1Chars"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Stage</div>
+            <div class="section-title"><span>Stage</span></div>
             <div class="stage-slot" id="p1Stage"></div>
         </div>
     </div>
@@ -231,16 +411,18 @@
             <div class="games-won" id="p2GamesWon">Games Won: 0</div>
         </div>
         <div class="panel">
-            <div class="section-title">Leader</div>
+            <div class="section-title"><span>Leader</span></div>
             <div class="leader-slot" id="p2Leader"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Life</div>
-            <div class="life-row" id="p2Life"></div>
-            <div class="life-count" id="p2LifeCount"></div>
+            <div class="section-title"><span>Life</span></div>
+            <div class="life-body">
+                <div class="life-row" id="p2Life"></div>
+                <div class="life-count" id="p2LifeCount"></div>
+            </div>
         </div>
         <div class="panel soft">
-            <div class="section-title">DON!!</div>
+            <div class="section-title"><span>DON!!</span></div>
             <div class="don-head">
                 <span class="don-active" id="p2DonActive">0</span>
                 <span class="don-max" id="p2DonMax">/10</span>
@@ -249,17 +431,17 @@
             <div class="don-track" id="p2DonTrack"></div>
         </div>
         <div class="panel">
-            <div class="section-title">Character Area</div>
+            <div class="section-title"><span>Character Area</span><span class="title-count" id="p2CharCount">0/5</span></div>
             <div class="chars-grid" id="p2Chars"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Stage</div>
+            <div class="section-title"><span>Stage</span></div>
             <div class="stage-slot" id="p2Stage"></div>
         </div>
     </div>
 
     <!-- Shared match-info bar -->
-    <div class="match-info" id="matchInfo">
+    <div class="match-info turn-p1" id="matchInfo">
         <div class="match-format" id="matchFormat">BEST OF 3 &bull; GAME 1</div>
         <div class="timer" id="matchTimer">50:00</div>
         <div class="turn-indicator" id="turnIndicator">Player 1's Turn</div>
@@ -295,6 +477,25 @@
             };
         }
 
+        // State saved by older sessions carries only the fields that existed
+        // then, and a partial socket payload can drop whole sub-objects. Every
+        // render path reads through this, so a board missing `characters`,
+        // `life` or `don` still renders instead of throwing.
+        function normalizePlayer(raw, fallbackName) {
+            const base = freshPlayer(fallbackName);
+            const p = { ...base, ...(raw || {}) };
+            p.name = p.name || fallbackName;
+            p.record = (p.record && typeof p.record === 'object') ? p.record : base.record;
+            p.gamesWon = Number(p.gamesWon) || 0;
+            p.life = (p.life && typeof p.life === 'object')
+                ? { total: Math.max(0, Number(p.life.total) || 0), taken: Array.isArray(p.life.taken) ? p.life.taken : [] }
+                : base.life;
+            p.don = (p.don && typeof p.don === 'object') ? { ...base.don, ...p.don } : base.don;
+            p.characters = Array.isArray(p.characters) ? p.characters.slice(0, 5) : base.characters.slice();
+            while (p.characters.length < 5) p.characters.push(null);
+            return p;
+        }
+
         let matchState = {
             player1: freshPlayer('Player 1'),
             player2: freshPlayer('Player 2'),
@@ -307,16 +508,42 @@
             visible: false
         };
 
+        // Structural signature per section. Rebuilding innerHTML on every DON!!
+        // tick reloads card art (visible flicker in OBS) and restarts the
+        // idle-slot drift, so markup is only regenerated when the cards change;
+        // numbers, pips and bars update in place.
+        const renderCache = { leader: {}, life: {}, don: {}, chars: {}, stage: {} };
+        const lastLife = { 1: null, 2: null };
+        const lastDon = { 1: null, 2: null };
+
+        function clearRenderCache() {
+            renderCache.leader = {}; renderCache.life = {}; renderCache.don = {};
+            renderCache.chars = {}; renderCache.stage = {};
+            lastLife[1] = lastLife[2] = null;
+            lastDon[1] = lastDon[2] = null;
+        }
+
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
         }
+
+        // Restart a one-shot animation on an element that survives the update.
+        function replay(el, cls) {
+            if (!el) return;
+            el.classList.remove(cls);
+            void el.offsetWidth;
+            el.classList.add(cls);
+        }
+
+        const P = n => matchState[`player${n}`] || freshPlayer(`Player ${n}`);
 
         // ---- Socket handlers ----
         socket.on('onepiece-match-state', (state) => { if (state) { applyFullState(state); updateDisplay(); } });
 
         socket.on('onepiece-match-update', (data) => {
-            if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
-            if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
+            if (!data) return;
+            if (data.player1) matchState.player1 = normalizePlayer({ ...matchState.player1, ...data.player1 }, matchState.player1.name || 'Player 1');
+            if (data.player2) matchState.player2 = normalizePlayer({ ...matchState.player2, ...data.player2 }, matchState.player2.name || 'Player 2');
             if (data.currentTurn !== undefined) matchState.currentTurn = data.currentTurn;
             if (data.gameNumber !== undefined) matchState.gameNumber = data.gameNumber;
             if (data.matchFormat !== undefined) matchState.matchFormat = data.matchFormat;
@@ -324,79 +551,143 @@
         });
 
         socket.on('onepiece-leader-update', (d) => {
+            if (!d || !matchState[`player${d.player}`]) return;
             const p = matchState[`player${d.player}`];
             p.leader = d.leader;
-            if (d.life) p.life = d.life;
+            if (d.life && typeof d.life === 'object') p.life = { total: Math.max(0, Number(d.life.total) || 0), taken: Array.isArray(d.life.taken) ? d.life.taken : [] };
             renderLeader(d.player); renderLife(d.player);
         });
         socket.on('onepiece-life-total', (d) => {
+            if (!d || !matchState[`player${d.player}`]) return;
             const p = matchState[`player${d.player}`];
-            p.life.total = d.total;
+            if (!p.life) p.life = { total: 0, taken: [] };
+            p.life.total = Math.max(0, Number(d.total) || 0);
             if (Array.isArray(d.taken)) p.life.taken = d.taken;
             renderLife(d.player);
         });
         socket.on('onepiece-life-taken', (d) => {
+            if (!d || !matchState[`player${d.player}`]) return;
             const p = matchState[`player${d.player}`];
+            if (!p.life) p.life = { total: 0, taken: [] };
             if (Array.isArray(d.taken)) p.life.taken = d.taken;
-            if (d.total !== undefined) p.life.total = d.total;
+            if (d.total !== undefined) p.life.total = Math.max(0, Number(d.total) || 0);
             renderLife(d.player);
         });
         socket.on('onepiece-life-reset', (d) => {
+            if (!d) return;
             if (d.player1) matchState.player1.life = d.player1;
             if (d.player2) matchState.player2.life = d.player2;
             renderLife(1); renderLife(2);
         });
-        socket.on('onepiece-don-update', (d) => { matchState[`player${d.player}`].don = d.don; renderDon(d.player); });
-        socket.on('onepiece-character-update', (d) => { matchState[`player${d.player}`].characters[d.index] = d.character; renderChars(d.player); });
+        socket.on('onepiece-don-update', (d) => {
+            if (!d || !matchState[`player${d.player}`]) return;
+            matchState[`player${d.player}`].don = d.don || { active: 0, rested: 0, max: 10 };
+            renderDon(d.player);
+        });
+        socket.on('onepiece-character-update', (d) => {
+            if (!d || !matchState[`player${d.player}`]) return;
+            const p = matchState[`player${d.player}`];
+            if (!Array.isArray(p.characters)) p.characters = [null, null, null, null, null];
+            if (d.index >= 0 && d.index < 5) p.characters[d.index] = d.character;
+            renderChars(d.player);
+        });
+        // A first-class contract event, not a stray listener: server.js relays it
+        // into overlayServer.setOnePieceCharacterPower(), which mutates the
+        // stored board and re-broadcasts it (src/overlay-server.js). The bundled
+        // control happens to hand-edit printed power through
+        // onepiece-character-update instead, so this is the path any other
+        // client - a second control, a deck tool, the HTTP-driven API - takes.
+        // Dropping it would silently strand those on the old number.
+        socket.on('onepiece-character-power', (d) => {
+            if (!d || !matchState[`player${d.player}`]) return;
+            const c = (matchState[`player${d.player}`].characters || [])[d.index];
+            if (!c) return;
+            c.power = d.power;
+            renderChars(d.player);
+        });
         socket.on('onepiece-don-attach', (d) => {
-            const c = matchState[`player${d.player}`].characters[d.index];
+            if (!d || !matchState[`player${d.player}`]) return;
+            const c = (matchState[`player${d.player}`].characters || [])[d.index];
             if (c) { c.donAttached = d.donAttached; renderChars(d.player); }
         });
-        socket.on('onepiece-stage-update', (d) => { matchState[`player${d.player}`].stage = d.stage; renderStage(d.player); });
-        socket.on('onepiece-record-update', (d) => { matchState[`player${d.player}`].record = d.record; renderHeader(d.player); updateMatchInfo(); });
-        socket.on('onepiece-games-won-update', (d) => { matchState[`player${d.player}`].gamesWon = d.gamesWon; renderHeader(d.player); });
+        socket.on('onepiece-stage-update', (d) => {
+            if (!d || !matchState[`player${d.player}`]) return;
+            matchState[`player${d.player}`].stage = d.stage;
+            renderStage(d.player);
+        });
+        socket.on('onepiece-record-update', (d) => {
+            if (!d || !matchState[`player${d.player}`]) return;
+            matchState[`player${d.player}`].record = d.record;
+            renderHeader(d.player); updateMatchInfo();
+        });
+        socket.on('onepiece-games-won-update', (d) => {
+            if (!d || !matchState[`player${d.player}`]) return;
+            matchState[`player${d.player}`].gamesWon = d.gamesWon;
+            renderHeader(d.player);
+        });
 
         socket.on('onepiece-match-reset', () => {
             const wasVisible = matchState.visible;
             const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
             if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
             matchState = {
-                player1: freshPlayer('Player 1'), player2: freshPlayer('Player 2'),
+                player1: freshPlayer(matchState.player1.name || 'Player 1'),
+                player2: freshPlayer(matchState.player2.name || 'Player 2'),
                 currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
                 timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: 'Best of 3', visible: wasVisible
             };
+            // Drop cached markup signatures so the cleared board re-renders, and
+            // the life/DON trackers so the first update after a reset does not
+            // fire a phantom ticker against the previous game's numbers.
+            clearRenderCache();
             updateDisplay();
         });
 
-        socket.on('toggle-onepiece-match', (d) => { matchState.visible = d.show; d.show ? showOverlay() : hideOverlay(); });
+        socket.on('toggle-onepiece-match', (d) => { matchState.visible = !!(d && d.show); (d && d.show) ? showOverlay() : hideOverlay(); });
 
         // Reused global match events
         socket.on('turn-switch', (d) => { if (d && d.currentTurn) matchState.currentTurn = d.currentTurn; updateMatchInfo(); });
-        socket.on('match-settings', (d) => { if (d.gameNumber) matchState.gameNumber = d.gameNumber; if (d.matchFormat) matchState.matchFormat = d.matchFormat; updateMatchInfo(); });
+        socket.on('match-settings', (d) => { if (!d) return; if (d.gameNumber) matchState.gameNumber = d.gameNumber; if (d.matchFormat) matchState.matchFormat = d.matchFormat; updateMatchInfo(); });
         socket.on('timer-start', startTimer);
         socket.on('timer-pause', pauseTimer);
         socket.on('timer-reset', (d) => {
             if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            timerSynced = true;   // an explicit clock outranks any stored state
             if (d && typeof d.minutes === 'number') matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds || 0 };
             const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
             matchState.timer = { minutes: dur.minutes, seconds: dur.seconds };
             updateMatchInfo();
         });
         socket.on('timer-set', (d) => {
+            if (!d) return;
             if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
+            timerSynced = true;   // an explicit clock outranks any stored state
             matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds };
             matchState.timer = { minutes: d.minutes, seconds: d.seconds };
             updateMatchInfo();
         });
 
+        // The overlay re-registers every 5 seconds and the server answers each
+        // ping with its whole stored board. That stored board carries a `timer`
+        // that nothing ever writes to - the clock lives entirely in the relayed
+        // timer-* events - so taking it on every push snapped a running match
+        // clock back to its stored value every five seconds. Sync it once, on
+        // the first state we ever see, and let timer-set / timer-reset own it
+        // from then on.
+        let timerSynced = false;
         function applyFullState(s) {
+            if (!s) return;
             ['player1', 'player2'].forEach(k => {
-                if (s[k]) matchState[k] = { ...freshPlayer(s[k].name || (k === 'player1' ? 'Player 1' : 'Player 2')), ...s[k] };
+                if (s[k]) matchState[k] = normalizePlayer(s[k], s[k].name || (k === 'player1' ? 'Player 1' : 'Player 2'));
             });
             if (s.currentTurn !== undefined) matchState.currentTurn = s.currentTurn;
             if (s.gameNumber !== undefined) matchState.gameNumber = s.gameNumber;
             if (s.matchFormat !== undefined) matchState.matchFormat = s.matchFormat;
-            if (s.timer) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
+            if (s.timer && !timerSynced) {
+                timerSynced = true;
+                matchState.timer = { ...s.timer };
+                matchState.timerDuration = { ...s.timer };
+            }
         }
 
         // ---- Rendering ----
@@ -406,100 +697,300 @@
         }
 
         function renderHeader(n) {
-            const p = matchState[`player${n}`];
+            const p = P(n);
             document.getElementById(`p${n}Name`).textContent = p.name || `Player ${n}`;
-            const r = p.record || { wins: 0, losses: 0, ties: 0 };
-            document.getElementById(`p${n}Record`).textContent = `${r.wins}-${r.losses}-${r.ties}`;
+            const r = (p.record && typeof p.record === 'object') ? p.record : { wins: 0, losses: 0, ties: 0 };
+            document.getElementById(`p${n}Record`).textContent = `${r.wins || 0}-${r.losses || 0}-${r.ties || 0}`;
             document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${p.gamesWon || 0}`;
+            syncRail(n);
         }
 
+        // The Leader is built once per *card* and then updated in place, exactly
+        // like the Character cells. Power and colours are live values the
+        // operator hand-edits mid-game; folding them into the signature meant
+        // every power tweak re-wrote innerHTML, which re-fetched the art and
+        // replayed the 0.45s entrance animation - a visible flicker in OBS, and
+        // the precise thing this cache exists to prevent.
         function renderLeader(n) {
-            const l = matchState[`player${n}`].leader;
+            const l = P(n).leader;
             const el = document.getElementById(`p${n}Leader`);
-            if (!l) {
-                el.innerHTML = '<div class="leader-empty">No Leader</div><div class="leader-info"><div class="leader-none">No Leader selected</div></div>';
-                return;
+            if (!el) return;
+            // Card identity only. `uid` is included for saves that carry one;
+            // older state has no such field and simply contributes an empty leg.
+            const sig = l ? ['L', l.uid != null ? l.uid : '', l.id, l.name, l.image].join('|') : '-';
+            if (renderCache.leader[n] !== sig) {
+                renderCache.leader[n] = sig;
+                el.innerHTML = l
+                    ? `<img class="leader-art enter" src="${esc(l.image || CARD_BACK)}" alt="${esc(l.name)}" onerror="this.src=window.CARD_BACK">
+                       <div class="leader-info">
+                           <div class="leader-name">${esc(l.name)}</div>
+                           <div class="leader-meta"><span class="power-chip" style="display:none"></span><span class="color-dots"></span></div>
+                       </div>`
+                    : '<div class="leader-empty"></div><div class="leader-info"><div class="leader-none">No Leader selected</div></div>';
             }
-            const dots = colorList(l.colors).map(c =>
+            if (l) updateLeaderMeta(el, l);
+            syncRail(n);
+        }
+
+        // Idempotent: this runs on every updateDisplay, including the server's
+        // 5-second state replay, and must not churn the DOM when nothing moved.
+        function updateLeaderMeta(el, l) {
+            const powerEl = el.querySelector('.power-chip');
+            if (powerEl) {
+                const hasPower = l.power != null && l.power !== '';
+                const txt = hasPower ? String(l.power) : '';
+                if (powerEl.textContent !== txt) powerEl.textContent = txt;
+                powerEl.style.display = hasPower ? '' : 'none';
+            }
+            const dotsEl = el.querySelector('.color-dots');
+            if (!dotsEl) return;
+            const colors = colorList(l.colors);
+            // Repaint the swatches only when the colour set itself changed;
+            // otherwise a replayed state would rebuild them on every tick.
+            const csig = colors.join('/');
+            if (dotsEl.dataset.colors === csig) return;
+            dotsEl.dataset.colors = csig;
+            dotsEl.innerHTML = colors.map(c =>
                 `<span class="color-dot" style="background:${OP_COLOR_HEX[c.toLowerCase()] || '#94a3b8'}" title="${esc(c)}"></span>`).join('');
-            const power = (l.power != null && l.power !== '') ? `<span class="power-chip">${esc(l.power)}</span>` : '';
-            el.innerHTML = `
-                ${l.image ? `<img class="leader-art" src="${esc(l.image)}" alt="${esc(l.name)}" onerror="this.src=window.CARD_BACK">` : '<div class="leader-empty">Leader</div>'}
-                <div class="leader-info">
-                    <div class="leader-name">${esc(l.name)}</div>
-                    <div class="leader-meta">${power}<span class="color-dots">${dots}</span></div>
-                </div>`;
         }
 
         function renderLife(n) {
-            const life = matchState[`player${n}`].life || { total: 4, taken: [] };
-            const total = life.total || 0;
-            const taken = life.taken || [];
-            let html = '';
-            for (let i = 0; i < total; i++) html += `<div class="life-pip${taken.includes(i) ? ' taken' : ''}"></div>`;
-            document.getElementById(`p${n}Life`).innerHTML = html;
-            const remaining = Math.max(0, total - taken.length);
-            document.getElementById(`p${n}LifeCount`).innerHTML = `<span class="rem">${remaining}</span> / ${total} Life`;
+            const life = P(n).life || { total: 4, taken: [] };
+            const total = Math.max(0, Number(life.total) || 0);
+            const taken = Array.isArray(life.taken) ? life.taken : [];
+            const row = document.getElementById(`p${n}Life`);
+            if (!row) return;
+
+            // Only the track length is structural; taken/remaining is a class swap.
+            if (renderCache.life[n] !== total) {
+                let html = '';
+                for (let i = 0; i < total; i++) html += '<div class="life-pip"></div>';
+                row.innerHTML = html;
+                renderCache.life[n] = total;
+            }
+
+            const takenInRange = taken.filter(i => i >= 0 && i < total);
+            const remaining = Math.max(0, total - takenInRange.length);
+            Array.from(row.children).forEach((pip, i) => {
+                const isTaken = takenInRange.includes(i);
+                pip.classList.toggle('taken', isTaken);
+                pip.classList.toggle('last', !isTaken && remaining === 1);
+            });
+
+            const countEl = document.getElementById(`p${n}LifeCount`);
+            countEl.innerHTML = `<span class="rem">${remaining}</span> / ${total} Life`;
+            countEl.classList.toggle('critical', total > 0 && remaining <= 1);
+
+            // Brief ticker when a Life card is taken or restored - the pip track
+            // shows the state, this shows the event. Deliberately keyed to a
+            // constant track length: assigning a Leader reseeds the total, and
+            // that is a setup step, not a life swing.
+            const prev = lastLife[n];
+            if (prev && prev.total === total && prev.remaining !== remaining) {
+                const anchor = countEl.parentElement;
+                if (anchor) {
+                    // Two rapid swings would stack tickers on the same spot and
+                    // render as an unreadable smear - the latest one wins.
+                    anchor.querySelectorAll('.life-pop').forEach(old => old.remove());
+                    const delta = remaining - prev.remaining;
+                    const pop = document.createElement('div');
+                    pop.className = delta > 0 ? 'life-pop gain' : 'life-pop';
+                    pop.textContent = delta > 0 ? `+${delta}` : `${delta}`;
+                    anchor.appendChild(pop);
+                    setTimeout(() => pop.remove(), 1200);
+                }
+            }
+            lastLife[n] = { total, remaining };
+            syncRail(n);
         }
 
         function renderDon(n) {
-            const don = matchState[`player${n}`].don || { active: 0, rested: 0, max: 10 };
-            const active = don.active || 0;
-            const rested = don.rested || 0;
-            const max = don.max || 10;
-            document.getElementById(`p${n}DonActive`).textContent = active;
+            const don = P(n).don || { active: 0, rested: 0, max: 10 };
+            const active = Math.max(0, Number(don.active) || 0);
+            const rested = Math.max(0, Number(don.rested) || 0);
+            const max = Math.max(0, Number(don.max) || 10);
+
+            const activeEl = document.getElementById(`p${n}DonActive`);
+            activeEl.textContent = active;
             document.getElementById(`p${n}DonMax`).textContent = `/${max}`;
             document.getElementById(`p${n}DonRested`).textContent = `${rested} rested`;
-            let html = '';
-            for (let i = 0; i < max; i++) {
-                let cls = '';
-                if (i < active) cls = 'active';
-                else if (i < active + rested) cls = 'rested';
-                html += `<div class="don-pip ${cls}"></div>`;
+
+            const track = document.getElementById(`p${n}DonTrack`);
+            if (renderCache.don[n] !== max) {
+                let html = '';
+                for (let i = 0; i < max; i++) html += '<div class="don-pip"></div>';
+                track.innerHTML = html;
+                renderCache.don[n] = max;
             }
-            document.getElementById(`p${n}DonTrack`).innerHTML = html;
+            Array.from(track.children).forEach((pip, i) => {
+                pip.classList.toggle('active', i < active);
+                pip.classList.toggle('rested', i >= active && i < active + rested);
+            });
+
+            if (lastDon[n] !== null && lastDon[n] !== active) replay(activeEl, 'bump');
+            lastDon[n] = active;
+            syncRail(n);
+        }
+
+        // The five Character cells are built once and then updated in place, so
+        // a DON!! attach on one slot cannot reload the art in the other four.
+        function ensureCharCells(grid) {
+            if (grid.dataset.built === '1' && grid.childElementCount === 5) return;
+            let html = '';
+            for (let i = 0; i < 5; i++) {
+                // Negative delay starts each idle slot part-way through the
+                // drift, so they never march across in step.
+                html += `<div class="char-cell empty" data-slot="${i}" style="--drift-delay:-${(i * 1.6).toFixed(1)}s">` +
+                        `<img class="char-art" alt="" style="display:none">` +
+                        `<div class="counter-chip" style="display:none"></div>` +
+                        `<div class="char-don-row" style="display:none"></div>` +
+                        `<div class="char-power" style="display:none"></div>` +
+                        `</div>`;
+            }
+            grid.innerHTML = html;
+            grid.dataset.built = '1';
+            grid.querySelectorAll('img.char-art').forEach(img => {
+                img.addEventListener('error', () => { if (img.getAttribute('src') && img.src !== window.CARD_BACK) img.src = window.CARD_BACK; });
+            });
         }
 
         function renderChars(n) {
-            const p = matchState[`player${n}`];
+            const p = P(n);
+            const chars = Array.isArray(p.characters) ? p.characters : [];
             const grid = document.getElementById(`p${n}Chars`);
-            let html = '';
+            if (!grid) return;
+            ensureCharCells(grid);
+
+            const sigs = renderCache.chars[n] || (renderCache.chars[n] = []);
+            let filled = 0;
+
             for (let i = 0; i < 5; i++) {
-                const c = p.characters[i];
-                if (!c) { html += '<div class="char-cell empty"></div>'; continue; }
-                const base = (c.power != null && c.power !== '') ? parseInt(c.power) || 0 : 0;
-                const don = c.donAttached || 0;
-                const total = base + don * 1000;
-                const boost = don > 0 ? `<span class="boost"> +${don * 1000}</span>` : '';
-                const counter = (c.counter != null && c.counter !== '') ? `<div class="counter-chip">C ${esc(c.counter)}</div>` : '';
-                let dons = '';
-                for (let d = 0; d < don; d++) dons += '<span class="char-don"></span>';
-                html += `
-                    <div class="char-cell">
-                        <img class="char-art" src="${esc(c.image)}" alt="${esc(c.name)}" onerror="this.src=window.CARD_BACK">
-                        <div class="char-power">${total}${boost}</div>
-                        ${counter}
-                        ${don > 0 ? `<div class="char-don-row">${dons}</div>` : ''}
-                    </div>`;
+                const cell = grid.children[i];
+                if (!cell) continue;
+                const c = chars[i] || null;
+                if (c) filled++;
+
+                const img = cell.querySelector('.char-art');
+                const powerEl = cell.querySelector('.char-power');
+                const counterEl = cell.querySelector('.counter-chip');
+                const donRow = cell.querySelector('.char-don-row');
+
+                // Identity is the card in the slot; power / counter / DON!!
+                // are live numbers and must not force a rebuild.
+                const sig = c ? [c.id, c.name, c.image].join('|') : '-';
+                if (sigs[i] !== sig) {
+                    sigs[i] = sig;
+                    if (c) {
+                        cell.classList.remove('empty');
+                        img.alt = c.name || '';
+                        // Plenty of One Piece records carry no art URL; a filled
+                        // slot must still read as a card, not as a blank hole.
+                        img.src = c.image || window.CARD_BACK;
+                        img.style.display = '';
+                        replay(img, 'enter');
+                    } else {
+                        cell.classList.add('empty');
+                        img.classList.remove('enter');
+                        img.removeAttribute('src');
+                        img.style.display = 'none';
+                    }
+                }
+
+                if (!c) {
+                    powerEl.style.display = 'none';
+                    counterEl.style.display = 'none';
+                    donRow.style.display = 'none';
+                    delete cell.dataset.don;
+                    continue;
+                }
+
+                const base = Number.parseInt(c.power, 10) || 0;
+                const don = Math.max(0, Number.parseInt(c.donAttached, 10) || 0);
+                powerEl.style.display = '';
+                powerEl.textContent = String(base + don * 1000);
+                powerEl.classList.toggle('boosted', don > 0);
+
+                const counter = Number.parseInt(c.counter, 10) || 0;
+                if (counter > 0) { counterEl.textContent = `C ${counter}`; counterEl.style.display = ''; }
+                else { counterEl.textContent = ''; counterEl.style.display = 'none'; }
+
+                // Pips only when the attached count changes. Capped so a big
+                // DON!! turn cannot push the row off a 68px cell: five pips fit
+                // exactly, so anything past that drops to four plus a tally.
+                if (cell.dataset.don !== String(don)) {
+                    cell.dataset.don = String(don);
+                    donRow.style.display = don > 0 ? '' : 'none';
+                    const shown = don <= 5 ? don : 4;
+                    let h = '';
+                    for (let d = 0; d < shown; d++) h += '<span class="char-don"></span>';
+                    if (don > shown) h += `<span class="char-don-more">+${don - shown}</span>`;
+                    donRow.innerHTML = h;
+                }
             }
-            grid.innerHTML = html;
+
+            const countEl = document.getElementById(`p${n}CharCount`);
+            if (countEl) countEl.textContent = `${filled}/5`;
+            syncRail(n);
         }
 
         function renderStage(n) {
-            const s = matchState[`player${n}`].stage;
+            const s = P(n).stage;
             const el = document.getElementById(`p${n}Stage`);
-            if (!s) { el.innerHTML = '<div class="stage-empty">No Stage</div><div class="stage-info"><div class="stage-none">No Stage in play</div></div>'; return; }
+            if (!el) return;
+            const sig = s ? ['S', s.id, s.name, s.image].join('|') : '-';
+            if (renderCache.stage[n] === sig) return;
+            renderCache.stage[n] = sig;
+
+            if (!s) {
+                el.innerHTML = '<div class="stage-empty"></div><div class="stage-info"><div class="stage-none">No Stage in play</div></div>';
+                syncRail(n);
+                return;
+            }
             el.innerHTML = `
-                ${s.image ? `<img class="stage-art" src="${esc(s.image)}" alt="${esc(s.name)}" onerror="this.src=window.CARD_BACK">` : '<div class="stage-empty">Stage</div>'}
+                <img class="stage-art enter" src="${esc(s.image || CARD_BACK)}" alt="${esc(s.name)}" onerror="this.src=window.CARD_BACK">
                 <div class="stage-info"><div class="stage-name">${esc(s.name)}</div></div>`;
+            syncRail(n);
+        }
+
+        // The board box is taller than the stack of panels it holds, so the
+        // turn rail is sized from the measured content rather than the box.
+        const railPending = { 1: false, 2: false };
+        function syncRail(n) {
+            if (railPending[n]) return;
+            railPending[n] = true;
+            requestAnimationFrame(() => {
+                railPending[n] = false;
+                const board = document.getElementById(`player${n}Board`);
+                if (!board) return;
+                const last = board.lastElementChild;
+                if (!last) return;
+                const height = last.offsetTop + last.offsetHeight;
+                if (height > 0) board.style.setProperty('--rail-h', `${height}px`);
+            });
         }
 
         function updateMatchInfo() {
-            document.getElementById('matchTimer').textContent =
-                `${String(matchState.timer.minutes).padStart(2, '0')}:${String(matchState.timer.seconds).padStart(2, '0')}`;
-            const name = matchState[`player${matchState.currentTurn}`].name;
-            document.getElementById('turnIndicator').textContent = `${name}'s Turn`;
-            document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber}`;
+            const t = matchState.timer || { minutes: 0, seconds: 0 };
+            const minutes = Number(t.minutes) || 0;
+            const seconds = Number(t.seconds) || 0;
+            const timerEl = document.getElementById('matchTimer');
+            timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            timerEl.classList.toggle('expiring', minutes === 0);
+
+            const turn = matchState.currentTurn === 2 ? 2 : 1;
+            document.getElementById('turnIndicator').textContent = `${P(turn).name || `Player ${turn}`}'s Turn`;
+            document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber || 1}`;
+
+            const info = document.getElementById('matchInfo');
+            info.classList.toggle('turn-p1', turn === 1);
+            info.classList.toggle('turn-p2', turn === 2);
+
+            // Lift the board whose turn it is; settle the other one back.
+            [1, 2].forEach(num => {
+                const board = document.getElementById(`player${num}Board`);
+                board.classList.toggle('active-turn', turn === num);
+                board.classList.toggle('idle-turn', turn !== num);
+            });
         }
 
         function startTimer() {
@@ -519,11 +1010,23 @@
             document.getElementById('player1Board').classList.add('active');
             document.getElementById('player2Board').classList.add('active');
             document.getElementById('matchInfo').classList.add('active');
+            syncRail(1); syncRail(2);
         }
         function hideOverlay() {
             document.getElementById('player1Board').classList.remove('active');
             document.getElementById('player2Board').classList.remove('active');
             document.getElementById('matchInfo').classList.remove('active');
+        }
+
+        // Panel heights shift when a Life track wraps or a Leader gains a chip;
+        // keep the rail matched to the stack without polling.
+        if (window.ResizeObserver) {
+            [1, 2].forEach(n => {
+                const board = document.getElementById(`player${n}Board`);
+                if (!board) return;
+                const ro = new ResizeObserver(() => syncRail(n));
+                Array.from(board.children).forEach(child => ro.observe(child));
+            });
         }
 
         // Init

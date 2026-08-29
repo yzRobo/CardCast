@@ -1217,6 +1217,23 @@ class OverlayServer {
         this.io.emit('pokemon-match-update', data);
     }
     
+    // `turn-switch` is one shared event across every game, so record it against
+    // every match state that tracks a turn. Without this the value replayed to
+    // a re-registering overlay is stale and undoes the switch.
+    setCurrentTurn(currentTurn) {
+        const turn = Number(currentTurn);
+        if (turn !== 1 && turn !== 2) return;
+
+        [
+            this.pokemonMatch, this.mtgMatch, this.gundamMatch, this.yugiohMatch,
+            this.onePieceMatch, this.lorcanaMatch, this.digimonMatch
+        ].forEach(match => {
+            if (match && match.currentTurn !== undefined) {
+                match.currentTurn = turn;
+            }
+        });
+    }
+
     updateActivePokemon(player, pokemon) {
         const playerKey = `player${player}`;
         if (this.pokemonMatch[playerKey]) {

@@ -10,6 +10,23 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        /* Board artwork, as inline SVG data URIs rather than glyphs or emoji:
+           OBS browser-source builds differ in their emoji fonts, and a glyph
+           never matches the panel weight.
+
+           `--hex-line` is the outline motif the empty slots drift; the two
+           security card backs carry the same double hexagon in each side's
+           accent, so the board reads as one system. Both are drawn on a 5:7
+           viewBox - the printed proportions of a Digimon card - so `contain`
+           fills the marker box edge to edge with no letterboxing. Strokes are
+           deliberately heavy (>=5 viewBox units, ~2.5px on screen): anything
+           finer disappears into stream compression at this size. */
+        :root {
+            --hex-line: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='5' stroke-linejoin='round'%3E%3Cpath d='M50 5 88 27.5 88 72.5 50 95 12 72.5 12 27.5Z'/%3E%3Cpath d='M50 22 73.5 36 73.5 64 50 78 26.5 64 26.5 36Z'/%3E%3C/g%3E%3C/svg%3E");
+            --sec-card-p1: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 140'%3E%3Cdefs%3E%3ClinearGradient id='f' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2360a5fa'/%3E%3Cstop offset='1' stop-color='%231e3a8a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='3' y='3' width='94' height='134' rx='11' fill='url(%23f)'/%3E%3Crect x='11' y='11' width='78' height='118' rx='7' fill='%230a1633'/%3E%3Cg fill='none' stroke='%237dd3fc' stroke-linejoin='round'%3E%3Cpath d='M50 40 76 55 76 85 50 100 24 85 24 55Z' stroke-width='6'/%3E%3Cpath d='M50 55 63 62.5 63 77.5 50 85 37 77.5 37 62.5Z' stroke-width='5'/%3E%3C/g%3E%3C/svg%3E");
+            --sec-card-p2: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 140'%3E%3Cdefs%3E%3ClinearGradient id='f' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23fdba74'/%3E%3Cstop offset='1' stop-color='%239a3412'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='3' y='3' width='94' height='134' rx='11' fill='url(%23f)'/%3E%3Crect x='11' y='11' width='78' height='118' rx='7' fill='%23260c03'/%3E%3Cg fill='none' stroke='%23fdba74' stroke-linejoin='round'%3E%3Cpath d='M50 40 76 55 76 85 50 100 24 85 24 55Z' stroke-width='6'/%3E%3Cpath d='M50 55 63 62.5 63 77.5 50 85 37 77.5 37 62.5Z' stroke-width='5'/%3E%3C/g%3E%3C/svg%3E");
+        }
+
         body {
             width: 1920px;
             height: 1080px;
@@ -30,74 +47,181 @@
             top: 50%;
             opacity: 0;
             transition: all 0.5s ease;
+
+            /* Per-side accent, referenced by every panel below so one hue
+               change re-skins a whole board. Values are the ones this overlay
+               already shipped with - blue left, orange right. */
+            --accent: #2563eb;
+            --accent-soft: rgba(37, 99, 235, 0.5);
+            --accent-glow: rgba(37, 99, 235, 0.35);
+            --accent-fill: rgba(37, 99, 235, 0.18);
+            --accent-text: #93c5fd;
+            --accent-num: #38bdf8;
+            --accent-num-glow: rgba(56, 189, 248, 0.5);
+            --accent-count: #e5edff;
+            --sec-card: var(--sec-card-p1);
         }
+        .player-board.right {
+            --accent: #ea580c;
+            --accent-soft: rgba(234, 88, 12, 0.5);
+            --accent-glow: rgba(234, 88, 12, 0.35);
+            --accent-fill: rgba(234, 88, 12, 0.2);
+            --accent-text: #fdba74;
+            --accent-num: #fb923c;
+            --accent-num-glow: rgba(251, 146, 60, 0.5);
+            --accent-count: #ffe6d2;
+            --sec-card: var(--sec-card-p2);
+        }
+
         .player-board.left { left: 20px; transform: translateX(-440px) translateY(-50%); }
         .player-board.left.active { transform: translateX(0) translateY(-50%); }
         .player-board.right { right: 20px; transform: translateX(440px) translateY(-50%); }
         .player-board.right.active { transform: translateX(0) translateY(-50%); }
         .player-board.active { opacity: 1; }
 
+        /* --- Whose turn it is -------------------------------------------------
+           The idle side settles back; the active side keeps its full colour and
+           gains a lit rail on its inner edge. The rail carries most of the
+           signal: it is present/absent, which reads at a glance, where a dim
+           percentage does not when the two boards are 1500px apart and are
+           different hues. `.active` on a board means VISIBLE in this overlay,
+           so turn state uses its own class names.
+           The idle dim is scoped to `.active` so a hidden board (opacity 0)
+           cannot be dragged back up to 0.8 by it. */
+        .player-board.active.idle-turn { opacity: 0.8; }
+        .player-board.idle-turn { filter: saturate(0.7) brightness(0.86); }
+
+        .player-board::after {
+            content: '';
+            position: absolute;
+            top: 6px;
+            bottom: 6px;
+            width: 4px;
+            border-radius: 4px;
+            background: linear-gradient(180deg, transparent 0%, var(--accent-num) 10%, var(--accent-num) 90%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.45s ease;
+            pointer-events: none;
+        }
+        .player-board.left::after  { right: -11px; }
+        .player-board.right::after { left: -11px; }
+        .player-board.active-turn::after {
+            opacity: 1;
+            box-shadow: 0 0 16px var(--accent-num);
+        }
+
         .panel {
             background: linear-gradient(135deg, rgba(6,12,28,0.95) 0%, rgba(12,24,48,0.95) 100%);
-            border: 2px solid #2563eb;
+            border: 2px solid var(--accent);
             border-radius: 12px;
             padding: 11px;
             backdrop-filter: blur(10px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            transition: box-shadow 0.45s ease;
         }
-        .player-board.right .panel { border-color: #ea580c; }
-        .panel.soft { border-color: rgba(37,99,235,0.5); }
-        .player-board.right .panel.soft { border-color: rgba(234,88,12,0.5); }
+        .panel.soft { border-color: var(--accent-soft); }
+
+        /* Soft accent lift on the headline panels of the active side. */
+        .player-board.active-turn .panel:not(.soft) {
+            box-shadow: 0 0 0 1px var(--accent-soft), 0 0 20px var(--accent-glow), 0 8px 24px rgba(0, 0, 0, 0.45);
+        }
 
         .section-title {
             font-size: 12px;
-            color: #93c5fd;
+            color: var(--accent-text);
             text-transform: uppercase;
             letter-spacing: 1.2px;
             margin-bottom: 8px;
             font-weight: 600;
-            display: flex; align-items: center; justify-content: space-between;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
-        .player-board.right .section-title { color: #fdba74; }
+        .section-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         /* Header */
-        .player-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .player-name-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
         .player-name {
             font-size: 22px; font-weight: 800; color: #fff;
             text-transform: uppercase; letter-spacing: 1.2px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            flex: 1; min-width: 0;
         }
         .player-record {
             font-size: 15px; color: #bfdbfe; font-weight: 700;
             background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+            white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums;
         }
+        .player-board.right .player-record { color: #fed7aa; }
+        /* Follows the board accent - an orange pill on the blue board read as
+           a stray element rather than as part of that player's identity. */
         .games-won {
-            background: rgba(234,88,12,0.2); border: 2px solid #ea580c; color: #fdba74;
+            background: var(--accent-fill); border: 2px solid var(--accent); color: var(--accent-text);
             padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
         /* SECURITY stack (the loss track - 5 face-down cards) */
-        .sec-head { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin-bottom: 10px; }
-        .sec-count { font-size: 46px; font-weight: 800; color: #38bdf8; line-height: 1; text-shadow: 0 0 20px rgba(56,189,248,0.5); }
-        .player-board.right .sec-count { color: #fb923c; text-shadow: 0 0 20px rgba(251,146,60,0.5); }
-        .sec-goal { font-size: 22px; font-weight: 700; color: #6b7280; }
+        .sec-head {
+            display: flex; align-items: baseline; justify-content: center; gap: 8px;
+            margin-bottom: 10px; position: relative;
+        }
+        .sec-count {
+            font-size: 46px; font-weight: 800; color: var(--accent-num); line-height: 1;
+            text-shadow: 0 0 20px var(--accent-num-glow); font-variant-numeric: tabular-nums;
+        }
+        /* One security card left is the moment the match is on a knife edge -
+           flag it the way a caster would. */
+        .sec-count.critical {
+            color: #fbbf24;
+            text-shadow: 0 0 22px rgba(251, 191, 36, 0.7);
+            animation: soft-pulse 1.6s ease-in-out infinite;
+        }
+        .sec-goal { font-size: 22px; font-weight: 700; color: #6b7280; font-variant-numeric: tabular-nums; }
+
+        /* Security swing ticker. Sits in the empty right-hand third of the
+           security headline, clear of the numerals; no ancestor clips it. */
+        .sec-pop {
+            position: absolute; right: 6px; top: 2px;
+            font-size: 19px; font-weight: 800; color: #fca5a5;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+            font-variant-numeric: tabular-nums;
+            pointer-events: none;
+            animation: val-pop 1s ease-out forwards;
+        }
+        .sec-pop.gain { color: #6ee7b7; }
+        @keyframes val-pop {
+            0%   { opacity: 0; transform: translateY(8px); }
+            25%  { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-16px); }
+        }
+        @keyframes soft-pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.6; }
+        }
+
         .sec-track { display: flex; gap: 7px; justify-content: center; }
+
+        /* Security cards sit face down on a real board, so each marker is a
+           card back in that player's accent, carrying the same double hexagon
+           the empty battle cells drift. The drop-shadow is what lifts the
+           remaining stack off the panel.
+
+           A SPENT card is expressed by TAKING IT AWAY - drained of colour,
+           dimmed and shrunk back - never by stamping a mark over it: a red X
+           on a live overlay reads to a viewer as an error state, not as a
+           point scored. The 50x70 box is fixed either way; only the artwork
+           inside it moves, so the track keeps its framing in OBS. */
         .sec-pip {
-            width: 50px; height: 70px; border-radius: 7px; position: relative;
-            background: linear-gradient(135deg, #1e3a8a 0%, #0c1a3a 100%);
-            border: 2px solid #3b82f6; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            display: flex; align-items: center; justify-content: center;
+            width: 50px; height: 70px;
+            background: var(--sec-card) center / contain no-repeat;
+            filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.6));
+            transition: filter 0.35s ease, opacity 0.35s ease, transform 0.35s ease;
         }
-        .player-board.right .sec-pip { background: linear-gradient(135deg, #7c2d12 0%, #3a0c0c 100%); border-color: #f97316; }
-        .sec-pip::before {
-            content: ''; width: 22px; height: 22px; border-radius: 50%;
-            background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, transparent 70%);
+        .sec-pip.taken {
+            filter: grayscale(1) brightness(0.45);
+            opacity: 0.35;
+            transform: scale(0.86);
         }
-        .sec-pip.taken { opacity: 0.22; background: #111827; border-color: #374151; box-shadow: none; }
-        .sec-pip.taken::after {
-            content: '\2715'; position: absolute; font-size: 26px; font-weight: 800; color: #ef4444;
-        }
-        .sec-pip.taken::before { display: none; }
 
         /* Battle Area row - up to 6 digivolution stacks, 3-col grid */
         .battle-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
@@ -105,29 +229,94 @@
             position: relative; aspect-ratio: 5/7;
             background: rgba(255,255,255,0.04);
             border: 2px solid rgba(255,255,255,0.1); border-radius: 7px;
-            overflow: hidden; transition: transform 0.25s ease;
+            overflow: hidden;
             border-left-width: 5px; border-left-color: var(--clr, rgba(255,255,255,0.1));
         }
         .battle-cell.empty { border-style: dashed; border-left-width: 2px; }
-        .battle-cell img.battle-art { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Idle slots get a slow outline hexagon drifting through - the Digimon
+           digivolution motif. Dim and unhurried on purpose: it keeps dead board
+           space alive without competing with the gameplay footage. */
+        .battle-cell.empty::before,
+        .breed-cell.empty::before {
+            content: '';
+            position: absolute; top: 50%; left: 50%;
+            background: var(--hex-line) center / contain no-repeat;
+            opacity: 0;
+            animation: slot-drift 7s linear infinite;
+            animation-delay: var(--drift-delay, 0s);
+            pointer-events: none;
+        }
+        .battle-cell.empty::before { width: 46px; height: 46px; margin: -23px 0 0 -23px; }
+        .breed-cell.empty::before  { width: 30px; height: 30px; margin: -15px 0 0 -15px; }
+
+        /* A hidden board is still a live layer in OBS - the source stays loaded
+           while the producer toggles the overlay off. Park the drift so a hidden
+           board is not animating a dozen invisible pseudo-elements for hours. */
+        .player-board:not(.active) .battle-cell.empty::before,
+        .player-board:not(.active) .breed-cell.empty::before { animation: none; }
+
+        @keyframes slot-drift {
+            0%   { opacity: 0;    transform: translateX(-140%) rotate(0deg); }
+            18%  { opacity: 0.17; }
+            82%  { opacity: 0.17; }
+            100% { opacity: 0;    transform: translateX(140%) rotate(180deg); }
+        }
+
+        .battle-cell img.battle-art { width: 100%; height: 100%; object-fit: cover; display: block; }
+        /* A fresh card eases in; DP / level / stack edits leave the art alone. */
+        .battle-cell img.battle-art.swap-in,
+        .breed-cell img.swap-in {
+            animation: card-swap 0.45s cubic-bezier(0.16, 0.84, 0.44, 1);
+        }
+        @keyframes card-swap {
+            0%   { opacity: 0; transform: translateY(8px) scale(0.96); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* The stack badge shares this row rather than floating over it. Pinned
+           absolutely at the top-right it had no idea how wide the chips beside
+           it were, so a maxed-out cell (DP 15000 + Lv 7 + x12) ran the Lv chip
+           3.7px underneath it. As a flex item it is measured against them, so it
+           right-aligns beside the chips when they fit and wraps to its own line
+           when they do not - overlapping is no longer representable.
+           `align-items: flex-start` keeps the default stretch from equalising
+           the chip heights and changing how the row reads when it does fit.
+
+           The 2px inset and gap (down from 3px) are what keep that wrap rare.
+           A real board tops out at a 5-digit DP + a level + a single-digit
+           stack, which needed ~1px more than the 3px version left it: the badge
+           dropped to a second line on exactly the cells with a wide DP, so two
+           identical x2 badges sat at different heights side by side. At 2px the
+           row clears every realistic combination and only an absurd two-digit
+           stack wraps. This is inside the absolutely-positioned strip, so the
+           cell's own size and position are untouched. */
         .battle-stats {
-            position: absolute; top: 3px; left: 3px; right: 3px;
-            display: flex; gap: 3px; justify-content: flex-start; flex-wrap: wrap;
+            position: absolute; top: 2px; left: 2px; right: 2px;
+            display: flex; gap: 2px; justify-content: flex-start; flex-wrap: wrap;
+            align-items: flex-start;
         }
         .stat {
             font-size: 11px; font-weight: 800; color: #fff; line-height: 1;
             padding: 2px 4px; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.6);
             display: inline-flex; align-items: center; gap: 1px;
+            white-space: nowrap; font-variant-numeric: tabular-nums;
         }
         .stat .lbl { font-size: 7px; opacity: 0.85; font-weight: 700; }
         .stat.dp { background: linear-gradient(135deg, rgba(56,189,248,0.95), rgba(12,74,110,0.95)); }
         .stat.lv { background: linear-gradient(135deg, rgba(168,85,247,0.95), rgba(76,29,149,0.95)); }
-        /* Digivolution stack-depth badge (only when stacked > 1) */
+        .is-hidden { display: none !important; }
+
+        /* Digivolution stack-depth badge (only when stacked > 1). `margin-left:
+           auto` pushes it to the right end of whichever flex line it lands on,
+           so it keeps its top-right anchor in the common case and stays
+           right-aligned after a wrap. */
         .stack-badge {
-            position: absolute; top: 3px; right: 3px;
+            margin-left: auto;
             font-size: 11px; font-weight: 800; color: #fff;
             background: linear-gradient(135deg, #f59e0b, #b45309);
             padding: 1px 6px; border-radius: 999px; box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+            white-space: nowrap;
         }
         .battle-name {
             position: absolute; bottom: 0; left: 0; right: 0;
@@ -144,30 +333,44 @@
             border: 2px solid rgba(34,197,94,0.5); border-radius: 7px; overflow: hidden;
         }
         .breed-cell.empty { border-style: dashed; border-color: rgba(255,255,255,0.12); }
-        .breed-cell img { width: 100%; height: 100%; object-fit: cover; }
+        .breed-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .breed-meta { flex: 1; min-width: 0; }
         .breed-name { font-size: 14px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .breed-sub { font-size: 12px; color: #9ca3af; margin-top: 3px; }
+        .breed-sub { font-size: 12px; color: #9ca3af; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
         .breed-empty { font-size: 13px; color: #6b7280; font-style: italic; }
 
         /* Tamers - compact chips */
-        .tamers-row { display: flex; gap: 6px; flex-wrap: wrap; }
+        /* One row, never wrapping: the board's panel stack has no vertical
+           slack, so a second line of chips would push the zone counts off the
+           bottom. Chips that do not fit collapse into a "+N" chip instead. */
+        /* min-height, not height: Inter renders the chip at exactly 22px, but the
+           fallback face is 23px, and a hard 22px box shaved the chip's top and
+           bottom border whenever the webfont was slow or unreachable (an OBS
+           source on a venue network). `nowrap` still caps the row at one line. */
+        .tamers-row { display: flex; gap: 6px; flex-wrap: nowrap; align-items: center; min-height: 22px; overflow: hidden; }
         .tamer-chip {
             background: rgba(234,179,8,0.18); border: 1px solid rgba(234,179,8,0.55); color: #fde68a;
             font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
-            white-space: nowrap; max-width: 170px; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis;
+            flex-shrink: 0;
         }
+        .tamer-chip.more { background: rgba(148,163,184,0.16); border-color: rgba(148,163,184,0.5); color: #cbd5e1; }
         .tamers-empty { font-size: 12px; color: #6b7280; font-style: italic; }
 
         /* Optional zone counts */
         .counts-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
         .count-cell {
             text-align: center; background: rgba(0,0,0,0.4); border-radius: 7px; padding: 5px 2px;
-            border: 1px solid rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.08); min-width: 0;
         }
-        .count-val { font-size: 19px; font-weight: 800; color: #e5edff; line-height: 1; }
-        .player-board.right .count-val { color: #ffe6d2; }
-        .count-lbl { font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+        .count-val {
+            font-size: 19px; font-weight: 800; color: var(--accent-count); line-height: 1;
+            font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .count-lbl {
+            font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
 
         /* SHARED MEMORY GAUGE (center, between players - the one Digimon-unique piece) */
         .memory-gauge {
@@ -183,14 +386,55 @@
             text-align: center; font-size: 13px; font-weight: 700; letter-spacing: 3px;
             text-transform: uppercase; color: #cbd5e1; margin-bottom: 6px;
         }
-        .mem-readout { text-align: center; font-size: 15px; font-weight: 700; margin-bottom: 10px; height: 20px; }
-        .mem-readout .who { font-weight: 800; }
-        .mem-readout .val { font-family: 'Courier New', monospace; font-size: 22px; }
+        /* min-height, not height: the 22px value overflowed a 20px box and
+           crowded the player labels underneath it. */
+        .mem-readout {
+            position: relative; text-align: center; font-size: 15px; font-weight: 700;
+            margin-bottom: 10px; min-height: 28px; line-height: 28px;
+            white-space: nowrap;
+        }
+        /* The ellipsis lives on the name, not on the row: the row hosts the
+           swing ticker, and clipping the row would erase it entirely. */
+        .mem-readout .who {
+            font-weight: 800; color: #cbd5e1;
+            display: inline-block; vertical-align: middle;
+            max-width: 68%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .mem-readout .val {
+            font-family: 'Courier New', monospace; font-size: 22px; color: #cbd5e1;
+            display: inline-block; vertical-align: middle; font-variant-numeric: tabular-nums;
+        }
+        .mem-readout.p1 .who, .mem-readout.p1 .val { color: #60a5fa; }
+        .mem-readout.p2 .who, .mem-readout.p2 .val { color: #fb923c; }
+        .mem-readout .val.bump { animation: val-bump 0.5s cubic-bezier(0.16, 0.84, 0.44, 1); }
+        @keyframes val-bump {
+            0%   { transform: scale(1); }
+            35%  { transform: scale(1.28); }
+            100% { transform: scale(1); }
+        }
+        /* Memory swing ticker - parked in one of the readout's empty side
+           margins, so it never lands on the centred text.
+           Which margin is not cosmetic: the gauge's whole semantic is
+           left = player 1, right = player 2, so the ticker has to fire on the
+           half the memory is moving TOWARD. A swing to player 1 anchored on the
+           right would show a blue "-4" floating over player 2's territory and
+           read as the opposite of what just happened. `val-pop` is
+           translateY-only, so flipping the horizontal anchor is safe mid-flight. */
+        .mem-pop {
+            position: absolute; right: 0; top: 0;
+            font-size: 18px; font-weight: 800; line-height: 28px;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+            pointer-events: none;
+            animation: val-pop 1s ease-out forwards;
+        }
+        .mem-pop.to-p1 { color: #93c5fd; right: auto; left: 0; }
+        .mem-pop.to-p2 { color: #fdba74; }
         /* Player end-labels */
-        .mem-ends { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .mem-ends { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
         .mem-end {
             font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;
-            white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; max-width: 46%; min-width: 0; overflow: hidden; text-overflow: ellipsis;
         }
         .mem-end.p1 { color: #60a5fa; }
         .mem-end.p2 { color: #fb923c; }
@@ -217,12 +461,28 @@
             opacity: 0; transition: all 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
         }
         .match-info.active { opacity: 1; }
-        .match-format { font-size: 14px; color: #93c5fd; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
-        .timer { font-size: 36px; font-weight: bold; color: #38bdf8; font-family: 'Courier New', monospace; text-shadow: 0 0 15px rgba(56,189,248,0.5); }
+        .match-format { font-size: 14px; color: #93c5fd; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; white-space: nowrap; }
+        .timer {
+            font-size: 36px; font-weight: bold; color: #38bdf8; font-family: 'Courier New', monospace;
+            text-shadow: 0 0 15px rgba(56,189,248,0.5); font-variant-numeric: tabular-nums;
+        }
+        /* Last minute on the clock reads red so it is obvious on stream. */
+        .timer.expiring {
+            color: #f87171;
+            text-shadow: 0 0 15px rgba(248, 113, 113, 0.6);
+            animation: soft-pulse 1.2s ease-in-out infinite;
+        }
         .turn-indicator {
             padding: 8px 16px; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
             border-radius: 24px; color: #fff; font-weight: bold; font-size: 14px;
             text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(37,99,235,0.4);
+            max-width: 340px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            transition: background 0.4s ease, box-shadow 0.4s ease;
+        }
+        /* The pill takes the colour of whoever is on the clock. */
+        .turn-indicator.p2 {
+            background: linear-gradient(135deg, #ea580c 0%, #9a3412 100%);
+            box-shadow: 0 4px 12px rgba(234, 88, 12, 0.4);
         }
     </style>
     <script src="/socket.io/socket.io.js"></script>
@@ -238,24 +498,24 @@
             <div class="games-won" id="p1GamesWon">Games Won: 0</div>
         </div>
         <div class="panel">
-            <div class="section-title">Security</div>
+            <div class="section-title"><span>Security</span></div>
             <div class="sec-head"><span class="sec-count" id="p1Sec">5</span><span class="sec-goal">/ 5</span></div>
             <div class="sec-track" id="p1SecTrack"></div>
         </div>
         <div class="panel">
-            <div class="section-title">Battle Area</div>
+            <div class="section-title"><span>Battle Area</span><span id="p1BattleCount"></span></div>
             <div class="battle-grid" id="p1Battle"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Breeding Area</div>
+            <div class="section-title"><span>Breeding Area</span></div>
             <div class="breed-wrap" id="p1Breed"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Tamers</div>
+            <div class="section-title"><span>Tamers</span></div>
             <div class="tamers-row" id="p1Tamers"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Zones</div>
+            <div class="section-title"><span>Zones</span></div>
             <div class="counts-grid" id="p1Counts"></div>
         </div>
     </div>
@@ -263,7 +523,7 @@
     <!-- Shared MEMORY gauge (center) -->
     <div class="memory-gauge" id="memoryGauge">
         <div class="mem-title">Memory</div>
-        <div class="mem-readout" id="memReadout">Neutral</div>
+        <div class="mem-readout neutral" id="memReadout"><span class="who">Neutral</span> <span class="val">0</span></div>
         <div class="mem-ends">
             <span class="mem-end p1" id="memEndP1">Player 1</span>
             <span class="mem-end p2" id="memEndP2">Player 2</span>
@@ -282,24 +542,24 @@
             <div class="games-won" id="p2GamesWon">Games Won: 0</div>
         </div>
         <div class="panel">
-            <div class="section-title">Security</div>
+            <div class="section-title"><span>Security</span></div>
             <div class="sec-head"><span class="sec-count" id="p2Sec">5</span><span class="sec-goal">/ 5</span></div>
             <div class="sec-track" id="p2SecTrack"></div>
         </div>
         <div class="panel">
-            <div class="section-title">Battle Area</div>
+            <div class="section-title"><span>Battle Area</span><span id="p2BattleCount"></span></div>
             <div class="battle-grid" id="p2Battle"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Breeding Area</div>
+            <div class="section-title"><span>Breeding Area</span></div>
             <div class="breed-wrap" id="p2Breed"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Tamers</div>
+            <div class="section-title"><span>Tamers</span></div>
             <div class="tamers-row" id="p2Tamers"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Zones</div>
+            <div class="section-title"><span>Zones</span></div>
             <div class="counts-grid" id="p2Counts"></div>
         </div>
     </div>
@@ -358,10 +618,35 @@
             visible: false
         };
 
+        // ---- Render caching --------------------------------------------------
+        // Every section used to be rebuilt with innerHTML on each update, which
+        // reloads card art (visible flicker in OBS) and restarts the idle-slot
+        // drift. Markup is now regenerated only when a slot's card identity
+        // changes; numbers, badges and state classes update in place.
+        const renderCache = {
+            built: { sec: {}, battle: {}, counts: {}, mem: false },
+            battle: { 1: [], 2: [] },
+            breed: {},
+            tamers: {}
+        };
+        // Diff trackers for the change tickers. `null` means "no baseline yet" -
+        // reset paths reseed to null so a reset never fires a phantom ticker.
+        const lastSecurity = { 1: null, 2: null };
+        let lastMemory = null;
+
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
         }
         const numOr = (v, d = 0) => { const n = parseInt(v); return isNaN(n) ? d : n; };
+
+        // Reseed every diff tracker. Called whenever the board is replaced
+        // wholesale (reset / full-state restore) so the next render establishes
+        // a baseline instead of reporting the jump as a swing.
+        function reseedTickers() {
+            lastSecurity[1] = null;
+            lastSecurity[2] = null;
+            lastMemory = null;
+        }
 
         // ---- Socket handlers ----
         socket.on('digimon-match-state', (state) => { if (state) { applyFullState(state); updateDisplay(); } });
@@ -385,7 +670,13 @@
             renderSecurity(d.player);
         });
         socket.on('digimon-security-reset', () => {
-            [1, 2].forEach(n => { matchState[`player${n}`].securityTaken = []; matchState[`player${n}`].security = 5; renderSecurity(n); });
+            [1, 2].forEach(n => {
+                matchState[`player${n}`].securityTaken = [];
+                matchState[`player${n}`].security = 5;
+                // A deliberate reset is not a swing - drop the baseline first.
+                lastSecurity[n] = null;
+                renderSecurity(n);
+            });
         });
 
         socket.on('digimon-battle-update', (d) => { matchState[`player${d.player}`].battle[d.index] = d.unit; renderBattle(d.player); });
@@ -405,6 +696,7 @@
                 currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
                 timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: 'Best of 3', visible: wasVisible
             };
+            reseedTickers();
             updateDisplay();
         });
 
@@ -438,6 +730,8 @@
             if (s.gameNumber !== undefined) matchState.gameNumber = s.gameNumber;
             if (s.matchFormat !== undefined) matchState.matchFormat = s.matchFormat;
             if (s.timer) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
+            // A restored board is a new baseline, not a swing.
+            reseedTickers();
         }
 
         // ---- Rendering ----
@@ -451,110 +745,286 @@
             const p = matchState[`player${n}`];
             document.getElementById(`p${n}Name`).textContent = p.name || `Player ${n}`;
             const r = p.record || { wins: 0, losses: 0, ties: 0 };
-            document.getElementById(`p${n}Record`).textContent = `${r.wins}-${r.losses}-${r.ties}`;
-            document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${p.gamesWon || 0}`;
+            document.getElementById(`p${n}Record`).textContent = `${numOr(r.wins)}-${numOr(r.losses)}-${numOr(r.ties)}`;
+            document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${numOr(p.gamesWon, 0)}`;
+        }
+
+        // Fires a short +/- ticker into `host`. The host must not have a
+        // clipping ancestor between it and the popup, or the ticker renders
+        // zero visible pixels while still passing a DOM-presence test.
+        function popDelta(host, delta, cls) {
+            if (!host || !delta) return;
+            const pop = document.createElement('div');
+            pop.className = cls;
+            pop.textContent = delta > 0 ? `+${delta}` : `${delta}`;
+            host.appendChild(pop);
+            setTimeout(() => pop.remove(), 1100);
         }
 
         function renderSecurity(n) {
             const p = matchState[`player${n}`];
-            const taken = p.securityTaken || [];
-            const remaining = 5 - taken.length;
-            document.getElementById(`p${n}Sec`).textContent = remaining;
-            let html = '';
-            for (let i = 0; i < 5; i++) html += `<div class="sec-pip${taken.includes(i) ? ' taken' : ''}"></div>`;
-            document.getElementById(`p${n}SecTrack`).innerHTML = html;
+            const taken = Array.isArray(p.securityTaken) ? p.securityTaken : [];
+            const remaining = Math.max(0, Math.min(5, 5 - taken.length));
+            const track = document.getElementById(`p${n}SecTrack`);
+
+            // Pips are structural - build once, then toggle state in place.
+            if (!renderCache.built.sec[n]) {
+                let html = '';
+                for (let i = 0; i < 5; i++) html += `<div class="sec-pip" data-pip="${i}"></div>`;
+                track.innerHTML = html;
+                renderCache.built.sec[n] = true;
+            }
+            track.querySelectorAll('.sec-pip').forEach(pip => {
+                pip.classList.toggle('taken', taken.includes(Number(pip.dataset.pip)));
+            });
+
+            const countEl = document.getElementById(`p${n}Sec`);
+            countEl.textContent = remaining;
+            countEl.classList.toggle('critical', remaining <= 1);
+
+            const previous = lastSecurity[n];
+            if (previous !== null && previous !== remaining) {
+                const delta = remaining - previous;
+                popDelta(document.querySelector(`#player${n}Board .sec-head`), delta,
+                    delta > 0 ? 'sec-pop gain' : 'sec-pop');
+            }
+            lastSecurity[n] = remaining;
+        }
+
+        function battleSignature(u) {
+            if (!u) return '-';
+            // `uid` is a per-placement token if the control ever supplies one;
+            // without it, identity falls back to the printed card. Everything
+            // that only changes a number (dp / level / stack) is deliberately
+            // excluded so live stat edits never reload the art.
+            return [u.uid, u.id, u.name, u.image, u.colors].map(v => v == null ? '' : v).join('~');
         }
 
         function renderBattle(n) {
             const p = matchState[`player${n}`];
+            const battle = Array.isArray(p.battle) ? p.battle : [];
             const grid = document.getElementById(`p${n}Battle`);
-            let html = '';
-            for (let i = 0; i < 6; i++) {
-                const u = p.battle[i];
-                if (!u) { html += '<div class="battle-cell empty"></div>'; continue; }
-                const stack = numOr(u.stack, 1);
-                const stat = (kind, lbl, v) => (v != null && v !== '') ? `<span class="stat ${kind}"><span class="lbl">${lbl}</span>${esc(v)}</span>` : '';
-                html += `
-                    <div class="battle-cell" style="--clr:${colorAccent(u.colors)}">
-                        <img class="battle-art" src="${esc(u.image)}" alt="${esc(u.name)}" onerror="this.src=window.CARD_BACK">
-                        <div class="battle-stats">
-                            ${stat('dp', 'DP', u.dp)}
-                            ${stat('lv', 'Lv', u.level)}
-                        </div>
-                        ${stack > 1 ? `<span class="stack-badge">x${stack}</span>` : ''}
-                        <div class="battle-name">${esc(u.name)}</div>
-                    </div>`;
+
+            if (!renderCache.built.battle[n]) {
+                let html = '';
+                for (let i = 0; i < 6; i++) {
+                    // A negative delay starts each idle slot part-way through the
+                    // drift, so the six hexagons never march across in step.
+                    html += `<div class="battle-cell empty" data-slot="${i}" style="--drift-delay:-${(i * 1.15).toFixed(2)}s"></div>`;
+                }
+                grid.innerHTML = html;
+                renderCache.built.battle[n] = true;
+                renderCache.battle[n] = ['-', '-', '-', '-', '-', '-'];
             }
-            grid.innerHTML = html;
+
+            const cells = grid.querySelectorAll('.battle-cell');
+            let filled = 0;
+            for (let i = 0; i < 6; i++) {
+                const u = battle[i] || null;
+                const cell = cells[i];
+                if (!cell) continue;
+                if (u) filled++;
+
+                const signature = battleSignature(u);
+                if (renderCache.battle[n][i] !== signature) {
+                    if (u) {
+                        cell.classList.remove('empty');
+                        cell.style.setProperty('--clr', colorAccent(u.colors));
+                        cell.innerHTML =
+                            `<img class="battle-art swap-in" src="${esc(u.image)}" alt="${esc(u.name)}" onerror="this.src=window.CARD_BACK">` +
+                            '<div class="battle-stats">' +
+                            '<span class="stat dp is-hidden"><span class="lbl">DP</span><span class="v"></span></span>' +
+                            '<span class="stat lv is-hidden"><span class="lbl">Lv</span><span class="v"></span></span>' +
+                            // In the stats row, not floating over it, so it can
+                            // never be laid on top of the chips beside it.
+                            '<span class="stack-badge is-hidden"></span>' +
+                            '</div>' +
+                            '<div class="battle-name"></div>';
+                    } else {
+                        cell.classList.add('empty');
+                        // Clear the previous occupant's colour stripe, or a dashed
+                        // empty slot keeps a stray coloured edge.
+                        cell.style.removeProperty('--clr');
+                        cell.innerHTML = '';
+                    }
+                    renderCache.battle[n][i] = signature;
+                }
+
+                if (!u) continue;
+
+                // Numbers and badges update in place - no markup churn, so the
+                // art is never reloaded by a DP or stack edit.
+                const nameEl = cell.querySelector('.battle-name');
+                if (nameEl) nameEl.textContent = u.name || '';
+
+                const setStat = (kind, value) => {
+                    const chip = cell.querySelector(`.stat.${kind}`);
+                    if (!chip) return;
+                    const show = value != null && value !== '' && numOr(value, 0) !== 0;
+                    chip.classList.toggle('is-hidden', !show);
+                    if (show) chip.querySelector('.v').textContent = value;
+                };
+                setStat('dp', u.dp);
+                setStat('lv', u.level);
+
+                const stack = numOr(u.stack, 1);
+                const badge = cell.querySelector('.stack-badge');
+                if (badge) {
+                    badge.classList.toggle('is-hidden', stack <= 1);
+                    badge.textContent = `x${stack}`;
+                }
+            }
+
+            const countEl = document.getElementById(`p${n}BattleCount`);
+            if (countEl) countEl.textContent = `${filled}/6`;
         }
 
         function renderBreeding(n) {
             const b = matchState[`player${n}`].breeding;
             const wrap = document.getElementById(`p${n}Breed`);
-            if (!b) {
-                wrap.innerHTML = '<div class="breed-cell empty"></div><div class="breed-meta"><div class="breed-empty">Empty</div></div>';
-                return;
+            const signature = b ? [b.uid, b.id, b.name, b.image].map(v => v == null ? '' : v).join('~') : '-';
+
+            if (renderCache.breed[n] !== signature) {
+                if (!b) {
+                    wrap.innerHTML =
+                        '<div class="breed-cell empty" style="--drift-delay:-3.40s"></div>' +
+                        '<div class="breed-meta"><div class="breed-empty">Empty</div></div>';
+                } else {
+                    wrap.innerHTML =
+                        `<div class="breed-cell"><img class="swap-in" src="${esc(b.image)}" alt="${esc(b.name)}" onerror="this.src=window.CARD_BACK"></div>` +
+                        '<div class="breed-meta"><div class="breed-name"></div><div class="breed-sub"></div></div>';
+                    wrap.querySelector('.breed-name').textContent = b.name || '';
+                }
+                renderCache.breed[n] = signature;
             }
+
+            if (!b) return;
             const sub = [];
-            if (b.dp != null && b.dp !== '') sub.push(`DP ${esc(b.dp)}`);
-            if (b.level != null && b.level !== '') sub.push(`Lv.${esc(b.level)}`);
-            wrap.innerHTML = `
-                <div class="breed-cell"><img src="${esc(b.image)}" alt="${esc(b.name)}" onerror="this.src=window.CARD_BACK"></div>
-                <div class="breed-meta">
-                    <div class="breed-name">${esc(b.name)}</div>
-                    <div class="breed-sub">${sub.join(' &bull; ')}</div>
-                </div>`;
+            if (b.dp != null && b.dp !== '' && numOr(b.dp, 0) !== 0) sub.push(`DP ${b.dp}`);
+            if (b.level != null && b.level !== '' && numOr(b.level, 0) !== 0) sub.push(`Lv.${b.level}`);
+            const subEl = wrap.querySelector('.breed-sub');
+            if (subEl) subEl.textContent = sub.join(' • ');
+        }
+
+        // Drop trailing chips until the row fits on its single line, folding
+        // whatever was dropped into a "+N" chip. Measured rather than capped at
+        // a guessed count, because chip width follows the Tamer's name.
+        function fitTamerRow(row, total) {
+            let more = null;
+            let shown = row.querySelectorAll('.tamer-chip:not(.more)').length;
+            let guard = 0;
+            while (row.scrollWidth > row.clientWidth && shown > 1 && guard++ < 24) {
+                const chips = row.querySelectorAll('.tamer-chip:not(.more)');
+                chips[chips.length - 1].remove();
+                shown--;
+                if (!more) {
+                    more = document.createElement('span');
+                    more.className = 'tamer-chip more';
+                    row.appendChild(more);
+                }
+                more.textContent = `+${total - shown}`;
+            }
         }
 
         function renderTamers(n) {
             const tamers = matchState[`player${n}`].tamers || [];
             const row = document.getElementById(`p${n}Tamers`);
-            row.innerHTML = tamers.length
-                ? tamers.map(t => `<span class="tamer-chip">${esc(t.name)}</span>`).join('')
-                : '<span class="tamers-empty">None in play</span>';
+            const signature = tamers.length
+                ? tamers.map(t => (t && (t.id || t.name)) || '?').join('|')
+                : '-';
+            if (renderCache.tamers[n] === signature) return;
+
+            if (!tamers.length) {
+                row.innerHTML = '<span class="tamers-empty">None in play</span>';
+            } else {
+                row.innerHTML = tamers.map(t => `<span class="tamer-chip">${esc(t && t.name)}</span>`).join('');
+                fitTamerRow(row, tamers.length);
+            }
+            renderCache.tamers[n] = signature;
         }
+
+        const COUNT_FIELDS = [['Hand', 'hand'], ['Deck', 'deck'], ['Trash', 'trash'], ['Egg', 'eggDeck']];
 
         function renderCounts(n) {
             const c = matchState[`player${n}`].counts || { hand: 0, deck: 0, trash: 0, eggDeck: 0 };
-            const cell = (lbl, v) => `<div class="count-cell"><div class="count-val">${numOr(v, 0)}</div><div class="count-lbl">${lbl}</div></div>`;
-            document.getElementById(`p${n}Counts`).innerHTML =
-                cell('Hand', c.hand) + cell('Deck', c.deck) + cell('Trash', c.trash) + cell('Egg', c.eggDeck);
+            const grid = document.getElementById(`p${n}Counts`);
+            if (!renderCache.built.counts[n]) {
+                grid.innerHTML = COUNT_FIELDS
+                    .map(([lbl, key]) => `<div class="count-cell" data-key="${key}"><div class="count-val">0</div><div class="count-lbl">${lbl}</div></div>`)
+                    .join('');
+                renderCache.built.counts[n] = true;
+            }
+            grid.querySelectorAll('.count-cell').forEach(cell => {
+                cell.querySelector('.count-val').textContent = numOr(c[cell.dataset.key], 0);
+            });
         }
 
         // SHARED memory gauge: 21 cells (-10..0..+10), filled from center toward the
         // current value on that player's side, with a marker on the value cell.
         function renderMemory() {
             const m = Math.max(-10, Math.min(10, numOr(matchState.memory, 0)));
-            document.getElementById('memEndP1').textContent = matchState.player1.name || 'Player 1';
-            document.getElementById('memEndP2').textContent = matchState.player2.name || 'Player 2';
+            const p1Name = matchState.player1.name || 'Player 1';
+            const p2Name = matchState.player2.name || 'Player 2';
+            document.getElementById('memEndP1').textContent = p1Name;
+            document.getElementById('memEndP2').textContent = p2Name;
 
             const readout = document.getElementById('memReadout');
-            if (m === 0) {
-                readout.innerHTML = '<span class="who" style="color:#cbd5e1">Neutral</span> <span class="val">0</span>';
-            } else if (m < 0) {
-                readout.innerHTML = `<span class="who" style="color:#60a5fa">${esc(matchState.player1.name || 'Player 1')}</span> <span class="val" style="color:#60a5fa">${m}</span>`;
-            } else {
-                readout.innerHTML = `<span class="who" style="color:#fb923c">${esc(matchState.player2.name || 'Player 2')}</span> <span class="val" style="color:#fb923c">+${m}</span>`;
-            }
+            const who = readout.querySelector('.who');
+            const val = readout.querySelector('.val');
+            readout.classList.toggle('p1', m < 0);
+            readout.classList.toggle('p2', m > 0);
+            readout.classList.toggle('neutral', m === 0);
+            who.textContent = m === 0 ? 'Neutral' : (m < 0 ? p1Name : p2Name);
+            val.textContent = m === 0 ? '0' : (m < 0 ? String(m) : `+${m}`);
 
-            let html = '';
-            for (let v = -10; v <= 10; v++) {
-                let cls = 'mem-cell';
-                if (v === 0) cls += ' zero';
-                if (m < 0 && v >= m && v < 0) cls += ' fill-p1';
-                if (m > 0 && v <= m && v > 0) cls += ' fill-p2';
-                if (v === m && m !== 0) cls += ' marker';
-                html += `<div class="${cls}"></div>`;
+            const track = document.getElementById('memTrack');
+            if (!renderCache.built.mem) {
+                let html = '';
+                for (let v = -10; v <= 10; v++) html += `<div class="mem-cell" data-v="${v}"></div>`;
+                track.innerHTML = html;
+                renderCache.built.mem = true;
             }
-            document.getElementById('memTrack').innerHTML = html;
+            track.querySelectorAll('.mem-cell').forEach(cell => {
+                const v = Number(cell.dataset.v);
+                cell.classList.toggle('zero', v === 0);
+                cell.classList.toggle('fill-p1', m < 0 && v >= m && v < 0);
+                cell.classList.toggle('fill-p2', m > 0 && v <= m && v > 0);
+                cell.classList.toggle('marker', v === m && m !== 0);
+            });
+
+            // Memory swings are the rhythm of a Digimon game - worth a beat.
+            if (lastMemory !== null && lastMemory !== m) {
+                const delta = m - lastMemory;
+                popDelta(readout, delta, delta < 0 ? 'mem-pop to-p1' : 'mem-pop to-p2');
+                // Re-trigger the bump on a persistent element.
+                val.classList.remove('bump');
+                void val.offsetWidth;
+                val.classList.add('bump');
+            }
+            lastMemory = m;
         }
 
         function updateMatchInfo() {
-            document.getElementById('matchTimer').textContent =
-                `${String(matchState.timer.minutes).padStart(2, '0')}:${String(matchState.timer.seconds).padStart(2, '0')}`;
-            const name = matchState[`player${matchState.currentTurn}`].name;
-            document.getElementById('turnIndicator').textContent = `${name}'s Turn`;
+            const timerEl = document.getElementById('matchTimer');
+            const mins = numOr(matchState.timer && matchState.timer.minutes, 0);
+            const secs = numOr(matchState.timer && matchState.timer.seconds, 0);
+            timerEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            timerEl.classList.toggle('expiring', mins === 0);
+
+            const turn = matchState.currentTurn === 2 ? 2 : 1;
+            const name = matchState[`player${turn}`].name || `Player ${turn}`;
+            const turnEl = document.getElementById('turnIndicator');
+            turnEl.textContent = `${name}'s Turn`;
+            turnEl.classList.toggle('p2', turn === 2);
             document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber}`;
+
+            // Lift the board whose turn it is; settle the other one back.
+            [1, 2].forEach(num => {
+                const board = document.getElementById(`player${num}Board`);
+                const isActive = turn === num;
+                board.classList.toggle('active-turn', isActive);
+                board.classList.toggle('idle-turn', !isActive);
+            });
         }
 
         function startTimer() {

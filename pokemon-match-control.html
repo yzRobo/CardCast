@@ -1609,14 +1609,35 @@
 
                 const card = await response.json();
 
+                // Ability and attacks ride along so the overlay can print a
+                // readable stat line - the card image is far too small to read
+                // at broadcast scale. Fields are optional everywhere downstream.
+                const attacks = [];
+                for (let i = 1; i <= 3; i++) {
+                    if (!card[`attack${i}_name`]) continue;
+                    attacks.push({
+                        name: card[`attack${i}_name`],
+                        cost: card[`attack${i}_cost`] || '',
+                        damage: card[`attack${i}_damage`] || ''
+                    });
+                }
+
                 const pokemon = {
                     id: card.id,
+                    // Per-placement token. Decks run multiple copies of a card,
+                    // so id alone cannot tell the overlay that a Pokemon was
+                    // replaced by an identical one - which it needs in order to
+                    // reset its HP tracking instead of reporting a phantom heal.
+                    uid: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                     name: card.name,
                     image: card.display_image || card.local_image || card.image_url,
                     maxHp: parseInt(card.hp) || 100,
-                    currentHp: parseInt(card.hp) || 100
+                    currentHp: parseInt(card.hp) || 100,
+                    stage: card.stage || null,
+                    abilityName: card.ability_name || null,
+                    attacks
                 };
-                
+
                 const playerNum = currentSelection.player === 'player1' ? 1 : 2;
                 
                 if (currentSelection.slot === 'active') {

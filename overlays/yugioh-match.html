@@ -19,6 +19,12 @@
             position: relative;
         }
 
+        /* Zone motif: an outline duel-field diamond. Shared by the empty
+           monster / spell-trap cells and the empty field-spell slot. */
+        :root {
+            --zone-diamond: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='7' stroke-linejoin='round'%3E%3Cpath d='M50 8 92 50 50 92 8 50Z'/%3E%3Cpath d='M50 32 68 50 50 68 32 50Z'/%3E%3C/g%3E%3C/svg%3E");
+        }
+
         /* Player boards - vertical panels on the sides */
         .player-board {
             position: absolute;
@@ -30,6 +36,18 @@
             top: 50%;
             opacity: 0;
             transition: all 0.5s ease;
+
+            /* Per-side accent, referenced by every panel below. */
+            --accent: #7c3aed;
+            --accent-soft: rgba(124, 58, 237, 0.5);
+            --accent-glow: rgba(124, 58, 237, 0.35);
+            --accent-text: #c4b5fd;
+        }
+        .player-board.right {
+            --accent: #ef4444;
+            --accent-soft: rgba(239, 68, 68, 0.5);
+            --accent-glow: rgba(239, 68, 68, 0.35);
+            --accent-text: #fca5a5;
         }
         .player-board.left { left: 20px; transform: translateX(-430px) translateY(-50%); }
         .player-board.left.active { transform: translateX(0) translateY(-50%); }
@@ -39,14 +57,53 @@
 
         .panel {
             background: linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(20,20,30,0.95) 100%);
-            border: 2px solid #7c3aed;
+            border: 2px solid var(--accent);
             border-radius: 12px;
             padding: 11px;
             backdrop-filter: blur(10px);
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
         }
-        .player-board.right .panel { border-color: #ef4444; }
-        .panel.soft { border-color: rgba(124,58,237,0.5); }
-        .player-board.right .panel.soft { border-color: rgba(239,68,68,0.5); }
+        .panel.soft { border-color: var(--accent-soft); }
+
+        /* Whose turn it is: the active side lifts, the idle side settles back.
+           Kept deliberately gentle so it reads at a glance without pulling
+           focus from the gameplay footage between the two boards. The idle
+           side keeps its accent colour - that is player identity, not state.
+           Scoped to `.active` (visible) so a hidden board stays fully hidden. */
+        .player-board.active.idle-turn {
+            opacity: 0.8;
+            filter: saturate(0.7) brightness(0.86);
+        }
+
+        .player-board.active-turn .panel:not(.soft) {
+            box-shadow: 0 0 0 1px var(--accent-soft), 0 0 22px var(--accent-glow), 0 8px 22px rgba(0, 0, 0, 0.45);
+        }
+
+        /* A dimming percentage alone is hard to judge when the two boards are
+           1500px apart and different hues, so the active side also gets a lit
+           rail on its inner edge - present or absent, nothing to compare.
+           The board box is a fixed 1000px but the panel stack is shorter, so
+           the rail is sized from measured content (--rail-h) rather than
+           stretched to the box - otherwise it hangs into empty space below
+           the last panel. */
+        .player-board::after {
+            content: '';
+            position: absolute;
+            top: 6px;
+            height: var(--rail-h, 200px);
+            width: 4px;
+            border-radius: 4px;
+            background: linear-gradient(180deg, transparent 0%, var(--accent) 10%, var(--accent) 90%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.45s ease;
+            pointer-events: none;
+        }
+        .player-board.left::after  { right: -11px; }
+        .player-board.right::after { left: -11px; }
+        .player-board.active-turn::after {
+            opacity: 1;
+            box-shadow: 0 0 16px var(--accent);
+        }
 
         .section-title {
             font-size: 12px;
@@ -55,46 +112,108 @@
             letter-spacing: 1.2px;
             margin-bottom: 8px;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .zone-count {
+            color: var(--accent-text);
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
         }
 
         /* Header */
-        .player-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .player-name-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
         .player-name {
             font-size: 22px; font-weight: 800; color: #fff;
             text-transform: uppercase; letter-spacing: 1.2px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+            /* Ellipsis needs an actual constraint: flex:1 + min-width:0, not a
+               magic max-width that guesses at how wide the record chip is. */
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            flex: 1; min-width: 0;
         }
         .player-record {
             font-size: 15px; color: #94a3b8; font-weight: 700;
             background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap; flex-shrink: 0;
         }
         .games-won {
             background: rgba(16,185,129,0.2); border: 2px solid #10b981; color: #10b981;
             padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
         /* Life Points headline */
         .lp-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-        .lp-block { text-align: left; }
+        /* Shrink-wraps the numerals so the LP ticker anchors to the number's
+           right edge rather than to the panel, which is far wider. */
+        .lp-block { text-align: left; position: relative; min-width: 0; }
         .lp-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
         .lp-value {
             font-size: 52px; font-weight: 800; line-height: 1;
             font-family: 'Inter', monospace; color: #22d3ee;
             text-shadow: 0 0 18px rgba(34,211,238,0.4);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            transition: color 0.3s ease;
         }
         .lp-value.low { color: #fbbf24; text-shadow: 0 0 18px rgba(251,191,36,0.4); }
-        .lp-value.critical { color: #ef4444; text-shadow: 0 0 18px rgba(239,68,68,0.5); }
+        .lp-value.critical {
+            color: #ef4444; text-shadow: 0 0 18px rgba(239,68,68,0.5);
+            /* Sub-1000 is one attack from a loss - the number should breathe. */
+            animation: soft-pulse 1.6s ease-in-out infinite;
+        }
+
+        @keyframes soft-pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.62; }
+        }
+
+        /* Life-point ticker. Anchored beside the numerals inside .lp-block,
+           which has no clipping ancestor, so it actually renders. */
+        .lp-pop {
+            position: absolute;
+            left: 100%;
+            bottom: 10px;
+            margin-left: 12px;
+            font-size: 20px;
+            font-weight: 800;
+            color: #fca5a5;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            pointer-events: none;
+            animation: lp-pop 1.1s ease-out forwards;
+        }
+        .lp-pop.heal { color: #6ee7b7; }
+
+        @keyframes lp-pop {
+            0%   { opacity: 0; transform: translateY(8px); }
+            22%  { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-18px); }
+        }
+
         .ns-flag {
             display: flex; flex-direction: column; align-items: center; gap: 3px;
-            padding: 6px 12px; border-radius: 10px;
+            padding: 6px 12px; border-radius: 10px; flex-shrink: 0;
             background: rgba(0,0,0,0.5); border: 2px solid transparent; transition: all 0.3s ease;
         }
         .ns-flag.used { border-color: #f59e0b; background: rgba(245,158,11,0.18); }
         .ns-label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
         .ns-flag.used .ns-label { color: #fbbf24; }
-        .ns-icon { font-size: 16px; opacity: 0.35; }
-        .ns-flag.used .ns-icon { opacity: 1; }
+        /* Inline SVG instead of an emoji glyph - emoji render inconsistently
+           across OBS browser-source builds and never match panel weight. */
+        .ns-icon {
+            width: 16px; height: 16px; color: #64748b; opacity: 0.45;
+            transition: color 0.3s ease, opacity 0.3s ease;
+        }
+        .ns-icon svg { width: 100%; height: 100%; display: block; }
+        .ns-flag.used .ns-icon { color: #fbbf24; opacity: 1; }
 
         /* Card zone rows (Monsters, Spell/Trap) */
         .zone-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
@@ -104,10 +223,42 @@
             border: 2px solid rgba(255,255,255,0.1); border-radius: 6px;
             overflow: hidden;
         }
-        .zone-cell.empty { border-style: dashed; }
+        .zone-cell.empty { border-style: dashed; background: rgba(255,255,255,0.02); }
         .zone-cell img.card-art { width: 100%; height: 100%; object-fit: cover; }
         /* Defense-position monsters are laid sideways. */
         .zone-cell.def img.card-art { transform: rotate(90deg) scale(0.7); }
+
+        /* A card arriving in a zone gets a short lift-in. Only plays when the
+           slot's markup is rebuilt, which the render cache limits to an actual
+           card change - never to an ATK edit or a position flip. */
+        .zone-cell.filled { animation: card-swap 0.45s cubic-bezier(0.16, 0.84, 0.44, 1); }
+
+        @keyframes card-swap {
+            0%   { opacity: 0; transform: translateY(8px) scale(0.94); }
+            100% { opacity: 1; transform: none; }
+        }
+
+        /* Idle zones get an outline diamond drifting through - enough motion to
+           keep dead space alive, slow and dim enough to ignore. */
+        .zone-cell.empty::before,
+        .field-empty.idle::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 26px; height: 26px;
+            margin: -13px 0 0 -13px;
+            background: var(--zone-diamond) center / contain no-repeat;
+            opacity: 0;
+            animation: zone-drift 7.5s linear infinite;
+            animation-delay: var(--drift-delay, 0s);
+        }
+
+        @keyframes zone-drift {
+            0%   { opacity: 0;    transform: translateX(-150%) rotate(0deg); }
+            18%  { opacity: 0.16; }
+            82%  { opacity: 0.16; }
+            100% { opacity: 0;    transform: translateX(150%) rotate(180deg); }
+        }
 
         .pos-badge {
             position: absolute; top: 3px; left: 3px;
@@ -119,33 +270,52 @@
         .pos-badge.def { background: #2563eb; }
         .pos-badge.set { background: #6b7280; }
 
+        /* ATK and DEF stack. Side by side they overran a ~65px zone cell and
+           were silently clipped by the cell's overflow, so a 2100 DEF monster
+           read as "DEF 2" - a number that still parses, which is worse than a
+           visible truncation. */
         .atkdef {
             position: absolute; bottom: 0; left: 0; right: 0;
-            background: linear-gradient(180deg, transparent, rgba(0,0,0,0.92) 45%);
-            padding: 12px 3px 3px; display: flex; justify-content: center; gap: 5px;
+            background: linear-gradient(180deg, transparent, rgba(0,0,0,0.94) 42%);
+            padding: 12px 4px 3px;
+            display: flex; flex-direction: column; gap: 1px;
         }
-        .ad-chip { font-size: 10px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; }
-        .ad-chip .k { color: #94a3b8; font-weight: 700; }
+        .ad-chip {
+            display: flex; align-items: baseline; justify-content: space-between; gap: 3px;
+            font-size: 10px; font-weight: 800; color: #fff; line-height: 1.05;
+            text-shadow: 0 1px 2px #000;
+            font-variant-numeric: tabular-nums;
+            min-width: 0;
+        }
+        .ad-chip .k { font-size: 8px; font-weight: 700; letter-spacing: 0.4px; color: #94a3b8; flex-shrink: 0; }
         .ad-chip.atk .k { color: #fca5a5; }
         .ad-chip.def .k { color: #93c5fd; }
+        .ad-chip .v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         /* Field spell slot */
         .field-row { display: flex; gap: 9px; align-items: center; min-height: 70px; }
         .field-art { width: 48px; aspect-ratio: 59/86; object-fit: cover; border-radius: 5px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
         .field-empty {
+            position: relative; overflow: hidden;
             width: 48px; aspect-ratio: 59/86; border: 2px dashed rgba(255,255,255,0.15); border-radius: 5px;
             display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 9px; text-align: center; flex-shrink: 0;
         }
         .field-info { flex: 1; min-width: 0; }
         .field-name { color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .field-none { color: #64748b; font-size: 12px; }
+        .field-none { color: #64748b; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* Zone counts */
         .counts-row { display: flex; justify-content: space-between; gap: 5px; }
-        .count-item { flex: 1; text-align: center; background: rgba(0,0,0,0.45); border-radius: 6px; padding: 5px 2px; }
-        .count-label { font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; display: block; }
-        .count-value { font-size: 19px; font-weight: 800; color: #c4b5fd; display: block; }
-        .player-board.right .count-value { color: #fca5a5; }
+        .count-item { flex: 1; min-width: 0; text-align: center; background: rgba(0,0,0,0.45); border-radius: 6px; padding: 5px 2px; }
+        .count-label {
+            font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; display: block;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .count-value {
+            font-size: 19px; font-weight: 800; color: var(--accent-text); display: block;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
 
         /* Shared match-info bar */
         .match-info {
@@ -153,16 +323,27 @@
             background: linear-gradient(135deg, rgba(0,0,0,0.98) 0%, rgba(20,20,30,0.98) 100%);
             border: 2px solid #7c3aed; border-radius: 12px; padding: 12px 26px;
             display: flex; flex-direction: column; align-items: center; gap: 10px; backdrop-filter: blur(10px);
-            opacity: 0; transition: all 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+            opacity: 0; transition: opacity 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
         }
         .match-info.active { opacity: 1; }
         .match-info-top { display: flex; align-items: center; gap: 25px; }
-        .match-format { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
-        .timer { font-size: 36px; font-weight: bold; color: #00d4ff; font-family: 'Courier New', monospace; text-shadow: 0 0 15px rgba(0,212,255,0.5); }
+        .match-format { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; white-space: nowrap; }
+        .timer {
+            font-size: 36px; font-weight: bold; color: #00d4ff;
+            font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums;
+            text-shadow: 0 0 15px rgba(0,212,255,0.5);
+        }
+        /* Last minute on the clock reads red so it's obvious on stream. */
+        .timer.expiring {
+            color: #f87171;
+            text-shadow: 0 0 15px rgba(248, 113, 113, 0.6);
+            animation: soft-pulse 1.2s ease-in-out infinite;
+        }
         .turn-indicator {
             padding: 8px 16px; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
             border-radius: 24px; color: #fff; font-weight: bold; font-size: 14px;
             text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(124,58,237,0.4);
+            max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         /* Phase stepper */
         .phase-stepper { display: flex; gap: 6px; }
@@ -170,6 +351,7 @@
             font-size: 11px; font-weight: 700; color: #64748b; padding: 3px 9px; border-radius: 999px;
             background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
             text-transform: uppercase; letter-spacing: 0.4px; transition: all 0.2s ease;
+            white-space: nowrap;
         }
         .phase-chip.on { color: #fff; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); border-color: #7c3aed; box-shadow: 0 2px 8px rgba(124,58,237,0.5); }
     </style>
@@ -192,25 +374,25 @@
                     <div class="lp-value" id="p1LP">8000</div>
                 </div>
                 <div class="ns-flag" id="p1NS">
-                    <span class="ns-icon">&#9889;</span>
+                    <span class="ns-icon" data-icon="bolt"></span>
                     <span class="ns-label">Normal<br>Summon</span>
                 </div>
             </div>
         </div>
         <div class="panel">
-            <div class="section-title">Monster Zones</div>
+            <div class="section-title"><span>Monster Zones</span><span class="zone-count" id="p1MonsterCount"></span></div>
             <div class="zone-row" id="p1Monsters"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Spell / Trap</div>
+            <div class="section-title"><span>Spell / Trap</span><span class="zone-count" id="p1SpellCount"></span></div>
             <div class="zone-row" id="p1SpellsTraps"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Field Spell</div>
+            <div class="section-title"><span>Field Spell</span></div>
             <div class="field-row" id="p1Field"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Zones</div>
+            <div class="section-title"><span>Zones</span></div>
             <div class="counts-row" id="p1Counts"></div>
         </div>
     </div>
@@ -231,25 +413,25 @@
                     <div class="lp-value" id="p2LP">8000</div>
                 </div>
                 <div class="ns-flag" id="p2NS">
-                    <span class="ns-icon">&#9889;</span>
+                    <span class="ns-icon" data-icon="bolt"></span>
                     <span class="ns-label">Normal<br>Summon</span>
                 </div>
             </div>
         </div>
         <div class="panel">
-            <div class="section-title">Monster Zones</div>
+            <div class="section-title"><span>Monster Zones</span><span class="zone-count" id="p2MonsterCount"></span></div>
             <div class="zone-row" id="p2Monsters"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Spell / Trap</div>
+            <div class="section-title"><span>Spell / Trap</span><span class="zone-count" id="p2SpellCount"></span></div>
             <div class="zone-row" id="p2SpellsTraps"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Field Spell</div>
+            <div class="section-title"><span>Field Spell</span></div>
             <div class="field-row" id="p2Field"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Zones</div>
+            <div class="section-title"><span>Zones</span></div>
             <div class="counts-row" id="p2Counts"></div>
         </div>
     </div>
@@ -268,6 +450,13 @@
         const socket = io('http://localhost:3888');
 
         const PHASES = ['Draw', 'Standby', 'Main1', 'Battle', 'Main2', 'End'];
+        const COUNT_ITEMS = [['Hand', 'hand'], ['Deck', 'deck'], ['Extra', 'extra'], ['GY', 'graveyard'], ['Ban', 'banished']];
+
+        // Inline SVG icons - never emoji. Painted once at load.
+        const ICONS = {
+            bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>'
+        };
+
         // Self-contained card back (no asset dependency) - used for face-down
         // monsters / set Spell-Traps and as the broken-image fallback.
         const CARD_BACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
@@ -304,6 +493,31 @@
             visible: false
         };
 
+        // Per-slot content signatures. Re-running innerHTML on every counter
+        // tick reloads card images (visible flicker in OBS) and restarts the
+        // idle-zone drift, so markup is rebuilt only when the card in that
+        // exact slot changes; everything else updates in place.
+        const renderCache = { monsters: {}, spells: {}, field: {}, counts: {} };
+        // Last rendered LP per player, for the +/- ticker. `null` means "do not
+        // diff" - used on cold load and reset so a restored state cannot fire a
+        // phantom -4600 on a board nobody touched.
+        const lastLp = { 1: null, 2: null };
+
+        // Suppress the next LP diff for both players. Used wherever life totals
+        // arrive from somewhere other than gameplay.
+        function resetLpTicker() {
+            lastLp[1] = null;
+            lastLp[2] = null;
+        }
+
+        function clearRenderCache() {
+            renderCache.monsters = {};
+            renderCache.spells = {};
+            renderCache.field = {};
+            renderCache.counts = {};
+            resetLpTicker();
+        }
+
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
         }
@@ -312,11 +526,26 @@
             if (lp < 4000) return 'low';
             return '';
         }
+        function elFromHTML(html) {
+            const t = document.createElement('template');
+            t.innerHTML = html.trim();
+            return t.content.firstElementChild;
+        }
 
         // ---- Socket handlers ----
         socket.on('yugioh-match-state', (state) => { if (state) { applyFullState(state); updateDisplay(); } });
 
         socket.on('yugioh-match-update', (data) => {
+            // A player payload carrying lifePoints is a full-state push - either
+            // the server answering register-overlay/request-state, or the control
+            // page's pushFullState() replying to `overlay-connected`. Gameplay
+            // damage always arrives on `yugioh-life-update`, never here, so
+            // re-baseline the ticker: otherwise a restore whose LP differs from
+            // what is on screen (server restarted mid-match, control reconnects
+            // with the real total) fires a phantom -6,000 on a board nobody
+            // touched. Name-only updates leave the ticker state alone.
+            if ((data.player1 && data.player1.lifePoints !== undefined) ||
+                (data.player2 && data.player2.lifePoints !== undefined)) resetLpTicker();
             if (data.player1) matchState.player1 = { ...matchState.player1, ...data.player1 };
             if (data.player2) matchState.player2 = { ...matchState.player2, ...data.player2 };
             if (data.currentTurn !== undefined) matchState.currentTurn = data.currentTurn;
@@ -350,6 +579,9 @@
                 timer: { minutes: dur.minutes, seconds: dur.seconds },
                 timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: 'Best of 3', visible: wasVisible
             };
+            // Cleared board re-renders from scratch, and the jump back to 8000
+            // is a reset, not damage - it must not fire a ticker.
+            clearRenderCache();
             updateDisplay();
         });
 
@@ -383,6 +615,13 @@
             if (s.gameNumber !== undefined) matchState.gameNumber = s.gameNumber;
             if (s.matchFormat !== undefined) matchState.matchFormat = s.matchFormat;
             if (s.timer) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
+            // A restored board is not a board that just took damage. Only the
+            // LP diff is suppressed - the structural cache must survive,
+            // because the overlay re-registers every five seconds and the
+            // server answers each registration with a full state push. Clearing
+            // it here would reload every card image on that same five-second
+            // cycle, which is exactly the flicker the cache exists to stop.
+            resetLpTicker();
         }
 
         // ---- Rendering ----
@@ -401,66 +640,158 @@
 
         function renderLife(n) {
             const p = matchState[`player${n}`];
-            const lp = (p.lifePoints != null ? p.lifePoints : 8000);
+            const lp = Number(p.lifePoints != null ? p.lifePoints : 8000) || 0;
             const el = document.getElementById(`p${n}LP`);
             el.textContent = lp.toLocaleString('en-US');
-            el.className = `lp-value ${lpClass(lp)}`;
+            // Toggled, not reassigned: rewriting className restarts the
+            // critical pulse on every unrelated LP render.
+            const cls = lpClass(lp);
+            el.classList.toggle('low', cls === 'low');
+            el.classList.toggle('critical', cls === 'critical');
+
+            const previous = lastLp[n];
+            if (previous !== null && previous !== lp) {
+                const delta = lp - previous;
+                const anchor = el.parentElement;   // .lp-block - no clipping ancestor
+                if (anchor) {
+                    // Every pop lands on the same absolute spot, and the control
+                    // page's LP idiom is repeated -100 / -500 button presses, so
+                    // without this four clicks inside the 1.1s flight render as
+                    // one unreadable smear. Latest delta wins.
+                    anchor.querySelectorAll('.lp-pop').forEach(p => p.remove());
+                    const pop = document.createElement('div');
+                    pop.className = delta > 0 ? 'lp-pop heal' : 'lp-pop';
+                    pop.textContent = (delta > 0 ? '+' : '-') + Math.abs(delta).toLocaleString('en-US');
+                    anchor.appendChild(pop);
+                    setTimeout(() => pop.remove(), 1200);
+                }
+            }
+            lastLp[n] = lp;
         }
 
         function renderNormalSummon(n) {
             document.getElementById(`p${n}NS`).classList.toggle('used', !!matchState[`player${n}`].normalSummonUsed);
         }
 
+        // Identity only. ATK/DEF edits and ATK<->DEF flips are applied in place
+        // so they never reload the art; face-down-ness is in the signature
+        // because it swaps the image source and drops the stat block. `uid` is
+        // a per-placement token when the producer sends one, so summoning a
+        // second copy of the same card still counts as a new card.
+        function monsterSig(m) {
+            if (!m) return '-';
+            return [m.uid || '', m.id || '', m.name || '', m.image || '', (m.position || 'atk') === 'set' ? 'fd' : 'fu'].join('|');
+        }
+        function spellSig(c) {
+            if (!c) return '-';
+            return [c.uid || '', c.id || '', c.name || '', c.image || '', c.faceDown ? 'fd' : 'fu'].join('|');
+        }
+
+        function emptyCellHTML(i, offset) {
+            // Negative delay starts each idle zone part-way through the drift,
+            // so they never march across in step.
+            return `<div class="zone-cell empty" style="--drift-delay:-${(i * 1.4 + offset).toFixed(1)}s"></div>`;
+        }
+
+        function monsterCellHTML(m, i) {
+            if (!m) return emptyCellHTML(i, 0);
+            const pos = m.position || 'atk';
+            const faceDown = pos === 'set';
+            const img = faceDown ? CARD_BACK : (m.image || CARD_BACK);
+            const badge = faceDown ? 'SET' : (pos === 'def' ? 'DEF' : 'ATK');
+            const stats = faceDown ? '' : `
+                    <div class="atkdef">
+                        <span class="ad-chip atk"><span class="k">ATK</span><span class="v"></span></span>
+                        <span class="ad-chip def"><span class="k">DEF</span><span class="v"></span></span>
+                    </div>`;
+            return `
+                <div class="zone-cell filled ${pos === 'def' ? 'def' : ''}">
+                    <img class="card-art" src="${esc(img)}" alt="${esc(m.name)}" onerror="this.src=window.CARD_BACK">
+                    <span class="pos-badge ${pos}">${badge}</span>
+                    ${stats}
+                </div>`;
+        }
+
+        // Everything here is text or a class - no image touched, no animation
+        // restarted, so an ATK adjustment or a position flip is free.
+        function updateMonsterCell(cell, m) {
+            if (!cell || !m) return;
+            const pos = m.position || 'atk';
+            if (pos === 'set') return;   // markup already matches; nothing varies
+            cell.classList.toggle('def', pos === 'def');
+            const badge = cell.querySelector('.pos-badge');
+            if (badge) { badge.className = `pos-badge ${pos}`; badge.textContent = pos === 'def' ? 'DEF' : 'ATK'; }
+            const atk = (m.atk != null && m.atk !== '') ? m.atk : '?';
+            const def = (m.def != null && m.def !== '') ? m.def : '?';
+            const av = cell.querySelector('.ad-chip.atk .v');
+            const dv = cell.querySelector('.ad-chip.def .v');
+            if (av) av.textContent = String(atk);
+            if (dv) dv.textContent = String(def);
+        }
+
+        // Replaces only the slots whose signature moved, leaving every other
+        // cell (and its running drift animation) untouched.
+        function syncRow(row, cache, count, buildHTML) {
+            for (let i = 0; i < count; i++) {
+                const sig = cache.sigs[i];
+                const next = cache.next[i];
+                if (sig !== next || !row.children[i]) {
+                    const el = elFromHTML(buildHTML(i));
+                    if (row.children[i]) row.children[i].replaceWith(el);
+                    else row.appendChild(el);
+                    cache.sigs[i] = next;
+                }
+            }
+            while (row.children.length > count) row.lastElementChild.remove();
+        }
+
         function renderMonsters(n) {
             const p = matchState[`player${n}`];
             const row = document.getElementById(`p${n}Monsters`);
-            let html = '';
-            for (let i = 0; i < 5; i++) {
-                const m = p.monsters[i];
-                if (!m) { html += '<div class="zone-cell empty"></div>'; continue; }
-                const pos = m.position || 'atk';
-                const faceDown = pos === 'set';
-                const img = faceDown ? CARD_BACK : (m.image || CARD_BACK);
-                const badge = pos === 'def' ? 'DEF' : (pos === 'set' ? 'SET' : 'ATK');
-                const atk = (m.atk != null && m.atk !== '') ? m.atk : '?';
-                const def = (m.def != null && m.def !== '') ? m.def : '?';
-                const stats = faceDown ? '' : `
-                    <div class="atkdef">
-                        <span class="ad-chip atk"><span class="k">ATK</span> ${esc(atk)}</span>
-                        <span class="ad-chip def"><span class="k">DEF</span> ${esc(def)}</span>
-                    </div>`;
-                html += `
-                    <div class="zone-cell ${pos === 'def' ? 'def' : ''}">
-                        <img class="card-art" src="${esc(img)}" alt="${esc(m.name)}" onerror="this.src=window.CARD_BACK">
-                        <span class="pos-badge ${pos}">${badge}</span>
-                        ${stats}
-                    </div>`;
-            }
-            row.innerHTML = html;
+            const monsters = p.monsters || [];
+            const cache = renderCache.monsters[n] || (renderCache.monsters[n] = { sigs: [] });
+            cache.next = Array.from({ length: 5 }, (_, i) => monsterSig(monsters[i]));
+            syncRow(row, cache, 5, i => monsterCellHTML(monsters[i], i));
+            for (let i = 0; i < 5; i++) updateMonsterCell(row.children[i], monsters[i]);
+
+            const count = document.getElementById(`p${n}MonsterCount`);
+            if (count) count.textContent = `${monsters.slice(0, 5).filter(Boolean).length}/5`;
         }
 
         function renderSpellsTraps(n) {
             const p = matchState[`player${n}`];
             const row = document.getElementById(`p${n}SpellsTraps`);
-            let html = '';
-            for (let i = 0; i < 5; i++) {
-                const c = p.spellsTraps[i];
-                if (!c) { html += '<div class="zone-cell empty"></div>'; continue; }
+            const cards = p.spellsTraps || [];
+            const cache = renderCache.spells[n] || (renderCache.spells[n] = { sigs: [] });
+            cache.next = Array.from({ length: 5 }, (_, i) => spellSig(cards[i]));
+            syncRow(row, cache, 5, i => {
+                const c = cards[i];
+                // Offset from the monster row so the two rows never drift in step.
+                if (!c) return emptyCellHTML(i, 0.7);
                 const faceDown = !!c.faceDown;
                 const img = faceDown ? CARD_BACK : (c.image || CARD_BACK);
-                html += `
-                    <div class="zone-cell">
+                return `
+                    <div class="zone-cell filled">
                         <img class="card-art" src="${esc(img)}" alt="${esc(c.name)}" onerror="this.src=window.CARD_BACK">
                         ${faceDown ? '<span class="pos-badge set">SET</span>' : ''}
                     </div>`;
-            }
-            row.innerHTML = html;
+            });
+
+            const count = document.getElementById(`p${n}SpellCount`);
+            if (count) count.textContent = `${cards.slice(0, 5).filter(Boolean).length}/5`;
         }
 
         function renderField(n) {
             const f = matchState[`player${n}`].fieldSpell;
             const el = document.getElementById(`p${n}Field`);
-            if (!f) { el.innerHTML = '<div class="field-empty">No Field</div><div class="field-info"><div class="field-none">No Field Spell</div></div>'; return; }
+            const sig = f ? [f.uid || '', f.id || '', f.name || '', f.image || ''].join('|') : '-';
+            if (renderCache.field[n] === sig) return;
+            renderCache.field[n] = sig;
+
+            if (!f) {
+                el.innerHTML = '<div class="field-empty idle"></div><div class="field-info"><div class="field-none">No Field Spell</div></div>';
+                return;
+            }
             el.innerHTML = `
                 ${f.image ? `<img class="field-art" src="${esc(f.image)}" alt="${esc(f.name)}" onerror="this.src=window.CARD_BACK">` : '<div class="field-empty">Field</div>'}
                 <div class="field-info"><div class="field-name">${esc(f.name)}</div></div>`;
@@ -468,27 +799,74 @@
 
         function renderCounts(n) {
             const c = matchState[`player${n}`].counts || {};
-            const items = [['Hand', 'hand'], ['Deck', 'deck'], ['Extra', 'extra'], ['GY', 'graveyard'], ['Ban', 'banished']];
-            document.getElementById(`p${n}Counts`).innerHTML = items.map(([label, key]) => `
-                <div class="count-item">
-                    <span class="count-label">${label}</span>
-                    <span class="count-value">${c[key] != null ? c[key] : 0}</span>
-                </div>`).join('');
+            const row = document.getElementById(`p${n}Counts`);
+            // The five tiles never change - only their numerals do.
+            if (renderCache.counts[n] !== 'built' || row.children.length !== COUNT_ITEMS.length) {
+                row.innerHTML = COUNT_ITEMS.map(([label, key]) => `
+                    <div class="count-item" data-key="${key}">
+                        <span class="count-label">${label}</span>
+                        <span class="count-value">0</span>
+                    </div>`).join('');
+                renderCache.counts[n] = 'built';
+            }
+            row.querySelectorAll('.count-item').forEach(item => {
+                const v = c[item.dataset.key];
+                item.querySelector('.count-value').textContent = v != null ? v : 0;
+            });
         }
 
         function renderPhase() {
+            const stepper = document.getElementById('phaseStepper');
+            // Built once; the highlight is a class toggle, so this can be called
+            // on every timer tick without churning markup.
+            if (stepper.children.length !== PHASES.length) {
+                stepper.innerHTML = PHASES.map(ph => `<span class="phase-chip" data-phase="${ph}">${ph}</span>`).join('');
+            }
             const cur = matchState.currentPhase || 'Main1';
-            document.getElementById('phaseStepper').innerHTML = PHASES.map(ph =>
-                `<span class="phase-chip ${ph === cur ? 'on' : ''}">${ph}</span>`).join('');
+            stepper.querySelectorAll('.phase-chip').forEach(chip => {
+                chip.classList.toggle('on', chip.dataset.phase === cur);
+            });
         }
 
         function updateMatchInfo() {
-            document.getElementById('matchTimer').textContent =
+            const timerEl = document.getElementById('matchTimer');
+            timerEl.textContent =
                 `${String(matchState.timer.minutes).padStart(2, '0')}:${String(matchState.timer.seconds).padStart(2, '0')}`;
-            const name = matchState[`player${matchState.currentTurn}`].name;
+            timerEl.classList.toggle('expiring', matchState.timer.minutes === 0);
+
+            // Normalise before indexing: a saved state carrying currentTurn 0 /
+            // null / a string would otherwise index `playernull` and throw here.
+            // That used to cost only the turn label; now it would also abort the
+            // active-turn toggling below and freeze the emphasis on the wrong
+            // side of the screen for the rest of the match.
+            const turn = matchState.currentTurn === 2 ? 2 : 1;
+            const name = matchState[`player${turn}`].name || `Player ${turn}`;
             document.getElementById('turnIndicator').textContent = `${name}'s Turn`;
             document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber}`;
             renderPhase();
+
+            // Lift the board whose turn it is; settle the other one back.
+            [1, 2].forEach(num => {
+                const board = document.getElementById(`player${num}Board`);
+                const isActive = turn === num;
+                board.classList.toggle('active-turn', isActive);
+                board.classList.toggle('idle-turn', !isActive);
+            });
+            updateRails();
+        }
+
+        // The turn rail is a pseudo-element on a fixed-height board, so it has
+        // no way to know where the panel stack actually ends. Measure it.
+        // offsetTop/offsetHeight are relative to the board (the panels'
+        // offsetParent) and so are immune to the show/hide transform.
+        function updateRails() {
+            [1, 2].forEach(n => {
+                const board = document.getElementById(`player${n}Board`);
+                const last = board.lastElementChild;
+                if (!last) return;
+                const content = last.offsetTop + last.offsetHeight;
+                if (content > 0) board.style.setProperty('--rail-h', `${Math.max(0, content - 12)}px`);
+            });
         }
 
         function startTimer() {
@@ -515,8 +893,20 @@
             document.getElementById('matchInfo').classList.remove('active');
         }
 
+        // Paint the inline icons once - they never change after load.
+        document.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = ICONS[el.dataset.icon] || ''; });
+
         // Init
         updateDisplay();
+        updateRails();
+        // Panel heights move with web-font loading and with card art arriving,
+        // so keep the rail matched to whatever the stack actually measures.
+        if (window.ResizeObserver) {
+            const railObserver = new ResizeObserver(() => updateRails());
+            document.querySelectorAll('.player-board > .panel').forEach(p => railObserver.observe(p));
+        }
+        window.addEventListener('load', updateRails);
+
         socket.emit('register-overlay', 'yugioh-match');
         setTimeout(() => { socket.emit('request-state', 'yugioh-match'); showOverlay(); }, 500);
         setInterval(() => socket.emit('register-overlay', 'yugioh-match'), 5000);

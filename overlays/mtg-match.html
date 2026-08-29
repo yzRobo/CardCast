@@ -20,6 +20,13 @@
             position: relative;
         }
 
+        /* Outline motif drifting through empty permanent slots: a mana circle
+           with the colour-pie pentagon inscribed. Monochrome so it tints with
+           whatever the slot sits on. */
+        :root {
+            --mana-line: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='5' stroke-linejoin='round'%3E%3Ccircle cx='50' cy='50' r='42'/%3E%3Cpath d='M50 18 79 39 68 73 32 73 21 39Z'/%3E%3C/g%3E%3C/svg%3E");
+        }
+
         /* Player boards - vertical glass panels on the sides */
         .player-board {
             position: absolute;
@@ -34,34 +41,81 @@
             border: 3px solid rgba(255,255,255,0.12);
             backdrop-filter: blur(10px);
             box-shadow: 0 15px 40px rgba(0,0,0,0.7);
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease,
+                        opacity 0.45s ease, filter 0.45s ease;
+
+            /* Per-side accent, referenced by the turn treatment below. Values are
+               the ones the board already used; naming them just stops the same
+               hex being repeated in five places. */
+            --accent: #6366f1;
+            --accent-glow: rgba(99,102,241,0.55);
         }
 
         .player-board.left { left: 40px; border-top-color: #6366f1; }
-        .player-board.right { right: 40px; border-top-color: #ef4444; }
-
-        /* Active player highlight */
-        .player-board.left.active {
-            border-color: #6366f1;
-            box-shadow: 0 0 36px rgba(99,102,241,0.55), 0 15px 40px rgba(0,0,0,0.7);
+        .player-board.right {
+            right: 40px; border-top-color: #ef4444;
+            --accent: #ef4444;
+            --accent-glow: rgba(239,68,68,0.55);
         }
-        .player-board.right.active {
-            border-color: #ef4444;
-            box-shadow: 0 0 36px rgba(239,68,68,0.55), 0 15px 40px rgba(0,0,0,0.7);
+
+        /* Active player highlight. NOTE: on this overlay `.active` has always
+           meant "this player's turn" (unlike the other game overlays, where it
+           means "board visible"), so the turn treatment hangs off `.active-turn`
+           / `.idle-turn`, set alongside it, to keep the two ideas separable. */
+        .player-board.active {
+            border-color: var(--accent);
+            box-shadow: 0 0 36px var(--accent-glow), 0 15px 40px rgba(0,0,0,0.7);
+        }
+
+        /* The idle side settles back. It keeps its accent hue - that is player
+           identity, not state - and only loses a little light and saturation. */
+        .player-board.idle-turn {
+            opacity: 0.8;
+            filter: saturate(0.7) brightness(0.86);
+        }
+
+        /* A dimming percentage alone is hard to judge when the two boards are
+           1400px apart and different hues, so the active side also gets a lit
+           rail on its inner edge (facing screen centre) - present or absent,
+           nothing to compare. */
+        .player-board::after {
+            content: '';
+            position: absolute;
+            top: 8px;
+            bottom: 8px;
+            width: 4px;
+            border-radius: 4px;
+            background: linear-gradient(180deg, transparent 0%, var(--accent) 10%, var(--accent) 90%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.45s ease;
+            pointer-events: none;
+        }
+
+        .player-board.left::after  { right: -14px; }
+        .player-board.right::after { left: -14px; }
+
+        .player-board.active-turn::after {
+            opacity: 1;
+            box-shadow: 0 0 16px var(--accent);
         }
 
         /* Header */
         .board-header { border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; }
-        .name-row { display: flex; justify-content: space-between; align-items: center; }
+        .name-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        /* flex + min-width:0 instead of a magic max-width: the name takes
+           whatever the record chip does not need, and ellipses beyond that,
+           so a long name can never shove the record off the panel. */
         .player-name {
             font-size: 26px; font-weight: 800; color: #fff;
             text-transform: uppercase; letter-spacing: 1px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 270px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            flex: 1; min-width: 0;
         }
         .player-record {
             font-size: 16px; font-weight: 700; color: #cbd5e1;
             background: rgba(0,0,0,0.5); padding: 4px 12px; border-radius: 8px;
+            white-space: nowrap; flex-shrink: 0;
         }
         .games-won {
             margin-top: 8px; font-size: 14px; font-weight: 600; color: #94a3b8;
@@ -69,7 +123,7 @@
         }
 
         /* Life headline */
-        .life-block { text-align: center; padding: 6px 0; }
+        .life-block { text-align: center; padding: 6px 0; position: relative; }
         .life-label {
             font-size: 14px; font-weight: 600; color: #94a3b8;
             text-transform: uppercase; letter-spacing: 2px;
@@ -81,9 +135,32 @@
         }
         .life-healthy { color: #34d399; }
         .life-warning { color: #fbbf24; }
-        .life-critical { color: #f87171; animation: pulse 1s infinite; }
+        .life-critical { color: #f87171; animation: pulse 1.4s ease-in-out infinite; }
 
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.62; } }
+
+        /* Life swing ticker. Anchored to .life-block (which has no overflow
+           clip) and sits in the empty gutter beside the centred numeral, on the
+           board's inner side so both tickers land near screen centre. It removes
+           itself, so there is nothing to clean up. */
+        .life-pop {
+            position: absolute;
+            top: 40px;
+            font-size: 28px; font-weight: 800; line-height: 1;
+            color: #fca5a5; text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+            font-variant-numeric: tabular-nums;
+            pointer-events: none;
+            animation: life-pop 1.05s ease-out forwards;
+        }
+        .life-pop.gain { color: #6ee7b7; }
+        .left  .life-pop { right: 12px; }
+        .right .life-pop { left: 12px; }
+
+        @keyframes life-pop {
+            0%   { opacity: 0; transform: translateY(10px); }
+            22%  { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-24px); }
+        }
 
         /* Poison counter (hidden at 0) */
         .poison-counter {
@@ -112,7 +189,8 @@
         /* Turn flags: Land played / Spell cast */
         .turn-flags { display: flex; gap: 12px; }
         .flag {
-            flex: 1; text-align: center;
+            flex: 1;
+            display: flex; align-items: center; justify-content: center; gap: 7px;
             background: rgba(0,0,0,0.45); border: 2px solid rgba(255,255,255,0.08);
             border-radius: 10px; padding: 10px;
             font-size: 13px; font-weight: 700; color: #64748b;
@@ -120,6 +198,12 @@
             transition: all 0.3s ease;
         }
         .flag.active { border-color: #10b981; background: rgba(16,185,129,0.18); color: #34d399; }
+        /* Inline SVG rather than emoji: emoji render inconsistently across OBS
+           browser-source builds and never match the panel weight. Icons inherit
+           currentColor so they light with the flag. */
+        .flag-icon { width: 15px; height: 15px; flex-shrink: 0; }
+        .flag-icon svg { width: 100%; height: 100%; display: block; }
+        .flag-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
         /* Featured permanents */
         .section-title {
@@ -132,9 +216,33 @@
         .perm-card {
             position: relative; border-radius: 8px; overflow: hidden;
             box-shadow: 0 4px 10px rgba(0,0,0,0.6);
-            animation: fadeIn 0.4s ease;
+            /* Ratio on the box, not just on the art: a card whose image fails to
+               load must still hold its cell open, or the whole shelf jumps. */
+            aspect-ratio: 63/88;
+            animation: card-swap 0.45s cubic-bezier(0.16, 0.84, 0.44, 1);
         }
         .perm-card img { width: 100%; display: block; aspect-ratio: 63/88; object-fit: cover; }
+
+        /* Art that never arrived: keep the cell, keep the name, drop the broken
+           image glyph. Static motif - a permanent that is really there should not
+           read as an empty slot. */
+        .perm-card.art-missing {
+            /* Solid border, unlike the dashed idle slot: something IS on the
+               battlefield here, the picture just did not arrive. */
+            border: 2px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.04);
+            box-shadow: none;
+        }
+        .perm-card.art-missing img { display: none; }
+        .perm-card.art-missing::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 48px; height: 48px;
+            margin: -30px 0 0 -24px;
+            background: var(--mana-line) center / contain no-repeat;
+            opacity: 0.2;
+        }
         .perm-name {
             position: absolute; bottom: 0; left: 0; right: 0;
             background: rgba(0,0,0,0.88); color: #fff; padding: 3px 4px;
@@ -142,7 +250,50 @@
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes card-swap {
+            0%   { opacity: 0; transform: translateY(8px) scale(0.96); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* A card that is only changing SLOT (because a permanent ahead of it
+           left the battlefield) keeps its node, but re-inserting a node restarts
+           its CSS animations - which would replay the entrance on a card that
+           never left. The entrance is a one-shot, so it is spent explicitly. */
+        .perm-card.settled { animation: none; }
+
+        /* Empty permanent slots. A partial row is padded out to a whole row of
+           three so the shelf never ends in a ragged stub; an empty shelf stays
+           empty, leaving the board's resting height exactly as the caster has
+           it framed. Same aspect ratio as a card so filled and empty cells line
+           up exactly. */
+        .perm-slot {
+            position: relative; overflow: hidden;
+            aspect-ratio: 63/88;
+            border-radius: 8px;
+            border: 2px dashed rgba(255,255,255,0.10);
+            background: rgba(255,255,255,0.02);
+        }
+
+        /* A mana circle drifts through - enough motion to keep the dead space
+           alive, slow and dim enough to ignore behind live gameplay. */
+        .perm-slot::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 48px; height: 48px;
+            margin: -24px 0 0 -24px;
+            background: var(--mana-line) center / contain no-repeat;
+            opacity: 0;
+            animation: perm-drift 7s linear infinite;
+            animation-delay: var(--drift-delay, 0s);
+        }
+
+        @keyframes perm-drift {
+            0%   { opacity: 0;    transform: translateX(-150%) rotate(0deg); }
+            18%  { opacity: 0.17; }
+            82%  { opacity: 0.17; }
+            100% { opacity: 0;    transform: translateX(150%) rotate(200deg); }
+        }
 
         /* Shared bottom bar: format / timer / phase / whose turn */
         .match-bar {
@@ -161,7 +312,15 @@
         .bar-timer {
             font-size: 34px; font-weight: 700; color: #00d4ff;
             font-family: 'Courier New', monospace;
+            font-variant-numeric: tabular-nums;
             text-shadow: 0 0 14px rgba(0,212,255,0.5);
+            transition: color 0.4s ease;
+        }
+        /* Final minute reads red so it is obvious at a glance on stream. */
+        .bar-timer.expiring {
+            color: #f87171;
+            text-shadow: 0 0 14px rgba(248,113,113,0.6);
+            animation: pulse 1.2s ease-in-out infinite;
         }
         .bar-phase {
             font-size: 18px; font-weight: 700; color: #fff;
@@ -173,6 +332,10 @@
             color: #fff; font-weight: 700; font-size: 14px;
             text-transform: uppercase; letter-spacing: 0.8px;
             box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+            /* A long player name must not stretch the centred bar toward the
+               boards - truncate instead. */
+            max-width: 320px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .bar-turn.p2 {
             background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
@@ -213,8 +376,8 @@
             <div class="stat"><span class="stat-label">Permanents</span><span class="stat-value" id="p1-perm-count">0</span></div>
         </div>
         <div class="turn-flags">
-            <div class="flag" id="p1-land-flag">Land</div>
-            <div class="flag" id="p1-spell-flag">Spell</div>
+            <div class="flag" id="p1-land-flag"><span class="flag-icon" data-icon="land"></span><span class="flag-text">Land</span></div>
+            <div class="flag" id="p1-spell-flag"><span class="flag-icon" data-icon="spell"></span><span class="flag-text">Spell</span></div>
         </div>
         <div class="section-title">Featured Permanents</div>
         <div class="featured-row" id="p1-featured"></div>
@@ -239,8 +402,8 @@
             <div class="stat"><span class="stat-label">Permanents</span><span class="stat-value" id="p2-perm-count">0</span></div>
         </div>
         <div class="turn-flags">
-            <div class="flag" id="p2-land-flag">Land</div>
-            <div class="flag" id="p2-spell-flag">Spell</div>
+            <div class="flag" id="p2-land-flag"><span class="flag-icon" data-icon="land"></span><span class="flag-text">Land</span></div>
+            <div class="flag" id="p2-spell-flag"><span class="flag-icon" data-icon="spell"></span><span class="flag-text">Spell</span></div>
         </div>
         <div class="section-title">Featured Permanents</div>
         <div class="featured-row" id="p2-featured"></div>
@@ -266,13 +429,54 @@
             main1: 'Main 1', combat: 'Combat', main2: 'Main 2', end: 'End Step'
         };
 
+        // Turn-flag icons. Inline SVG, currentColor, painted once at load.
+        const FLAG_ICONS = {
+            land: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="m3 19 6-9 3.2 4.5L14.5 11l6.5 8"/></svg>`,
+            spell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2 6.2 6.2 2-6.2 2-2 6.2-2-6.2L3.8 11.2l6.2-2z"/></svg>`
+        };
+
         // Latest known state (kept so granular events can update derived UI like
         // the whose-turn label, which needs the current player names).
         let mtg = null;
 
+        // Identity of the card currently rendered in each featured-row node.
+        // Rebuilding the row on every add/remove reloads every card image
+        // (visible flicker in OBS) and replays the entrance animation on cards
+        // that never changed, so nodes are reused. The key is the CARD, not the
+        // slot index: removing a permanent from the middle shifts every card
+        // behind it down one slot, and an index-keyed cache reads that as "every
+        // trailing slot changed" and rebuilds exactly the cards it should have
+        // kept. Keyed off the node itself so it cannot drift out of sync with
+        // the DOM, and so nothing is written into the markup.
+        const permSignature = new WeakMap();
+        // Previous life totals, for the swing ticker. null = "no baseline yet",
+        // which suppresses a pop on first paint / hydrate / reset.
+        const lastLife = { 1: null, 2: null };
+
         let socket;
 
-        document.addEventListener('DOMContentLoaded', initSocket);
+        document.addEventListener('DOMContentLoaded', () => { initUI(); initSocket(); });
+
+        // First paint before any socket traffic: empty permanent shelves, the
+        // idle/active turn treatment, and the flag icons.
+        function initUI() {
+            document.querySelectorAll('.flag-icon[data-icon]').forEach(el => {
+                el.innerHTML = FLAG_ICONS[el.dataset.icon] || '';
+            });
+            renderFeatured(1, []);
+            renderFeatured(2, []);
+            renderActive(1);
+            renderTimer(0);
+        }
+
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
 
         function initSocket() {
             socket = io();
@@ -292,58 +496,95 @@
                 }
             });
 
-            // Granular updates
+            // ---- Granular updates ------------------------------------------
+            // Everything below is fed straight off the wire, and two things can
+            // be shorter than the handler wants: the PAYLOAD (an older control
+            // build, a replay carrying nothing) and the cached STATE object
+            // (saved by a build that predates a field, so `player2` may simply
+            // not be there). Neither may throw: socket.io does not catch handler
+            // exceptions, and this overlay runs unattended for hours. So each
+            // handler validates the player, writes through playerState() rather
+            // than indexing blind, and renders nothing at all when the value it
+            // is meant to show never arrived - "undefined" must never reach the
+            // stream, and a junk payload must not wipe a live board.
             socket.on('mtg-life-update', (d) => {
-                if (mtg) mtg[`player${d.player}`].life = d.life;
-                renderLife(d.player, d.life);
+                const p = playerNumber(d);
+                if (!p || d.life === undefined) return;
+                const state = playerState(p);
+                if (state) state.life = d.life;
+                renderLife(p, d.life);
             });
             socket.on('mtg-poison-update', (d) => {
-                if (mtg) mtg[`player${d.player}`].poison = d.poison;
-                renderPoison(d.player, d.poison);
+                const p = playerNumber(d);
+                if (!p || d.poison === undefined) return;
+                const state = playerState(p);
+                if (state) state.poison = d.poison;
+                renderPoison(p, d.poison);
             });
             socket.on('mtg-lands-update', (d) => {
-                if (mtg) mtg[`player${d.player}`].lands = d.lands;
-                setText(`p${d.player}-lands`, d.lands);
+                const p = playerNumber(d);
+                if (!p || d.lands === undefined) return;
+                const state = playerState(p);
+                if (state) state.lands = d.lands;
+                setText(`p${p}-lands`, d.lands);
             });
-            socket.on('mtg-permanent-added', (d) => {
-                if (mtg) mtg[`player${d.player}`].featuredPermanents = d.featuredPermanents;
-                renderFeatured(d.player, d.featuredPermanents);
-            });
-            socket.on('mtg-permanent-removed', (d) => {
-                if (mtg) mtg[`player${d.player}`].featuredPermanents = d.featuredPermanents;
-                renderFeatured(d.player, d.featuredPermanents);
-            });
+            const onPermanents = (d) => {
+                const p = playerNumber(d);
+                if (!p || !Array.isArray(d.featuredPermanents)) return;
+                const state = playerState(p);
+                if (state) state.featuredPermanents = d.featuredPermanents;
+                renderFeatured(p, d.featuredPermanents);
+            };
+            socket.on('mtg-permanent-added', onPermanents);
+            socket.on('mtg-permanent-removed', onPermanents);
             socket.on('mtg-phase-update', (d) => {
+                if (!d || d.phase === undefined) return;
                 if (mtg) mtg.currentPhase = d.phase;
                 renderPhase(d.phase);
             });
             socket.on('mtg-player-name-update', (d) => {
-                if (mtg) mtg[`player${d.player}`].name = d.name;
-                setText(`p${d.player}-name`, d.name);
-                if (mtg) renderTurn(mtg.activePlayer);
+                const p = playerNumber(d);
+                if (!p || d.name === undefined) return;
+                const state = playerState(p);
+                if (state) state.name = d.name;
+                setText(`p${p}-name`, d.name);
+                if (mtg) renderTurn(mtg.activePlayer === 2 ? 2 : 1);
             });
             // Server emits 'mtg-record-update' (not 'mtg-player-record-update')
             socket.on('mtg-record-update', (d) => {
-                if (mtg) mtg[`player${d.player}`].record = d.record;
-                setText(`p${d.player}-record`, d.record);
+                const p = playerNumber(d);
+                if (!p || d.record === undefined) return;
+                const state = playerState(p);
+                if (state) state.record = d.record;
+                setText(`p${p}-record`, d.record);
             });
             socket.on('mtg-games-won-update', (d) => {
-                if (mtg) mtg[`player${d.player}`].gamesWon = d.gamesWon;
-                setText(`p${d.player}-games`, d.gamesWon);
+                const p = playerNumber(d);
+                if (!p || d.gamesWon === undefined) return;
+                const state = playerState(p);
+                if (state) state.gamesWon = d.gamesWon;
+                setText(`p${p}-games`, d.gamesWon);
             });
             socket.on('mtg-turn-actions-update', (d) => {
-                if (mtg) mtg[`player${d.player}`].turnActions = d.actions;
-                renderTurnFlags(d.player, d.actions);
+                const p = playerNumber(d);
+                if (!p || !d.actions) return;
+                const state = playerState(p);
+                if (state) state.turnActions = d.actions;
+                renderTurnFlags(p, d.actions);
             });
             socket.on('mtg-player-switch', (d) => {
-                if (mtg) mtg.activePlayer = d.activePlayer;
-                renderActive(d.activePlayer || 1);
+                const active = d ? Number(d.activePlayer) : NaN;
+                if (active !== 1 && active !== 2) return;
+                if (mtg) mtg.activePlayer = active;
+                renderActive(active);
             });
             socket.on('mtg-format-update', (d) => {
+                if (!d || d.format === undefined) return;
                 if (mtg) mtg.matchFormat = d.format;
                 renderFormat(d.format);
             });
             socket.on('mtg-timer-update', (d) => {
+                if (!d || d.seconds === undefined) return;
                 if (mtg) mtg.timer = d.seconds;
                 renderTimer(d.seconds);
             });
@@ -352,6 +593,10 @@
                 // state to a fresh board while keeping player names, then re-render.
                 // No page reload, so the OBS browser source never blanks.
                 mtg = freshState(mtg);
+                // Drop the life baselines so the jump back to 20 does not fire a
+                // swing ticker on both boards.
+                lastLife[1] = null;
+                lastLife[2] = null;
                 renderAll(mtg);
             });
 
@@ -399,14 +644,33 @@
             if (el) el.textContent = value;
         }
 
+        // 1 or 2, or null when the payload does not name a board we have.
+        function playerNumber(d) {
+            const p = d ? Number(d.player) : NaN;
+            return (p === 1 || p === 2) ? p : null;
+        }
+
+        // The cached state for one player, created on demand. State persisted by
+        // an older build can be missing `playerN` altogether, so a granular
+        // handler must never index straight into it to write a field.
+        function playerState(p) {
+            if (!mtg) return null;
+            const key = `player${p}`;
+            if (!mtg[key] || typeof mtg[key] !== 'object') mtg[key] = {};
+            return mtg[key];
+        }
+
         function renderAll(state) {
+            if (!state) return;
             [1, 2].forEach(p => {
-                const player = state[`player${p}`];
-                setText(`p${p}-name`, player.name);
-                setText(`p${p}-record`, player.record);
-                setText(`p${p}-games`, player.gamesWon);
-                setText(`p${p}-lands`, player.lands);
-                renderLife(p, player.life);
+                // State saved by an older build can be missing any of these.
+                const player = state[`player${p}`] || {};
+                setText(`p${p}-name`, player.name || `Player ${p}`);
+                setText(`p${p}-record`, player.record || '0-0-0');
+                setText(`p${p}-games`, player.gamesWon || 0);
+                setText(`p${p}-lands`, player.lands || 0);
+                // silent: a hydrate is not a life change, so no swing ticker.
+                renderLife(p, player.life, { silent: true });
                 renderPoison(p, player.poison || 0);
                 renderFeatured(p, player.featuredPermanents);
                 renderTurnFlags(p, player.turnActions);
@@ -417,14 +681,40 @@
             renderActive(state.activePlayer || 1);
         }
 
-        function renderLife(player, life) {
+        function renderLife(player, life, opts) {
             const el = document.getElementById(`p${player}-life`);
             if (!el) return;
-            el.textContent = life;
+            const value = (life == null || !Number.isFinite(Number(life))) ? 20 : Number(life);
+            el.textContent = value;
             let cls = 'life-healthy';
-            if (life <= 5) cls = 'life-critical';
-            else if (life <= 10) cls = 'life-warning';
+            if (value <= 5) cls = 'life-critical';
+            else if (value <= 10) cls = 'life-warning';
             el.className = `life-total ${cls}`;
+
+            const previous = lastLife[player];
+            if (!(opts && opts.silent) && previous !== null && previous !== value) {
+                popLife(player, value - previous);
+            }
+            lastLife[player] = value;
+        }
+
+        // Brief +/- ticker beside the life numeral. Fades out and removes itself.
+        function popLife(player, delta) {
+            const block = document.querySelector(`#p${player}-board .life-block`);
+            if (!block) return;
+            // At most one ticker per board: rapid corrections (a mis-click being
+            // undone) would otherwise stack, and on a browser source that the
+            // compositor is throttling, a stray node that outlives its timer
+            // would accumulate over a long stream.
+            block.querySelectorAll('.life-pop').forEach(el => el.remove());
+
+            const pop = document.createElement('div');
+            pop.className = delta > 0 ? 'life-pop gain' : 'life-pop';
+            pop.textContent = delta > 0 ? `+${delta}` : `${delta}`;
+            pop.addEventListener('animationend', () => pop.remove());
+            block.appendChild(pop);
+            // Fallback for the case where the animation never gets to run.
+            setTimeout(() => pop.remove(), 1600);
         }
 
         function renderPoison(player, poison) {
@@ -436,18 +726,105 @@
             wrap.classList.toggle('lethal', poison >= 10);
         }
 
+        function permImage(card) {
+            return card.display_image || card.image_url || card.local_image || FALLBACK_IMG;
+        }
+
+        function permSlotElement(card, index) {
+            const div = document.createElement('div');
+            if (card) {
+                const name = card.name || 'Permanent';
+                div.className = 'perm-card';
+                div.innerHTML =
+                    `<img src="${escapeHtml(permImage(card))}" alt="${escapeHtml(name)}">` +
+                    `<div class="perm-name">${escapeHtml(name)}</div>`;
+                // Bounded fallback. The old inline onerror re-assigned the same
+                // fallback URL, and since that asset is not shipped it 404s too,
+                // so a single broken card image spun a request loop - thousands
+                // of hits a second, forever, on an overlay meant to sit
+                // unattended for hours. Try the fallback once, then give up.
+                const img = div.querySelector('img');
+                img.addEventListener('error', () => {
+                    // Re-assigning the identical URL may not even re-fire error,
+                    // which would strand a broken-image glyph, so a card that was
+                    // already showing the fallback degrades immediately.
+                    if (img.dataset.triedFallback || img.getAttribute('src') === FALLBACK_IMG) {
+                        div.classList.add('art-missing');
+                        return;
+                    }
+                    img.dataset.triedFallback = '1';
+                    img.src = FALLBACK_IMG;
+                });
+            } else {
+                div.className = 'perm-slot';
+                // Negative delay starts each idle slot part-way through the
+                // drift, so they never march across in step.
+                div.style.setProperty('--drift-delay', `-${(index * 1.7).toFixed(1)}s`);
+            }
+            return div;
+        }
+
+        // What makes two rendered permanents interchangeable. A permanent carries
+        // no per-placement state on this overlay (no counters, no damage), so a
+        // node holding this card renders identically wherever it sits.
+        function cardSignature(card) {
+            return card ? `card~${card.id || ''}~${card.name || ''}~${permImage(card)}` : 'empty';
+        }
+
         function renderFeatured(player, cards) {
             const el = document.getElementById(`p${player}-featured`);
-            setText(`p${player}-perm-count`, cards ? cards.length : 0);
+            const list = Array.isArray(cards) ? cards.filter(Boolean) : [];
+            setText(`p${player}-perm-count`, list.length);
             if (!el) return;
-            if (!cards || cards.length === 0) { el.innerHTML = ''; return; }
-            el.innerHTML = cards.map(c => {
-                const img = c.display_image || c.image_url || c.local_image || FALLBACK_IMG;
-                return `<div class="perm-card">
-                    <img src="${img}" alt="${c.name}" onerror="this.src='${FALLBACK_IMG}'">
-                    <div class="perm-name">${c.name}</div>
-                </div>`;
-            }).join('');
+
+            // Pad a partial row out to a whole row of three, so a shelf of one
+            // or two cards is a tidy row rather than a ragged stub. An EMPTY
+            // shelf stays empty: the board's resting height is framed in the
+            // caster's OBS scene and must not change.
+            const slotCount = list.length ? Math.ceil(list.length / 3) * 3 : 0;
+
+            // Pool what is already on the shelf, by identity. Duplicates share a
+            // signature, so each key holds a queue: a second copy of a card takes
+            // the second node rather than the first one twice.
+            const pool = new Map();
+            for (const node of Array.from(el.children)) {
+                const signature = permSignature.get(node);
+                if (signature === undefined) { node.remove(); continue; }
+                const queue = pool.get(signature);
+                if (queue) queue.push(node);
+                else pool.set(signature, [node]);
+            }
+
+            const next = [];
+            for (let i = 0; i < slotCount; i++) {
+                const card = list[i];
+                const signature = cardSignature(card);
+                const queue = pool.get(signature);
+                let node = queue && queue.length ? queue.shift() : null;
+                if (!node) {
+                    node = permSlotElement(card, i);
+                    permSignature.set(node, signature);
+                }
+                // The drift stagger is a property of the SLOT, not of the node,
+                // so a reused idle slot re-phases to wherever it now sits.
+                if (!card) node.style.setProperty('--drift-delay', `-${(i * 1.7).toFixed(1)}s`);
+                next.push(node);
+            }
+
+            // Whatever the new list did not claim really has left the battlefield.
+            for (const queue of pool.values()) for (const node of queue) node.remove();
+
+            next.forEach((node, i) => {
+                if (el.children[i] === node) return;
+                // Still parented here means this is a survivor being MOVED, and
+                // moving a node restarts its animations. Only a card that
+                // actually shifts slot needs its entrance spent; one that never
+                // moves keeps whatever it was doing, so a card added while an
+                // earlier card is still animating in does not snap.
+                if (node.parentNode === el) node.classList.add('settled');
+                el.insertBefore(node, el.children[i] || null);
+            });
+            while (el.children.length > slotCount) el.removeChild(el.lastChild);
         }
 
         function renderTurnFlags(player, actions) {
@@ -471,16 +848,32 @@
             const m = Math.floor(seconds / 60);
             const s = seconds % 60;
             setText('timer-text', `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+            const el = document.getElementById('timer-text');
+            // Final minute only. 00:00 is deliberately excluded: the clock sits
+            // at zero on a fresh load and before a round is started, and a red
+            // flashing 00:00 there would be a false alarm all day.
+            if (el) el.classList.toggle('expiring', seconds > 0 && seconds <= 60);
         }
 
         function renderActive(activePlayer) {
-            document.getElementById('p1-board').classList.toggle('active', activePlayer === 1);
-            document.getElementById('p2-board').classList.toggle('active', activePlayer === 2);
+            [1, 2].forEach(p => {
+                const board = document.getElementById(`p${p}-board`);
+                if (!board) return;
+                const isActive = activePlayer === p;
+                // `active` is the long-standing class on this overlay (border +
+                // glow); `active-turn` / `idle-turn` carry the newer rail and
+                // dimming. Kept as separate names so nothing that keys off
+                // `active` changes meaning.
+                board.classList.toggle('active', isActive);
+                board.classList.toggle('active-turn', isActive);
+                board.classList.toggle('idle-turn', !isActive);
+            });
             renderTurn(activePlayer);
         }
 
         function renderTurn(activePlayer) {
-            const name = mtg ? mtg[`player${activePlayer}`].name : `Player ${activePlayer}`;
+            const player = mtg ? mtg[`player${activePlayer}`] : null;
+            const name = (player && player.name) || `Player ${activePlayer}`;
             const el = document.getElementById('turn-text');
             el.textContent = `${name}'s Turn`;
             el.classList.toggle('p2', activePlayer === 2);

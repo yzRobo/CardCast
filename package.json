@@ -1,6 +1,6 @@
 {
   "name": "cardcast",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Streaming overlay tool for TCG content creators",
   "main": "electron-main.js",
   "scripts": {

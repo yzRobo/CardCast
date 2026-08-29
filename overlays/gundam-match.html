@@ -10,6 +10,13 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        /* Monochrome line art for the idle-slot drift. Inline data URIs so
+           nothing loads over the network - an OBS source that runs for hours
+           must never depend on a fetch. */
+        :root {
+            --gd-reticle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='5'%3E%3Ccircle cx='50' cy='50' r='34'/%3E%3Cpath d='M50 4v18M50 78v18M4 50h18M78 50h18'/%3E%3Ccircle cx='50' cy='50' r='6'/%3E%3C/g%3E%3C/svg%3E");
+        }
+
         body {
             width: 1920px;
             height: 1080px;
@@ -29,7 +36,29 @@
             gap: 10px;
             top: 50%;
             opacity: 0;
-            transition: all 0.5s ease;
+            transition: opacity 0.5s ease, transform 0.5s ease, filter 0.45s ease;
+
+            /* Per-side accent, referenced by every panel below. Values are the
+               originals, lifted verbatim so nothing shifts hue. */
+            --accent: #6366f1;
+            --accent-soft: rgba(99, 102, 241, 0.5);
+            --accent-strong: rgba(99, 102, 241, 0.9);
+            --accent-glow: rgba(99, 102, 241, 0.35);
+            --accent-text: #c7d2fe;
+
+            /* Shield marker artwork. Per-side rather than in :root because it
+               carries the player's accent - a heater shield in the same line-art
+               register as the reticle the empty cells drift, with the Gundam
+               V-fin as its charge. */
+            --gd-shield: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 100'%3E%3Cpath d='M8 8H64V46C64 68 53 84 36 93 19 84 8 68 8 46Z' fill='%231e1b4b' stroke='%236366f1' stroke-width='6' stroke-linejoin='round'/%3E%3Cpath d='M21 40L36 60L51 40' fill='none' stroke='%23c7d2fe' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        }
+        .player-board.right {
+            --accent: #ef4444;
+            --accent-soft: rgba(239, 68, 68, 0.5);
+            --accent-strong: rgba(239, 68, 68, 0.9);
+            --accent-glow: rgba(239, 68, 68, 0.35);
+            --accent-text: #fecaca;
+            --gd-shield: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 100'%3E%3Cpath d='M8 8H64V46C64 68 53 84 36 93 19 84 8 68 8 46Z' fill='%234c1d1d' stroke='%23ef4444' stroke-width='6' stroke-linejoin='round'/%3E%3Cpath d='M21 40L36 60L51 40' fill='none' stroke='%23fecaca' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
         }
         .player-board.left { left: 20px; transform: translateX(-420px) translateY(-50%); }
         .player-board.left.active { transform: translateX(0) translateY(-50%); }
@@ -39,14 +68,50 @@
 
         .panel {
             background: linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(20,20,30,0.95) 100%);
-            border: 2px solid #6366f1;
+            border: 2px solid var(--accent);
             border-radius: 12px;
             padding: 12px;
             backdrop-filter: blur(10px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
         }
-        .player-board.right .panel { border-color: #ef4444; }
-        .panel.soft { border-color: rgba(99,102,241,0.5); }
-        .player-board.right .panel.soft { border-color: rgba(239,68,68,0.5); }
+        .panel.soft { border-color: var(--accent-soft); }
+
+        /* Whose turn it is: the active side lifts, the idle side settles back.
+           The idle side keeps its accent hue - that is player identity, not
+           state - so only saturation and brightness move. */
+        .player-board.idle-turn { filter: saturate(0.7) brightness(0.86); }
+        /* Scoped to .active so a hidden board stays fully hidden: the base
+           rule's opacity:0 would otherwise lose to .idle-turn on source order. */
+        .player-board.active.idle-turn { opacity: 0.8; }
+
+        .player-board.active-turn .panel:not(.soft) {
+            box-shadow: 0 0 0 1px var(--accent-soft), 0 0 22px var(--accent-glow), 0 8px 24px rgba(0, 0, 0, 0.45);
+        }
+
+        /* A dimming percentage alone is hard to judge when the two boards are
+           1500px apart and different hues, so the active side also gets a lit
+           rail on its inner edge - present or absent, nothing to compare.
+           --rail-h is measured from the panel stack: the board is a fixed 940px
+           but the panels only fill ~845px of it, and a rail hanging into the
+           empty remainder reads as a mistake. */
+        .player-board::after {
+            content: '';
+            position: absolute;
+            top: 6px;
+            height: calc(var(--rail-h, 940px) - 12px);
+            width: 4px;
+            border-radius: 4px;
+            background: linear-gradient(180deg, transparent 0%, var(--accent) 10%, var(--accent) 90%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.45s ease;
+            pointer-events: none;
+        }
+        .player-board.left::after  { right: -11px; }
+        .player-board.right::after { left: -11px; }
+        .player-board.active.active-turn::after {
+            opacity: 1;
+            box-shadow: 0 0 16px var(--accent);
+        }
 
         .section-title {
             font-size: 12px;
@@ -55,48 +120,75 @@
             letter-spacing: 1.2px;
             margin-bottom: 8px;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
         }
+        /* Filled/total at a glance, in the space the title already occupied -
+           no extra row, so nothing below it moves. */
+        .title-count {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--accent-text);
+            letter-spacing: 0.4px;
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
+        }
+        .title-count.low { color: #fbbf24; }
 
         /* Header */
-        .player-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .player-name-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
         .player-name {
             font-size: 22px; font-weight: 800; color: #fff;
             text-transform: uppercase; letter-spacing: 1.2px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 230px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            /* Flex sizing rather than a fixed 230px cap, so the name uses every
+               pixel the record chip is not using and still ellipses. */
+            flex: 1; min-width: 0;
         }
         .player-record {
             font-size: 15px; color: #94a3b8; font-weight: 700;
             background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px;
+            font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0;
         }
         .games-won {
             background: rgba(16,185,129,0.2); border: 2px solid #10b981; color: #10b981;
             padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
         /* Shields row (life track) */
         .shields-row { display: flex; gap: 6px; justify-content: center; }
+        /* The marker is the artwork - no plate, no border, no box-shadow (a
+           box-shadow paints the rectangular border-box and would ghost a card
+           shape behind the silhouette). The box stays 46x64 so the row and the
+           panel keep the dimensions the boards are framed against in OBS;
+           anything that needs tuning is tuned inside the viewBox. */
         .shield {
             width: 46px; height: 64px;
-            background: linear-gradient(135deg, #3b4cca 0%, #1a237e 100%);
-            border: 2px solid #6366f1; border-radius: 6px;
-            position: relative; box-shadow: 0 4px 8px rgba(0,0,0,0.5);
-            display: flex; align-items: center; justify-content: center;
+            background: var(--gd-shield) center / contain no-repeat;
+            filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.6));
+            transition: filter 0.35s ease, opacity 0.35s ease, transform 0.35s ease;
         }
-        .player-board.right .shield { border-color: #ef4444; background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%); }
-        .shield::before {
-            content: ''; position: absolute; width: 20px; height: 20px;
-            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%); border-radius: 50%;
+        /* A spent shield is expressed by taking it away, not by stamping a mark
+           over it - a red X over a marker reads as an error state on stream. */
+        .shield.taken {
+            filter: grayscale(1) brightness(0.45);
+            opacity: 0.35;
+            transform: scale(0.86);
         }
-        .shield.taken { opacity: 0.2; background: #1a1a1a; border-color: #333; box-shadow: none; }
-        .shield.taken::after { content: '\2715'; font-size: 24px; color: #ef4444; font-weight: bold; }
+        /* Down to the last two shields is the moment the booth calls out. */
+        .shields-row.low .shield:not(.taken) { animation: gd-pulse 1.9s ease-in-out infinite; }
 
         /* Resources */
         .resources-row { display: flex; align-items: center; justify-content: center; gap: 12px; }
-        .res-value { font-size: 30px; font-weight: 800; color: #6366f1; font-family: 'Inter', monospace; }
-        .player-board.right .res-value { color: #ef4444; }
+        .res-value { font-size: 30px; font-weight: 800; color: var(--accent); font-family: 'Inter', monospace; font-variant-numeric: tabular-nums; }
         .res-value .slash { color: #64748b; margin: 0 4px; font-weight: 600; }
         .res-value .total { color: #cbd5e1; }
+        /* Tapped out - every resource spent - reads as a muted numeral. */
+        .res-value.spent .active { color: #64748b; }
         .ex-badge {
             background: rgba(251,191,36,0.18); border: 1px solid #fbbf24; color: #fbbf24;
             padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
@@ -111,54 +203,145 @@
             background: rgba(255,255,255,0.04);
             border: 2px solid rgba(255,255,255,0.1); border-radius: 8px;
             overflow: hidden;
+            transition: border-color 0.35s ease;
         }
         .unit-cell.empty { border-style: dashed; }
+        /* An empty cell is dead space for most of a game. A targeting reticle
+           drifts through it - slow and dim enough to ignore, alive enough that
+           the board does not look frozen on a long stream. */
+        .unit-cell.empty::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 42px; height: 42px;
+            margin: -21px 0 0 -21px;
+            background: var(--gd-reticle) center / contain no-repeat;
+            opacity: 0;
+            animation: gd-drift 7s linear infinite;
+            animation-delay: var(--drift-delay, 0s);
+        }
+        @keyframes gd-drift {
+            0%   { opacity: 0;    transform: translateX(-150%) rotate(0deg); }
+            18%  { opacity: 0.17; }
+            82%  { opacity: 0.17; }
+            100% { opacity: 0;    transform: translateX(150%) rotate(120deg); }
+        }
+        /* A unit arriving in a cell slides in; AP and HP edits leave it alone. */
+        .unit-cell.filled { animation: gd-card-in 0.45s cubic-bezier(0.16, 0.84, 0.44, 1); }
+        @keyframes gd-card-in {
+            0%   { opacity: 0; transform: translateY(8px) scale(0.96); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .unit-cell.critical { border-color: rgba(239, 68, 68, 0.55); }
+
         .unit-cell img.unit-art { width: 100%; height: 100%; object-fit: cover; }
+
+        /* AP chip and pilot chip share one top stack, so the pilot chip is
+           placed by the flow rather than by a fixed margin that has to guess
+           the AP chip's height. */
+        .unit-top {
+            position: absolute; top: 4px; left: 4px; right: 4px;
+            display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+            pointer-events: none;
+        }
         .ap-chip {
-            position: absolute; top: 4px; left: 4px;
+            align-self: flex-start;
             background: linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(30,27,75,0.92) 100%);
-            border: 1px solid rgba(99,102,241,0.9); color: #e0e7ff;
+            border: 1px solid var(--accent-strong); color: #e0e7ff;
             font-size: 12px; font-weight: 800; padding: 1px 6px; border-radius: 5px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            font-variant-numeric: tabular-nums; white-space: nowrap;
         }
-        .player-board.right .ap-chip { border-color: rgba(239,68,68,0.9); }
+        .pilot-chip {
+            display: flex; align-items: center; gap: 4px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(30,27,75,0.92) 100%);
+            border: 1px solid rgba(251,191,36,0.9); border-radius: 6px; padding: 2px 5px;
+            min-width: 0;
+        }
+        .pilot-chip img { width: 16px; height: 22px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
+        .pilot-chip span {
+            color: #fde68a; font-size: 10px; font-weight: 700;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            min-width: 0; flex: 1;
+        }
+
         .unit-hp-wrap {
             position: absolute; bottom: 0; left: 0; right: 0;
             background: linear-gradient(180deg, transparent, rgba(0,0,0,0.9) 40%);
             padding: 14px 5px 5px;
         }
-        .unit-hp-text { color: #fff; font-size: 11px; font-weight: 700; text-align: center; margin-bottom: 3px; text-shadow: 0 1px 2px #000; }
-        .unit-hp { height: 8px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; }
-        .unit-hp-fill { height: 100%; background: linear-gradient(90deg, #10b981, #059669); transition: width 0.3s ease; }
-        .unit-hp-fill.low { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
-        .unit-hp-fill.critical { background: linear-gradient(90deg, #ef4444, #dc2626); }
-        .pilot-chip {
-            position: absolute; top: 4px; right: 4px; left: 4px;
-            display: flex; align-items: center; gap: 4px;
-            background: linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(30,27,75,0.92) 100%);
-            border: 1px solid rgba(251,191,36,0.9); border-radius: 6px; padding: 2px 5px;
-            margin-top: 22px;
-        }
-        .pilot-chip img { width: 16px; height: 22px; object-fit: cover; border-radius: 3px; }
-        .pilot-chip span {
-            color: #fde68a; font-size: 10px; font-weight: 700;
+        .unit-hp-text {
+            color: #fff; font-size: 11px; font-weight: 700; text-align: center; margin-bottom: 3px;
+            text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .unit-hp { height: 8px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; }
+        .unit-hp-fill { height: 100%; background: linear-gradient(90deg, #10b981, #059669); transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
+        .unit-hp-fill.low { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+        .unit-hp-fill.critical { background: linear-gradient(90deg, #ef4444, #dc2626); animation: gd-pulse 1.6s ease-in-out infinite; }
+
+        @keyframes gd-pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.6; }
+        }
+
+        /* Damage / heal ticker. The unit cell clips its overflow to keep the
+           art inside the rounded border, so the pop is positioned wholly
+           INSIDE the cell and rises only far enough to stay clear of the
+           AP + pilot stack above it. */
+        .dmg-pop {
+            position: absolute;
+            font-weight: 800;
+            color: #fca5a5;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
+            pointer-events: none;
+            font-variant-numeric: tabular-nums;
+            animation: gd-dmg-pop 1s ease-out forwards;
+        }
+        .dmg-pop.heal { color: #6ee7b7; }
+        .unit-cell .dmg-pop { left: 0; right: 0; top: 44%; text-align: center; font-size: 20px; }
+        .base-info .dmg-pop { right: 2px; bottom: 15px; font-size: 16px; }
+        @keyframes gd-dmg-pop {
+            0%   { opacity: 0; transform: translateY(8px); }
+            25%  { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-16px); }
         }
 
         /* Base slot */
         .base-slot { display: flex; gap: 10px; align-items: center; min-height: 92px; }
         .base-art { width: 64px; height: 90px; object-fit: cover; border-radius: 6px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(0,0,0,0.6); }
+        .base-card-in { animation: gd-card-in 0.45s cubic-bezier(0.16, 0.84, 0.44, 1); }
         .base-empty {
             width: 64px; height: 90px; border: 2px dashed rgba(255,255,255,0.15); border-radius: 6px;
             display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; flex-shrink: 0;
+            position: relative; overflow: hidden;
         }
-        .base-info { flex: 1; min-width: 0; }
+        /* The idle base box gets the same reticle, but breathing in place
+           rather than drifting: the box is only 64px wide, so a lateral drift
+           spends most of its cycle clipped to an arc that reads as a smudge
+           next to the label rather than as a motif. */
+        .base-empty.idle::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 34px; height: 34px;
+            margin: -17px 0 0 -17px;
+            background: var(--gd-reticle) center / contain no-repeat;
+            opacity: 0.1;
+            animation: gd-breathe 7s ease-in-out infinite;
+            animation-delay: -3.5s;
+        }
+        @keyframes gd-breathe {
+            0%, 100% { opacity: 0.08; transform: scale(0.92); }
+            50%      { opacity: 0.2;  transform: scale(1); }
+        }
+        .base-info { flex: 1; min-width: 0; position: relative; }
         .base-name { color: #fff; font-size: 14px; font-weight: 700; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .base-hp-text { color: #cbd5e1; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+        .base-hp-text { color: #cbd5e1; font-size: 12px; font-weight: 600; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
         .base-hp { height: 12px; background: rgba(255,255,255,0.12); border-radius: 6px; overflow: hidden; }
-        .base-hp-fill { height: 100%; background: linear-gradient(90deg, #10b981, #059669); transition: width 0.3s ease; }
+        .base-hp-fill { height: 100%; background: linear-gradient(90deg, #10b981, #059669); transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
         .base-hp-fill.low { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
-        .base-hp-fill.critical { background: linear-gradient(90deg, #ef4444, #dc2626); }
+        .base-hp-fill.critical { background: linear-gradient(90deg, #ef4444, #dc2626); animation: gd-pulse 1.6s ease-in-out infinite; }
         .base-none { color: #64748b; font-size: 13px; }
 
         /* Shared match-info bar (verbatim concept from Pokemon overlay) */
@@ -167,15 +350,26 @@
             background: linear-gradient(135deg, rgba(0,0,0,0.98) 0%, rgba(20,20,30,0.98) 100%);
             border: 2px solid #6366f1; border-radius: 12px; padding: 14px 30px;
             display: flex; align-items: center; gap: 25px; backdrop-filter: blur(10px);
-            opacity: 0; transition: all 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+            opacity: 0; transition: opacity 0.5s ease; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
         }
         .match-info.active { opacity: 1; }
-        .match-format { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
-        .timer { font-size: 36px; font-weight: bold; color: #00d4ff; font-family: 'Courier New', monospace; text-shadow: 0 0 15px rgba(0,212,255,0.5); }
+        .match-format { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; white-space: nowrap; }
+        .timer {
+            font-size: 36px; font-weight: bold; color: #00d4ff; font-family: 'Courier New', monospace;
+            font-variant-numeric: tabular-nums; text-shadow: 0 0 15px rgba(0,212,255,0.5);
+            transition: color 0.4s ease;
+        }
+        /* Last minute on the clock reads red so it is obvious on stream. */
+        .timer.expiring {
+            color: #f87171;
+            text-shadow: 0 0 15px rgba(248, 113, 113, 0.6);
+            animation: gd-pulse 1.2s ease-in-out infinite;
+        }
         .turn-indicator {
             padding: 8px 16px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             border-radius: 24px; color: #fff; font-weight: bold; font-size: 14px;
             text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(16,185,129,0.4);
+            max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
     </style>
     <script src="/socket.io/socket.io.js"></script>
@@ -191,22 +385,25 @@
             <div class="games-won" id="p1GamesWon">Games Won: 0</div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Shields</div>
+            <div class="section-title"><span>Shields</span><span class="title-count" id="p1ShieldCount">6/6</span></div>
             <div class="shields-row" id="p1Shields"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Resources</div>
+            <!-- No count here: the big active/total numeral sits directly below. -->
+            <div class="section-title"><span>Resources</span></div>
             <div class="resources-row">
                 <div class="res-value" id="p1Resources"><span class="active">0</span><span class="slash">/</span><span class="total">0</span></div>
                 <div class="ex-badge" id="p1Ex">EX</div>
             </div>
         </div>
         <div class="panel">
-            <div class="section-title">Battle Area</div>
+            <div class="section-title"><span>Battle Area</span><span class="title-count" id="p1UnitCount">0/6</span></div>
             <div class="units-grid" id="p1Units"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Base</div>
+            <!-- No count here: the base's HP line sits two rows below, and
+                 repeating it in the title only crowds a 380px panel. -->
+            <div class="section-title"><span>Base</span></div>
             <div class="base-slot" id="p1Base"></div>
         </div>
     </div>
@@ -221,22 +418,22 @@
             <div class="games-won" id="p2GamesWon">Games Won: 0</div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Shields</div>
+            <div class="section-title"><span>Shields</span><span class="title-count" id="p2ShieldCount">6/6</span></div>
             <div class="shields-row" id="p2Shields"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Resources</div>
+            <div class="section-title"><span>Resources</span></div>
             <div class="resources-row">
                 <div class="res-value" id="p2Resources"><span class="active">0</span><span class="slash">/</span><span class="total">0</span></div>
                 <div class="ex-badge" id="p2Ex">EX</div>
             </div>
         </div>
         <div class="panel">
-            <div class="section-title">Battle Area</div>
+            <div class="section-title"><span>Battle Area</span><span class="title-count" id="p2UnitCount">0/6</span></div>
             <div class="units-grid" id="p2Units"></div>
         </div>
         <div class="panel soft">
-            <div class="section-title">Base</div>
+            <div class="section-title"><span>Base</span></div>
             <div class="base-slot" id="p2Base"></div>
         </div>
     </div>
@@ -261,6 +458,9 @@
             '<text x="29.5" y="48" font-family="sans-serif" font-size="11" fill="#93a5ff" text-anchor="middle">GD</text></svg>');
         window.CARD_BACK = CARD_BACK;
 
+        const SHIELD_COUNT = 6;
+        const UNIT_SLOTS = 6;
+
         function freshPlayer(name) {
             return {
                 name, record: { wins: 0, losses: 0, ties: 0 }, gamesWon: 0,
@@ -283,6 +483,20 @@
             visible: false
         };
 
+        // The server keeps a placeholder gundamMatch.timer that no timer event
+        // ever writes to, and it is replayed on every request-state. Once a real
+        // timer event has landed, that placeholder must not overwrite the clock,
+        // or the displayed time depends on socket arrival order.
+        let timerAuthoritative = false;
+
+        // Structural signature per slot. Rebuilding innerHTML on every HP tick
+        // reloads card images (visible flicker in OBS) and restarts the
+        // idle-slot drift, so markup is only regenerated when the card in the
+        // slot actually changes. AP and HP are written in place.
+        const renderCache = { units: { 1: {}, 2: {} }, base: { 1: null, 2: null } };
+        const lastUnitHp = { 1: {}, 2: {} };
+        const lastBaseHp = { 1: null, 2: null };
+
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
         }
@@ -291,6 +505,16 @@
             if (pct <= 20) return 'critical';
             if (pct <= 50) return 'low';
             return '';
+        }
+        // Cards placed before a field existed must still render, so every
+        // numeric read falls back rather than trusting the payload.
+        function hpPair(card) {
+            const cur = (card && card.currentHp != null) ? Number(card.currentHp) : ((card && card.maxHp) || 0);
+            const max = (card && card.maxHp != null) ? Number(card.maxHp) : cur;
+            return {
+                cur: Number.isFinite(cur) ? cur : 0,
+                max: Number.isFinite(max) ? max : 0
+            };
         }
 
         // ---- Socket handlers ----
@@ -305,25 +529,47 @@
             updateDisplay();
         });
 
-        socket.on('gundam-unit-update', (d) => { setUnit(d.player, d.index, d.unit); renderUnits(d.player); });
+        socket.on('gundam-unit-update', (d) => {
+            setUnit(d.player, d.index, d.unit);
+            // This event is a placement (or an AP edit), never a damage step -
+            // HP changes arrive as gundam-unit-hp. Drop the slot's HP history so
+            // that swapping in a second copy of the SAME card, which the content
+            // signature cannot tell from the old one, cannot fire a phantom
+            // damage/heal ticker for a difference the viewer never saw. The
+            // cached markup is deliberately left alone: an AP edit comes through
+            // here too, and must not reload the card art.
+            if (lastUnitHp[d.player]) lastUnitHp[d.player][d.index] = null;
+            renderUnits(d.player);
+        });
         socket.on('gundam-unit-hp', (d) => {
-            const u = matchState[`player${d.player}`].units[d.index];
+            const u = playerOf(d.player) && playerOf(d.player).units[d.index];
             if (u) { u.currentHp = d.currentHp; if (d.maxHp !== undefined) u.maxHp = d.maxHp; renderUnits(d.player); }
         });
         socket.on('gundam-pilot-pair', (d) => {
-            const u = matchState[`player${d.player}`].units[d.index];
+            const u = playerOf(d.player) && playerOf(d.player).units[d.index];
             if (u) { u.pilot = d.pilot; renderUnits(d.player); }
         });
-        socket.on('gundam-base-update', (d) => { matchState[`player${d.player}`].base = d.base; renderBase(d.player); });
+        socket.on('gundam-base-update', (d) => {
+            if (!playerOf(d.player)) return;
+            playerOf(d.player).base = d.base;
+            lastBaseHp[d.player] = null;   // same reason as the unit slots
+            renderBase(d.player);
+        });
         socket.on('gundam-base-hp', (d) => {
-            const b = matchState[`player${d.player}`].base;
+            const b = playerOf(d.player) && playerOf(d.player).base;
             if (b) { b.currentHp = d.currentHp; if (d.maxHp !== undefined) b.maxHp = d.maxHp; renderBase(d.player); }
         });
-        socket.on('gundam-resource-update', (d) => { matchState[`player${d.player}`].resources = d.resources; renderResources(d.player); });
+        socket.on('gundam-resource-update', (d) => { if (playerOf(d.player)) { playerOf(d.player).resources = d.resources; renderResources(d.player); } });
         socket.on('gundam-shield-taken', (d) => {
-            const p = matchState[`player${d.player}`];
+            const p = playerOf(d.player);
+            if (!p) return;
             if (Array.isArray(d.shieldsTaken)) p.shieldsTaken = d.shieldsTaken;
-            p.shields = 6 - p.shieldsTaken.length;
+            else if (Array.isArray(p.shieldsTaken) && d.index != null) {
+                const i = p.shieldsTaken.indexOf(d.index);
+                if (i === -1) p.shieldsTaken.push(d.index); else p.shieldsTaken.splice(i, 1);
+            }
+            if (!Array.isArray(p.shieldsTaken)) p.shieldsTaken = [];
+            p.shields = SHIELD_COUNT - p.shieldsTaken.length;
             renderShields(d.player);
         });
         socket.on('gundam-shields-reset', () => {
@@ -331,8 +577,8 @@
             matchState.player2.shieldsTaken = []; matchState.player2.shields = 6;
             renderShields(1); renderShields(2);
         });
-        socket.on('gundam-record-update', (d) => { matchState[`player${d.player}`].record = d.record; renderHeader(d.player); updateMatchInfo(); });
-        socket.on('gundam-games-won-update', (d) => { matchState[`player${d.player}`].gamesWon = d.gamesWon; renderHeader(d.player); });
+        socket.on('gundam-record-update', (d) => { if (playerOf(d.player)) { playerOf(d.player).record = d.record; renderHeader(d.player); updateMatchInfo(); } });
+        socket.on('gundam-games-won-update', (d) => { if (playerOf(d.player)) { playerOf(d.player).gamesWon = d.gamesWon; renderHeader(d.player); } });
 
         socket.on('gundam-match-reset', () => {
             const wasVisible = matchState.visible;
@@ -343,6 +589,12 @@
                 currentTurn: 1, timer: { minutes: dur.minutes, seconds: dur.seconds },
                 timerDuration: dur, timerInterval: null, gameNumber: 1, matchFormat: 'Best of 3', visible: wasVisible
             };
+            // Drop cached signatures so the cleared board re-renders, and drop
+            // the HP history so a fresh placement cannot fire a phantom ticker.
+            renderCache.units = { 1: {}, 2: {} };
+            renderCache.base = { 1: null, 2: null };
+            lastUnitHp[1] = {}; lastUnitHp[2] = {};
+            lastBaseHp[1] = null; lastBaseHp[2] = null;
             updateDisplay();
         });
 
@@ -358,14 +610,19 @@
             if (d && typeof d.minutes === 'number') matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds || 0 };
             const dur = matchState.timerDuration || { minutes: 50, seconds: 0 };
             matchState.timer = { minutes: dur.minutes, seconds: dur.seconds };
+            timerAuthoritative = true;
             updateMatchInfo();
         });
         socket.on('timer-set', (d) => {
+            if (!d || typeof d.minutes !== 'number') return;
             if (matchState.timerInterval) { clearInterval(matchState.timerInterval); matchState.timerInterval = null; }
-            matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds };
-            matchState.timer = { minutes: d.minutes, seconds: d.seconds };
+            matchState.timerDuration = { minutes: d.minutes, seconds: d.seconds || 0 };
+            matchState.timer = { minutes: d.minutes, seconds: d.seconds || 0 };
+            timerAuthoritative = true;
             updateMatchInfo();
         });
+
+        function playerOf(n) { return matchState[`player${n}`] || null; }
 
         function applyFullState(s) {
             ['player1', 'player2'].forEach(k => {
@@ -374,12 +631,13 @@
             if (s.currentTurn !== undefined) matchState.currentTurn = s.currentTurn;
             if (s.gameNumber !== undefined) matchState.gameNumber = s.gameNumber;
             if (s.matchFormat !== undefined) matchState.matchFormat = s.matchFormat;
-            if (s.timer) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
+            if (s.timer && !timerAuthoritative) { matchState.timer = { ...s.timer }; matchState.timerDuration = { ...s.timer }; }
         }
 
         function setUnit(player, index, unit) {
-            const p = matchState[`player${player}`];
+            const p = playerOf(player);
             if (!p || index < 0 || index > 5) return;
+            if (!Array.isArray(p.units)) p.units = [null, null, null, null, null, null];
             p.units[index] = unit;
         }
 
@@ -387,82 +645,235 @@
         function updateDisplay() {
             [1, 2].forEach(n => { renderHeader(n); renderShields(n); renderResources(n); renderUnits(n); renderBase(n); });
             updateMatchInfo();
+            syncRailExtent();
+        }
+
+        // The board is a fixed 940px but the panel stack only fills part of it.
+        // Measure the stack so the turn rail ends where the panels end instead
+        // of hanging into empty space.
+        function syncRailExtent() {
+            [1, 2].forEach(n => {
+                const board = document.getElementById(`player${n}Board`);
+                if (!board) return;
+                const panels = board.querySelectorAll('.panel');
+                if (!panels.length) return;
+                const last = panels[panels.length - 1];
+                const height = last.offsetTop + last.offsetHeight;
+                if (height > 0) board.style.setProperty('--rail-h', `${height}px`);
+            });
         }
 
         function renderHeader(n) {
-            const p = matchState[`player${n}`];
+            const p = playerOf(n) || freshPlayer(`Player ${n}`);
             document.getElementById(`p${n}Name`).textContent = p.name || `Player ${n}`;
             const r = p.record || { wins: 0, losses: 0, ties: 0 };
-            document.getElementById(`p${n}Record`).textContent = `${r.wins}-${r.losses}-${r.ties}`;
+            document.getElementById(`p${n}Record`).textContent = `${r.wins || 0}-${r.losses || 0}-${r.ties || 0}`;
             document.getElementById(`p${n}GamesWon`).textContent = `Games Won: ${p.gamesWon || 0}`;
         }
 
         function renderShields(n) {
-            const p = matchState[`player${n}`];
-            const taken = p.shieldsTaken || [];
-            let html = '';
-            for (let i = 0; i < 6; i++) html += `<div class="shield${taken.includes(i) ? ' taken' : ''}"></div>`;
-            document.getElementById(`p${n}Shields`).innerHTML = html;
+            const p = playerOf(n) || freshPlayer(`Player ${n}`);
+            const taken = Array.isArray(p.shieldsTaken) ? p.shieldsTaken : [];
+            const row = document.getElementById(`p${n}Shields`);
+
+            // The six plates are permanent - only the taken class moves, so the
+            // row never rebuilds and never re-runs its transitions.
+            if (row.children.length !== SHIELD_COUNT) {
+                row.innerHTML = Array.from({ length: SHIELD_COUNT }, () => '<div class="shield"></div>').join('');
+            }
+            for (let i = 0; i < SHIELD_COUNT; i++) {
+                row.children[i].classList.toggle('taken', taken.includes(i));
+            }
+
+            const remaining = Math.max(0, SHIELD_COUNT - taken.length);
+            row.classList.toggle('low', remaining > 0 && remaining <= 2);
+            const count = document.getElementById(`p${n}ShieldCount`);
+            if (count) {
+                count.textContent = `${remaining}/${SHIELD_COUNT}`;
+                count.classList.toggle('low', remaining > 0 && remaining <= 2);
+            }
         }
 
         function renderResources(n) {
-            const res = matchState[`player${n}`].resources || { active: 0, total: 0, ex: false };
+            const res = (playerOf(n) && playerOf(n).resources) || { active: 0, total: 0, ex: false };
             const el = document.getElementById(`p${n}Resources`);
-            el.innerHTML = `<span class="active">${res.active || 0}</span><span class="slash">/</span><span class="total">${res.total || 0}</span>`;
+            const active = Number(res.active) || 0;
+            const total = Number(res.total) || 0;
+            // Written in place - the numerals are permanent nodes, not markup.
+            el.querySelector('.active').textContent = active;
+            el.querySelector('.total').textContent = total;
+            el.classList.toggle('spent', total > 0 && active === 0);
             document.getElementById(`p${n}Ex`).classList.toggle('on', !!res.ex);
         }
 
-        function renderUnits(n) {
-            const p = matchState[`player${n}`];
-            const grid = document.getElementById(`p${n}Units`);
-            let html = '';
-            for (let i = 0; i < 6; i++) {
-                const u = p.units[i];
-                if (!u) { html += '<div class="unit-cell empty"></div>'; continue; }
-                const cur = (u.currentHp != null ? u.currentHp : (u.maxHp || 0));
-                const max = (u.maxHp != null ? u.maxHp : cur);
-                const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
-                const pilot = u.pilot ? `
+        // What actually needs new markup: the card in the cell and its pilot.
+        // AP and HP are written into the existing nodes. `uid` is honoured when
+        // a caller supplies one so a swap to a second copy of the same card is
+        // still treated as a new placement.
+        function unitSignature(u) {
+            if (!u) return '-';
+            const pilot = u.pilot ? `${u.pilot.name || ''}|${u.pilot.image || ''}` : '';
+            return [u.uid || '', u.id || '', u.name || '', u.image || '', pilot].join('~');
+        }
+
+        function unitInnerHTML(u) {
+            const pilot = u.pilot ? `
                     <div class="pilot-chip">
                         ${u.pilot.image ? `<img src="${esc(u.pilot.image)}" alt="" onerror="this.src=window.CARD_BACK">` : ''}
                         <span>${esc(u.pilot.name)}</span>
                     </div>` : '';
-                html += `
-                    <div class="unit-cell">
-                        <img class="unit-art" src="${esc(u.image)}" alt="${esc(u.name)}" onerror="this.src=window.CARD_BACK">
-                        <div class="ap-chip">AP ${esc(u.ap != null ? u.ap : '-')}</div>
-                        ${pilot}
-                        <div class="unit-hp-wrap">
-                            <div class="unit-hp-text">${cur}/${max}</div>
-                            <div class="unit-hp"><div class="unit-hp-fill ${hpClass(cur, max)}" style="width:${pct}%"></div></div>
-                        </div>
-                    </div>`;
-            }
-            grid.innerHTML = html;
-        }
-
-        function renderBase(n) {
-            const b = matchState[`player${n}`].base;
-            const el = document.getElementById(`p${n}Base`);
-            if (!b) { el.innerHTML = '<div class="base-empty">No Base</div><div class="base-info"><div class="base-none">No Base in play</div></div>'; return; }
-            const cur = (b.currentHp != null ? b.currentHp : (b.maxHp || 0));
-            const max = (b.maxHp != null ? b.maxHp : cur);
-            const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
-            el.innerHTML = `
-                ${b.image ? `<img class="base-art" src="${esc(b.image)}" alt="${esc(b.name)}" onerror="this.src=window.CARD_BACK">` : '<div class="base-empty">Base</div>'}
-                <div class="base-info">
-                    <div class="base-name">${esc(b.name)}</div>
-                    <div class="base-hp-text">${cur}/${max} HP</div>
-                    <div class="base-hp"><div class="base-hp-fill ${hpClass(cur, max)}" style="width:${pct}%"></div></div>
+            return `
+                <img class="unit-art" src="${esc(u.image)}" alt="${esc(u.name)}" onerror="this.src=window.CARD_BACK">
+                <div class="unit-top">
+                    <div class="ap-chip">AP -</div>
+                    ${pilot}
+                </div>
+                <div class="unit-hp-wrap">
+                    <div class="unit-hp-text"></div>
+                    <div class="unit-hp"><div class="unit-hp-fill"></div></div>
                 </div>`;
         }
 
+        function renderUnits(n) {
+            const p = playerOf(n) || freshPlayer(`Player ${n}`);
+            const grid = document.getElementById(`p${n}Units`);
+            const units = Array.isArray(p.units) ? p.units : [];
+
+            // Six permanent cells: a change in one never disturbs the others,
+            // so untouched art is not reloaded and idle drifts keep their phase.
+            if (grid.children.length !== UNIT_SLOTS) {
+                grid.innerHTML = Array.from({ length: UNIT_SLOTS }, (_, i) =>
+                    // A negative delay starts each idle cell part-way through the
+                    // drift, so the reticles never march across in step. The 2.9s
+                    // stride wraps the 7s cycle out of order, which keeps grid
+                    // neighbours further apart in phase than a flat i*k stagger
+                    // would - adjacent cells otherwise meet at their shared edge.
+                    `<div class="unit-cell empty" data-slot="${i}" style="--drift-delay:-${((i * 2.9) % 7).toFixed(2)}s"></div>`).join('');
+                renderCache.units[n] = {};
+            }
+
+            let filled = 0;
+            for (let i = 0; i < UNIT_SLOTS; i++) {
+                const cell = grid.children[i];
+                const u = units[i] || null;
+                if (u) filled++;
+
+                const signature = unitSignature(u);
+                if (renderCache.units[n][i] !== signature) {
+                    if (u) {
+                        cell.className = 'unit-cell filled';
+                        cell.innerHTML = unitInnerHTML(u);
+                    } else {
+                        cell.className = 'unit-cell empty';
+                        cell.innerHTML = '';
+                    }
+                    renderCache.units[n][i] = signature;
+                    // A new placement has no HP history to diff against.
+                    lastUnitHp[n][i] = null;
+                }
+
+                if (!u) { lastUnitHp[n][i] = null; continue; }
+
+                const { cur, max } = hpPair(u);
+                const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
+
+                const ap = cell.querySelector('.ap-chip');
+                if (ap) ap.textContent = `AP ${u.ap != null ? u.ap : '-'}`;
+                const text = cell.querySelector('.unit-hp-text');
+                if (text) text.textContent = `${cur}/${max}`;
+                const fill = cell.querySelector('.unit-hp-fill');
+                if (fill) {
+                    fill.style.width = `${pct}%`;
+                    fill.classList.toggle('critical', pct <= 20);
+                    fill.classList.toggle('low', pct > 20 && pct <= 50);
+                }
+                cell.classList.toggle('critical', pct <= 20);
+
+                popDelta(cell, lastUnitHp[n][i], cur);
+                lastUnitHp[n][i] = cur;
+            }
+
+            const count = document.getElementById(`p${n}UnitCount`);
+            if (count) count.textContent = `${filled}/${UNIT_SLOTS}`;
+        }
+
+        // Brief +/- ticker. It removes itself, so nothing accumulates over a
+        // multi-hour stream.
+        function popDelta(anchor, previous, current) {
+            if (!anchor || previous == null || previous === current) return;
+            const delta = current - previous;
+            const pop = document.createElement('div');
+            pop.className = delta > 0 ? 'dmg-pop heal' : 'dmg-pop';
+            pop.textContent = delta > 0 ? `+${delta}` : `${delta}`;
+            anchor.appendChild(pop);
+            setTimeout(() => pop.remove(), 1100);
+        }
+
+        function baseSignature(b) {
+            if (!b) return '-';
+            return [b.uid || '', b.id || '', b.name || '', b.image || ''].join('~');
+        }
+
+        function renderBase(n) {
+            const b = (playerOf(n) && playerOf(n).base) || null;
+            const el = document.getElementById(`p${n}Base`);
+            const signature = baseSignature(b);
+
+            if (renderCache.base[n] !== signature) {
+                if (!b) {
+                    el.innerHTML = '<div class="base-empty idle"></div><div class="base-info"><div class="base-none">No Base in play</div></div>';
+                } else {
+                    el.innerHTML = `
+                ${b.image ? `<img class="base-art base-card-in" src="${esc(b.image)}" alt="${esc(b.name)}" onerror="this.src=window.CARD_BACK">` : '<div class="base-empty">Base</div>'}
+                <div class="base-info">
+                    <div class="base-name">${esc(b.name)}</div>
+                    <div class="base-hp-text"></div>
+                    <div class="base-hp"><div class="base-hp-fill"></div></div>
+                </div>`;
+                }
+                renderCache.base[n] = signature;
+                lastBaseHp[n] = null;
+            }
+
+            if (!b) { lastBaseHp[n] = null; return; }
+
+            const { cur, max } = hpPair(b);
+            const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
+            const text = el.querySelector('.base-hp-text');
+            if (text) text.textContent = `${cur}/${max} HP`;
+            const fill = el.querySelector('.base-hp-fill');
+            if (fill) {
+                fill.style.width = `${pct}%`;
+                fill.classList.toggle('critical', pct <= 20);
+                fill.classList.toggle('low', pct > 20 && pct <= 50);
+            }
+
+            // Anchored to .base-info, which is not a clipping box; the HP bar
+            // below it is (it clips the fill to its radius) and would swallow
+            // the ticker whole.
+            popDelta(el.querySelector('.base-info'), lastBaseHp[n], cur);
+            lastBaseHp[n] = cur;
+        }
+
         function updateMatchInfo() {
-            document.getElementById('matchTimer').textContent =
-                `${String(matchState.timer.minutes).padStart(2, '0')}:${String(matchState.timer.seconds).padStart(2, '0')}`;
-            const name = matchState[`player${matchState.currentTurn}`].name;
+            const timerEl = document.getElementById('matchTimer');
+            const t = matchState.timer || { minutes: 0, seconds: 0 };
+            timerEl.textContent = `${String(t.minutes || 0).padStart(2, '0')}:${String(t.seconds || 0).padStart(2, '0')}`;
+            timerEl.classList.toggle('expiring', (t.minutes || 0) === 0);
+
+            // A payload could carry any value; never index the state blindly.
+            const turn = matchState.currentTurn === 2 ? 2 : 1;
+            const name = (playerOf(turn) && playerOf(turn).name) || `Player ${turn}`;
             document.getElementById('turnIndicator').textContent = `${name}'s Turn`;
             document.getElementById('matchFormat').textContent = `${(matchState.matchFormat || 'Best of 3').toUpperCase()} • GAME ${matchState.gameNumber}`;
+
+            // Lift the board whose turn it is; settle the other one back.
+            [1, 2].forEach(num => {
+                const board = document.getElementById(`player${num}Board`);
+                if (!board) return;
+                board.classList.toggle('active-turn', turn === num);
+                board.classList.toggle('idle-turn', turn !== num);
+            });
         }
 
         function startTimer() {
@@ -482,6 +893,7 @@
             document.getElementById('player1Board').classList.add('active');
             document.getElementById('player2Board').classList.add('active');
             document.getElementById('matchInfo').classList.add('active');
+            syncRailExtent();
         }
         function hideOverlay() {
             document.getElementById('player1Board').classList.remove('active');
@@ -491,6 +903,9 @@
 
         // Init
         updateDisplay();
+        // Panel heights settle a few pixels once Inter replaces the fallback
+        // face, and no socket event follows that - re-measure the rail there.
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncRailExtent).catch(() => {});
         socket.emit('register-overlay', 'gundam-match');
         setTimeout(() => { socket.emit('request-state', 'gundam-match'); showOverlay(); }, 500);
         setInterval(() => socket.emit('register-overlay', 'gundam-match'), 5000);

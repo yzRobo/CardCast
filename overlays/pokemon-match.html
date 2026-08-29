@@ -13,7 +13,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             width: 1920px;
             height: 1080px;
@@ -22,13 +22,12 @@
             overflow: hidden;
             position: relative;
         }
-        
+
         /* Stadium Card Display - Top Center */
         .stadium-display {
             position: absolute;
             top: 20px;
             left: 50%;
-            transform: translateX(-50%);
             width: 180px;
             height: 74px;
             border: 2px solid rgba(255, 255, 255, 0.5);
@@ -37,16 +36,16 @@
             backdrop-filter: blur(10px);
             box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
             opacity: 0;
-            transition: all 0.5s ease;
+            transform: translateX(-50%);
+            transition: opacity 0.5s ease;
             display: none;
-            position: relative;
         }
-        
+
         .stadium-display.active {
             opacity: 1;
             display: block;
         }
-        
+
         /* Stadium image fills entire container */
         .stadium-display img {
             width: 100%;
@@ -57,7 +56,7 @@
             right: 0%;
             transform: scale(1.05);  /* Zoom to fill width and make name readable */
         }
-        
+
         /* Player boards - vertical panels on sides */
         .player-board {
             position: absolute;
@@ -65,225 +64,468 @@
             height: 900px;  /* Set a fixed height */
             display: flex;
             flex-direction: column;
+            gap: 8px;
             opacity: 0;
             transition: all 0.5s ease;
+
+            /* Per-side accent, referenced by every panel below. */
+            --accent: #6366f1;
+            --accent-soft: rgba(99, 102, 241, 0.45);
+            --accent-glow: rgba(99, 102, 241, 0.35);
+            --accent-text: #c7d2fe;
         }
-        
+
+        .player-board.right {
+            --accent: #ef4444;
+            --accent-soft: rgba(239, 68, 68, 0.45);
+            --accent-glow: rgba(239, 68, 68, 0.35);
+            --accent-text: #fecaca;
+        }
+
         .player-board.active {
             opacity: 1;
         }
-        
+
         .player-board.left {
             left: 20px;
             top: 50%;  /* Center vertically */
             transform: translateX(-380px) translateY(-56%);  /* Center and hide */
         }
-        
+
         .player-board.left.active {
             transform: translateX(0) translateY(-56%);  /* Center and show */
         }
-        
+
         .player-board.right {
             right: 20px;
             top: 50%;  /* Center vertically */
             transform: translateX(380px) translateY(-56%);  /* Center and hide */
         }
-        
+
         .player-board.right.active {
             transform: translateX(0) translateY(-56%);  /* Center and show */
         }
-        
+
+        /* Shared panel shell so every section reads as one system. */
+        .panel {
+            background: linear-gradient(135deg, rgba(6, 8, 18, 0.95) 0%, rgba(20, 20, 34, 0.95) 100%);
+            border: 2px solid var(--accent-soft);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        }
+
+        .panel.strong {
+            border-color: var(--accent);
+        }
+
+        /* Whose turn it is: the active side lifts, the idle side settles back.
+           Kept deliberately gentle so it reads at a glance without pulling
+           focus from the gameplay footage between the two boards. The idle
+           side keeps its accent colour - that is player identity, not state. */
+        .player-board.idle-turn {
+            opacity: 0.8;
+            filter: saturate(0.7) brightness(0.86);
+        }
+
+        .player-board.active-turn .panel.strong {
+            box-shadow: 0 0 0 1px var(--accent-soft), 0 0 22px var(--accent-glow), 0 8px 24px rgba(0, 0, 0, 0.45);
+        }
+
+        /* A dimming percentage alone is hard to judge when the two boards are
+           1500px apart and different hues, so the active side also gets a lit
+           rail on its inner edge - present or absent, nothing to compare. */
+        .player-board::after {
+            content: '';
+            position: absolute;
+            top: 6px;
+            bottom: 6px;
+            width: 4px;
+            border-radius: 4px;
+            background: linear-gradient(180deg, transparent 0%, var(--accent) 10%, var(--accent) 90%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.45s ease;
+            pointer-events: none;
+        }
+
+        .player-board.left::after  { right: -11px; }
+        .player-board.right::after { left: -11px; }
+
+        .player-board.active-turn::after {
+            opacity: 1;
+            box-shadow: 0 0 16px var(--accent);
+        }
+
         /* Player Header - with record */
         .player-header {
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 12px;
-            border: 2px solid #6366f1;
-            backdrop-filter: blur(10px);
+            padding: 12px 14px;
         }
-        
-        .player-board.right .player-header {
-            border-color: #ef4444;
-        }
-        
+
         .player-name-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .player-name {
-            font-size: 22px;
-            font-weight: bold;
-            color: white;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-        }
-        
-        .player-record {
-            font-size: 16px;
-            color: #94a3b8;
-            font-weight: bold;
-            background: rgba(0,0,0,0.5);
-            padding: 4px 10px;
-            border-radius: 6px;
-        }
-        
-        .player-stats {
-            display: flex;
-            justify-content: space-between;
             gap: 10px;
-        }
-        
-        .stat-item {
-            flex: 1;
-            text-align: center;
-            background: rgba(0,0,0,0.5);
-            padding: 6px;
-            border-radius: 6px;
-        }
-        
-        .stat-label {
-            font-size: 11px;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            display: block;
-        }
-        
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #6366f1;
-            display: block;
-        }
-        
-        .player-board.right .stat-value {
-            color: #ef4444;
-        }
-        
-        /* Match Score Display */
-        .match-score {
-            background: rgba(16, 185, 129, 0.2);
-            border: 2px solid #10b981;
-            color: #10b981;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-            text-align: center;
             margin-bottom: 8px;
         }
-        
+
+        .player-name {
+            font-size: 22px;
+            font-weight: 800;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .player-board.right .player-name-row {
+            flex-direction: row-reverse;
+        }
+
+        .player-board.right .player-name {
+            text-align: right;
+        }
+
+        /* Prizes remaining as the headline numeral, mirroring how the count is
+           called on broadcast ("Thompson's on one"). */
+        .prize-count {
+            font-size: 40px;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--accent-text);
+            text-shadow: 0 0 18px var(--accent-glow);
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
+        }
+
+        .prize-count.last-prize {
+            color: #fbbf24;
+            text-shadow: 0 0 20px rgba(251, 191, 36, 0.65);
+        }
+
+        .player-meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .player-board.right .player-meta-row {
+            flex-direction: row-reverse;
+        }
+
+        .player-record {
+            font-size: 14px;
+            color: #cbd5e1;
+            font-weight: 700;
+            background: rgba(0,0,0,0.5);
+            padding: 3px 10px;
+            border-radius: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        /* Match Score Display */
+        .match-score {
+            background: rgba(16, 185, 129, 0.18);
+            border: 1px solid rgba(16, 185, 129, 0.7);
+            color: #6ee7b7;
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
         /* Active Pokemon Section */
         .active-pokemon {
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
-            border: 2px solid #6366f1;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 12px;
-            backdrop-filter: blur(10px);
+            padding: 0;
+            overflow: hidden;
             flex: 1;
-            max-height: 440px;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
         }
-        
+
+        /* Name banner replaces the old generic "Active Pokemon" title - the
+           name is the useful information, and it doubles as the section head. */
+        .active-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 7px 12px;
+            background: linear-gradient(135deg, var(--accent) 0%, rgba(0, 0, 0, 0.35) 160%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+        }
+
+        .active-banner-name {
+            font-size: 18px;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: 0.4px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+        }
+
+        .active-banner-stage {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: rgba(255, 255, 255, 0.92);
+            background: rgba(0, 0, 0, 0.38);
+            border-radius: 999px;
+            padding: 2px 8px;
+            white-space: nowrap;
+            /* The name outranks the chip for space - never let metadata push
+               the Pokemon name down to an ellipsis. */
+            flex-shrink: 1;
+            min-width: 0;
+            max-width: 38%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .section-title {
-            font-size: 13px;
+            font-size: 12px;
             color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: 1.2px;
-            margin-bottom: 10px;
-            text-align: center;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
         }
-        
+
         .active-card {
-            position: relative;
-            height: calc(100% - 30px);
+            flex: 1;
+            min-height: 0;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 8px;
         }
-        
-        .active-card img {
-            width: 100%;
+
+        /* Shrink-wraps the rendered image so overlays (tool chips) anchor to the
+           card itself rather than to the panel, which is wider than the art. */
+        .card-frame {
+            position: relative;
             height: 100%;
-            max-height: 390px;
+            max-width: 100%;
+            display: inline-block;
+        }
+
+        .card-frame img.card-art {
+            height: 100%;
+            width: auto;
+            max-width: 100%;
             object-fit: contain;
+            display: block;
             border-radius: 10px;
             box-shadow: 0 15px 40px rgba(0,0,0,0.8);
         }
-        
-        .hp-overlay {
-            position: absolute;
-            bottom: 12px;
-            left: 12px;
-            right: 12px;
-            background: linear-gradient(135deg, rgba(0,0,0,0.98) 0%, rgba(20,20,30,0.98) 100%);
-            border: 2px solid rgba(255,255,255,0.3);
-            border-radius: 10px;
-            padding: 10px;
-            backdrop-filter: blur(10px);
+
+        /* Fresh Pokemon slides in; HP-only updates leave the art untouched. */
+        .active-card.swap-in img.card-art {
+            animation: card-swap 0.45s cubic-bezier(0.16, 0.84, 0.44, 1);
         }
-        
+
+        @keyframes card-swap {
+            0%   { opacity: 0; transform: translateY(10px) scale(0.96); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* The readable version of the card's printed stat line - at overlay
+           scale, and after stream compression, the printed text is not legible.
+           Sits below the art rather than over it: the block's height varies with
+           how many rows the card has, so any fixed overlap would slice the
+           printed text mid-line on some cards and clip the art on others. */
+        .active-info {
+            padding: 9px 11px 11px;
+            background: linear-gradient(180deg, rgba(9, 11, 22, 0.97) 0%, rgba(6, 8, 18, 0.99) 100%);
+            border-top: 1px solid var(--accent-soft);
+            box-shadow: 0 -10px 22px rgba(0, 0, 0, 0.65);
+            position: relative;
+            z-index: 3;
+        }
+
+        .hp-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
         .hp-text {
             color: white;
-            font-size: 14px;
-            font-weight: bold;
-            margin-bottom: 6px;
-            text-align: center;
+            font-size: 17px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
         }
-        
+
+        .hp-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: #94a3b8;
+        }
+
         .hp-bar {
-            height: 14px;
+            height: 10px;
             background: rgba(255, 255, 255, 0.1);
-            border-radius: 7px;
+            border-radius: 6px;
             overflow: hidden;
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+            position: relative;
         }
-        
+
         .hp-fill {
             height: 100%;
             background: linear-gradient(90deg, #10b981 0%, #059669 100%);
-            transition: width 0.3s ease;
+            transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
         }
-        
+
         .hp-fill.low {
             background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
             box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
         }
-        
+
         .hp-fill.critical {
             background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
             box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+            animation: hp-critical 1.6s ease-in-out infinite;
         }
 
-        /* Attached Tools / Items */
+        @keyframes hp-critical {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.62; }
+        }
+
+        /* Damage ticker - fades out on its own, no cleanup needed. */
+        .dmg-pop {
+            position: absolute;
+            right: 10px;
+            bottom: 100%;
+            margin-bottom: 4px;
+            font-size: 18px;
+            font-weight: 800;
+            color: #fca5a5;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+            pointer-events: none;
+            animation: dmg-pop 1s ease-out forwards;
+        }
+
+        .dmg-pop.heal {
+            color: #6ee7b7;
+        }
+
+        @keyframes dmg-pop {
+            0%   { opacity: 0; transform: translateY(6px); }
+            25%  { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-14px); }
+        }
+
+        /* Ability + attacks, pulled from the card record. */
+        .move-list {
+            margin-top: 7px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .move-row {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            padding: 4px 8px;
+        }
+
+        .move-chip {
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #fff;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            border-radius: 4px;
+            padding: 2px 6px;
+            flex-shrink: 0;
+        }
+
+        .move-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: #f1f5f9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .move-damage {
+            font-size: 15px;
+            font-weight: 800;
+            color: #fff;
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
+        }
+
+        .energy-cost {
+            display: flex;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+
+        .energy-pip {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 0, 0, 0.65);
+            box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Attached Tools / Items - anchored to the card frame's top right, so
+           they sit on the art and clear of the printed card name. */
         .tool-attachments {
             position: absolute;
-            top: 8px;
-            left: 8px;
-            right: 8px;
+            top: 6px;
+            right: 6px;
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
+            align-items: flex-end;
             gap: 4px;
-            z-index: 2;
+            z-index: 4;
+            /* Capped so a long tool name cannot reach across a narrow card and
+               cover the printed Pokemon name. */
+            max-width: 55%;
         }
 
         .tool-chip {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 5px;
             background: linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(30,27,75,0.92) 100%);
-            border: 1px solid rgba(99, 102, 241, 0.9);
+            border: 1px solid var(--accent-soft);
             border-radius: 6px;
             padding: 2px 7px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
             max-width: 100%;
         }
 
@@ -301,221 +543,273 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 130px;
+            max-width: 92px;
         }
-        
+
         .no-active {
             height: 100%;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
+            gap: 10px;
             color: #64748b;
-            font-size: 16px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
         }
-        
+
+        .no-active::before {
+            content: '';
+            width: 54px;
+            height: 54px;
+            background: var(--pokeball) center / contain no-repeat;
+            opacity: 0.22;
+        }
+
         /* Bench Section - supports 5-7 cards */
         .bench-section {
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
-            border: 2px solid rgba(99, 102, 241, 0.5);
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 12px;
-            backdrop-filter: blur(10px);
+            padding: 9px 10px 10px;
         }
-        
+
         .bench-cards {
             display: flex;
             gap: 6px;
             justify-content: center;
             align-items: center;
-            min-height: 90px;
+            margin-top: 7px;
         }
-        
+
         /* Default 5 bench layout */
         .bench-cards.bench-5 .bench-slot {
-            width: 60px;
-            height: 84px;
+            width: 61px;
+            height: 85px;
         }
-        
-        /* 7 bench layout - smaller cards to fit */
+
+        /* Wider benches shrink the slots and the gap so the row still fits the
+           panel - at 46px with a 6px gap seven slots overflowed by ~22px. */
+        .bench-cards.bench-6 {
+            gap: 5px;
+        }
+
+        .bench-cards.bench-6 .bench-slot {
+            width: 50px;
+            height: 70px;
+        }
+
+        .bench-cards.bench-7 {
+            gap: 4px;
+        }
+
         .bench-cards.bench-7 .bench-slot {
-            width: 46px;
-            height: 64px;
+            width: 42px;
+            height: 59px;
         }
-        
+
         .bench-slot {
             background: rgba(255, 255, 255, 0.05);
             border: 2px solid rgba(255, 255, 255, 0.1);
             border-radius: 6px;
             position: relative;
             overflow: hidden;
-            transition: all 0.2s ease;
             flex-shrink: 0;
         }
-        
-        .bench-slot:hover {
-            transform: scale(1.05);
-            border-color: rgba(99, 102, 241, 0.5);
-        }
-        
+
         .bench-slot.empty {
             background: rgba(255, 255, 255, 0.02);
             border-style: dashed;
         }
-        
+
+        /* Idle bench slots get a Pokeball drifting through - enough motion to
+           keep dead space alive, slow and dim enough to ignore. */
+        .bench-slot.empty::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 26px;
+            height: 26px;
+            margin: -13px 0 0 -13px;
+            background: var(--pokeball-line) center / contain no-repeat;
+            opacity: 0;
+            animation: bench-drift 7s linear infinite;
+            animation-delay: var(--drift-delay, 0s);
+        }
+
+        @keyframes bench-drift {
+            0%   { opacity: 0;    transform: translateX(-150%) rotate(0deg); }
+            18%  { opacity: 0.17; }
+            82%  { opacity: 0.17; }
+            100% { opacity: 0;    transform: translateX(150%) rotate(200deg); }
+        }
+
         .bench-slot img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
-        
+
+        .bench-slot.filled {
+            animation: card-swap 0.45s cubic-bezier(0.16, 0.84, 0.44, 1);
+        }
+
         .bench-hp {
             position: absolute;
-            bottom: 2px;
+            bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(0,0,0,0.95);
-            color: #10b981;
+            background: rgba(0,0,0,0.88);
+            color: #d1fae5;
             font-size: 10px;
+            font-weight: 700;
             text-align: center;
-            padding: 2px;
-            font-weight: bold;
+            padding: 2px 0 3px;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            overflow: hidden;
         }
-        
+
+        /* Narrower slots need smaller numerals: at 42px wide, a 10px "280/280"
+           overruns the slot and silently loses its last digit, so a benched
+           Pokemon reads as 280/28. */
+        .bench-cards.bench-6 .bench-hp {
+            font-size: 9px;
+        }
+
+        .bench-cards.bench-7 .bench-hp {
+            font-size: 8px;
+            letter-spacing: -0.2px;
+        }
+
+        .bench-hp-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .bench-hp-fill {
+            height: 100%;
+            background: #10b981;
+            transition: width 0.4s ease;
+        }
+
+        .bench-hp-fill.low      { background: #f59e0b; }
+        .bench-hp-fill.critical { background: #ef4444; }
+
+        .bench-slot.hurt { border-color: rgba(239, 68, 68, 0.55); }
+
         /* Prize Cards Section */
         .prizes-section {
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
-            border: 2px solid rgba(99, 102, 241, 0.5);
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 12px;
-            backdrop-filter: blur(10px);
+            padding: 9px 10px 10px;
         }
-        
+
         .prize-cards-container {
             display: flex;
-            gap: 5px;
+            gap: 7px;
             justify-content: center;
+            margin-top: 7px;
         }
-        
+
+        /* Prize markers as Pokeballs - reads instantly on stream and matches
+           how prizes are shown on official broadcasts. */
         .prize-card {
-            width: 52px;
-            height: 73px;
-            background: linear-gradient(135deg, #3b4cca 0%, #1a237e 100%);
-            border: 2px solid #6366f1;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            width: 40px;
+            height: 40px;
+            background: var(--pokeball) center / contain no-repeat;
+            filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.6));
+            transition: filter 0.35s ease, opacity 0.35s ease, transform 0.35s ease;
         }
-        
-        .prize-card:hover:not(.taken) {
-            transform: scale(1.1);
-            box-shadow: 0 6px 12px rgba(102, 126, 234, 0.5);
-        }
-        
-        .prize-card::before {
-            content: '';
-            position: absolute;
-            width: 24px;
-            height: 24px;
-            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
-            border-radius: 50%;
-        }
-        
+
         .prize-card.taken {
-            opacity: 0.2;
-            background: #1a1a1a;
-            border-color: #333;
-            box-shadow: none;
+            filter: grayscale(1) brightness(0.45);
+            opacity: 0.35;
+            transform: scale(0.86);
         }
-        
-        .prize-card.taken::after {
-            content: '✕';
-            position: absolute;
-            font-size: 28px;
-            color: #ef4444;
-            font-weight: bold;
-        }
-        
+
         /* Turn Actions Indicators */
         .turn-actions {
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(20, 20, 30, 0.95) 100%);
-            border: 2px solid rgba(99, 102, 241, 0.5);
-            border-radius: 12px;
-            padding: 10px;
-            backdrop-filter: blur(10px);
+            padding: 8px 10px;
             display: flex;
             justify-content: space-around;
             gap: 8px;
         }
-        
+
         .action-indicator {
             flex: 1;
             text-align: center;
-            padding: 6px;
+            padding: 5px 4px;
             background: rgba(0,0,0,0.5);
             border-radius: 6px;
-            border: 2px solid transparent;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
         }
-        
+
         .action-indicator.active {
             border-color: #10b981;
-            background: rgba(16, 185, 129, 0.2);
+            background: rgba(16, 185, 129, 0.18);
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
         }
-        
+
         .action-label {
             font-size: 10px;
             color: #64748b;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            display: block;
-            margin-bottom: 4px;
+            letter-spacing: 0.6px;
+            font-weight: 700;
         }
-        
+
         .action-indicator.active .action-label {
-            color: #10b981;
+            color: #6ee7b7;
         }
-        
+
+        /* Inline SVG instead of emoji - emoji render inconsistently across
+           OBS browser-source builds and never match the panel weight. */
         .action-icon {
-            font-size: 20px;
-            opacity: 0.3;
+            width: 17px;
+            height: 17px;
+            color: #475569;
+            transition: color 0.3s ease;
         }
-        
+
+        .action-icon svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
         .action-indicator.active .action-icon {
-            opacity: 1;
             color: #10b981;
         }
-        
+
         /* Match info bar at bottom */
         .match-info {
             position: absolute;
             bottom: 50px;  /* Increased from 30px to move it up from the edge */
             left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(135deg, rgba(0,0,0,0.98) 0%, rgba(20,20,30,0.98) 100%);
+            background: linear-gradient(135deg, rgba(6,8,18,0.97) 0%, rgba(20,20,34,0.97) 100%);
             border: 2px solid #6366f1;
             border-radius: 12px;
-            padding: 14px 30px;
+            padding: 12px 28px;
             display: flex;
             align-items: center;
             gap: 25px;
             backdrop-filter: blur(10px);
             opacity: 0;
-            transition: all 0.5s ease;
+            transform: translateX(-50%);
+            transition: opacity 0.5s ease;
             box-shadow: 0 15px 40px rgba(0,0,0,0.8);
         }
-        
+
         .match-info.active {
             opacity: 1;
         }
-        
+
         .match-format {
             font-size: 14px;
             color: #94a3b8;
@@ -523,15 +817,23 @@
             letter-spacing: 1.2px;
             font-weight: 600;
         }
-        
+
         .timer {
             font-size: 36px;
             font-weight: bold;
             color: #00d4ff;
             font-family: 'Courier New', monospace;
+            font-variant-numeric: tabular-nums;
             text-shadow: 0 0 15px rgba(0,212,255,0.5);
         }
-        
+
+        /* Last minute on the clock reads red so it's obvious on stream. */
+        .timer.expiring {
+            color: #f87171;
+            text-shadow: 0 0 15px rgba(248, 113, 113, 0.6);
+            animation: hp-critical 1.2s ease-in-out infinite;
+        }
+
         .turn-indicator {
             padding: 8px 16px;
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -542,6 +844,17 @@
             text-transform: uppercase;
             letter-spacing: 0.8px;
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+            max-width: 320px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Pokeball artwork, shared by prize markers, empty bench slots and the
+           empty-active placeholder. */
+        :root {
+            --pokeball: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23e2e8f0'/%3E%3Cpath d='M5 50a45 45 0 0 1 90 0z' fill='%23ef4444'/%3E%3Crect x='5' y='45' width='90' height='10' fill='%230f172a'/%3E%3Ccircle cx='50' cy='50' r='15' fill='%230f172a'/%3E%3Ccircle cx='50' cy='50' r='9' fill='%23f8fafc'/%3E%3Ccircle cx='50' cy='50' r='45' fill='none' stroke='%230f172a' stroke-width='6'/%3E%3C/svg%3E");
+            --pokeball-line: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='7'%3E%3Ccircle cx='50' cy='50' r='43'/%3E%3Cpath d='M7 50h86'/%3E%3Ccircle cx='50' cy='50' r='14'/%3E%3C/g%3E%3C/svg%3E");
         }
     </style>
     <script src="/socket.io/socket.io.js"></script>
@@ -551,39 +864,39 @@
     <div class="stadium-display" id="stadiumDisplay">
         <img id="stadiumImage" src="" alt="Stadium">
     </div>
-    
+
     <!-- Player 1 Board (Left) -->
     <div class="player-board left" id="player1Board">
-        <div class="player-header">
+        <div class="panel strong player-header">
             <div class="player-name-row">
                 <div class="player-name" id="player1Name">Player 1</div>
-                <div class="player-record" id="player1Record">0-0-0</div>
+                <div class="prize-count" id="player1Prizes">6</div>
             </div>
-            <div class="match-score" id="player1MatchScore">Games Won: 0</div>
-            <div class="player-stats">
-                <div class="stat-item">
-                    <span class="stat-label">Prizes</span>
-                    <span class="stat-value" id="player1Prizes">6</span>
-                </div>
+            <div class="player-meta-row">
+                <div class="player-record" id="player1Record">0-0-0</div>
+                <div class="match-score" id="player1MatchScore">Games Won: 0</div>
             </div>
         </div>
-        
-        <div class="active-pokemon">
-            <div class="section-title">Active Pokémon</div>
-            <div id="player1Active">
+
+        <div class="panel strong active-pokemon" id="player1ActivePanel">
+            <div class="active-banner">
+                <div class="active-banner-name" id="player1ActiveName">Active Pokémon</div>
+                <div class="active-banner-stage" id="player1ActiveStage" style="display:none"></div>
+            </div>
+            <div id="player1Active" style="flex:1; min-height:0; display:flex; flex-direction:column;">
                 <div class="no-active">No Active Pokémon</div>
             </div>
         </div>
-        
-        <div class="bench-section">
-            <div class="section-title">Bench</div>
+
+        <div class="panel bench-section">
+            <div class="section-title"><span>Bench</span><span id="player1BenchCount"></span></div>
             <div class="bench-cards bench-5" id="player1Bench">
                 <!-- Bench slots will be dynamically generated -->
             </div>
         </div>
-        
-        <div class="prizes-section">
-            <div class="section-title">Prize Cards</div>
+
+        <div class="panel prizes-section">
+            <div class="section-title"><span>Prize Cards</span></div>
             <div class="prize-cards-container" id="player1PrizeCards">
                 <div class="prize-card"></div>
                 <div class="prize-card"></div>
@@ -593,55 +906,55 @@
                 <div class="prize-card"></div>
             </div>
         </div>
-        
-        <div class="turn-actions" id="player1Actions">
+
+        <div class="panel turn-actions" id="player1Actions">
             <div class="action-indicator" id="player1Energy">
+                <span class="action-icon" data-icon="energy"></span>
                 <span class="action-label">Energy</span>
-                <span class="action-icon">⚡</span>
             </div>
             <div class="action-indicator" id="player1Supporter">
+                <span class="action-icon" data-icon="supporter"></span>
                 <span class="action-label">Supporter</span>
-                <span class="action-icon">👤</span>
             </div>
             <div class="action-indicator" id="player1Retreat">
+                <span class="action-icon" data-icon="retreat"></span>
                 <span class="action-label">Retreat</span>
-                <span class="action-icon">↩️</span>
             </div>
         </div>
     </div>
-    
+
     <!-- Player 2 Board (Right) -->
     <div class="player-board right" id="player2Board">
-        <div class="player-header">
+        <div class="panel strong player-header">
             <div class="player-name-row">
                 <div class="player-name" id="player2Name">Player 2</div>
-                <div class="player-record" id="player2Record">0-0-0</div>
+                <div class="prize-count" id="player2Prizes">6</div>
             </div>
-            <div class="match-score" id="player2MatchScore">Games Won: 0</div>
-            <div class="player-stats">
-                <div class="stat-item">
-                    <span class="stat-label">Prizes</span>
-                    <span class="stat-value" id="player2Prizes">6</span>
-                </div>
+            <div class="player-meta-row">
+                <div class="player-record" id="player2Record">0-0-0</div>
+                <div class="match-score" id="player2MatchScore">Games Won: 0</div>
             </div>
         </div>
-        
-        <div class="active-pokemon">
-            <div class="section-title">Active Pokémon</div>
-            <div id="player2Active">
+
+        <div class="panel strong active-pokemon" id="player2ActivePanel">
+            <div class="active-banner">
+                <div class="active-banner-name" id="player2ActiveName">Active Pokémon</div>
+                <div class="active-banner-stage" id="player2ActiveStage" style="display:none"></div>
+            </div>
+            <div id="player2Active" style="flex:1; min-height:0; display:flex; flex-direction:column;">
                 <div class="no-active">No Active Pokémon</div>
             </div>
         </div>
-        
-        <div class="bench-section">
-            <div class="section-title">Bench</div>
+
+        <div class="panel bench-section">
+            <div class="section-title"><span>Bench</span><span id="player2BenchCount"></span></div>
             <div class="bench-cards bench-5" id="player2Bench">
                 <!-- Bench slots will be dynamically generated -->
             </div>
         </div>
-        
-        <div class="prizes-section">
-            <div class="section-title">Prize Cards</div>
+
+        <div class="panel prizes-section">
+            <div class="section-title"><span>Prize Cards</span></div>
             <div class="prize-cards-container" id="player2PrizeCards">
                 <div class="prize-card"></div>
                 <div class="prize-card"></div>
@@ -651,33 +964,33 @@
                 <div class="prize-card"></div>
             </div>
         </div>
-        
-        <div class="turn-actions" id="player2Actions">
+
+        <div class="panel turn-actions" id="player2Actions">
             <div class="action-indicator" id="player2Energy">
+                <span class="action-icon" data-icon="energy"></span>
                 <span class="action-label">Energy</span>
-                <span class="action-icon">⚡</span>
             </div>
             <div class="action-indicator" id="player2Supporter">
+                <span class="action-icon" data-icon="supporter"></span>
                 <span class="action-label">Supporter</span>
-                <span class="action-icon">👤</span>
             </div>
             <div class="action-indicator" id="player2Retreat">
+                <span class="action-icon" data-icon="retreat"></span>
                 <span class="action-label">Retreat</span>
-                <span class="action-icon">↩️</span>
             </div>
         </div>
     </div>
-    
+
     <!-- Match Info Bar -->
     <div class="match-info" id="matchInfo">
         <div class="match-format" id="matchFormat">BEST OF 3 • GAME 1</div>
         <div class="timer" id="matchTimer">50:00</div>
         <div class="turn-indicator" id="turnIndicator">Player 1's Turn</div>
     </div>
-    
+
     <script>
         const socket = io('http://localhost:3888');
-        
+
         let matchState = {
             player1: {
                 name: 'Player 1',
@@ -710,7 +1023,113 @@
             stadium: null,
             visible: false
         };
-        
+
+        // Structural signature per slot. Rebuilding innerHTML on every HP tick
+        // reloads images and restarts the idle-slot animations, so markup is
+        // only regenerated when the card in the slot actually changes.
+        const renderCache = { active: {}, bench: {} };
+        const lastHp = { 1: null, 2: null };
+
+        const ACTION_ICONS = {
+            energy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
+            supporter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+            retreat: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h13a4 4 0 0 1 0 8h-3"/><path d="m7 8-4 4 4 4"/></svg>`
+        };
+
+        // Pokemon energy types, longest-first so greedy matching can't clip a
+        // name short. Costs arrive concatenated, e.g. "PsychicColorless".
+        const ENERGY_COLORS = {
+            Colorless: '#e5e7eb',
+            Darkness:  '#334155',
+            Lightning: '#fcd34d',
+            Fighting:  '#c2703c',
+            Psychic:   '#a855f7',
+            Dragon:    '#c9a227',
+            Fairy:     '#f472b6',
+            Water:     '#38bdf8',
+            Metal:     '#94a3b8',
+            Grass:     '#4ade80',
+            Fire:      '#f97316'
+        };
+        const ENERGY_NAMES = Object.keys(ENERGY_COLORS).sort((a, b) => b.length - a.length);
+
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function parseEnergyCost(cost) {
+            if (!cost) return [];
+            // Array form (some callers may already have split the cost).
+            if (Array.isArray(cost)) return cost.map(c => String(c));
+
+            const pips = [];
+            let rest = String(cost);
+            while (rest.length) {
+                const match = ENERGY_NAMES.find(name => rest.startsWith(name));
+                if (match) {
+                    pips.push(match);
+                    rest = rest.slice(match.length);
+                } else {
+                    // Unrecognised token: drop one character and keep scanning
+                    // rather than looping forever on unexpected data.
+                    rest = rest.slice(1);
+                }
+            }
+            return pips;
+        }
+
+        function energyCostHTML(cost) {
+            const pips = parseEnergyCost(cost);
+            if (!pips.length) return '';
+            return `<div class="energy-cost">${pips.map(type => {
+                const color = ENERGY_COLORS[type] || '#64748b';
+                return `<span class="energy-pip" style="background:${color}" title="${escapeHtml(type)}"></span>`;
+            }).join('')}</div>`;
+        }
+
+        // Accepts either the flat attack fields or a normalised attacks array,
+        // and tolerates Pokemon placed before these fields were captured.
+        function getAttacks(pokemon) {
+            if (Array.isArray(pokemon.attacks) && pokemon.attacks.length) {
+                return pokemon.attacks
+                    .filter(a => a && a.name)
+                    .map(a => ({ name: a.name, cost: a.cost, damage: a.damage }));
+            }
+            const attacks = [];
+            for (let i = 1; i <= 3; i++) {
+                const name = pokemon[`attack${i}Name`] || pokemon[`attack${i}_name`];
+                if (!name) continue;
+                attacks.push({
+                    name,
+                    cost: pokemon[`attack${i}Cost`] || pokemon[`attack${i}_cost`],
+                    damage: pokemon[`attack${i}Damage`] || pokemon[`attack${i}_damage`]
+                });
+            }
+            return attacks;
+        }
+
+        function getAbilityName(pokemon) {
+            const value = pokemon.abilityName || pokemon.ability_name || pokemon.ability || null;
+            // `ability` is an object in the raw pokemontcg.io shape this chain
+            // exists to tolerate; stringifying it would print [object Object].
+            if (value && typeof value === 'object') return value.name || null;
+            return value;
+        }
+
+        // The `stage` column stores the whole subtypes list ("Basic, TAG TEAM,
+        // GX"), which would crowd the Pokemon name out of the banner. Broadcast
+        // convention is the single stage token, and the art already shows the
+        // rest.
+        function shortStage(stage) {
+            if (!stage) return '';
+            return String(stage).split(',')[0].trim();
+        }
+
         // Socket event handlers
         socket.on('pokemon-match-update', (data) => {
             // Update player 1
@@ -721,7 +1140,7 @@
                         matchState.player1[key] = data.player1[key];
                     }
                 });
-                
+
                 // Handle prizes specially
                 if (data.player1.prizesTaken !== undefined) {
                     matchState.player1.prizesTaken = data.player1.prizesTaken;
@@ -735,7 +1154,7 @@
                     }
                 }
             }
-            
+
             // Update player 2
             if (data.player2) {
                 // Merge basic data
@@ -744,7 +1163,7 @@
                         matchState.player2[key] = data.player2[key];
                     }
                 });
-                
+
                 // Handle prizes specially
                 if (data.player2.prizesTaken !== undefined) {
                     matchState.player2.prizesTaken = data.player2.prizesTaken;
@@ -758,7 +1177,7 @@
                     }
                 }
             }
-            
+
             // Update other data
             if (data.stadium !== undefined) {
                 matchState.stadium = data.stadium;
@@ -772,59 +1191,59 @@
             if (data.matchFormat !== undefined) {
                 matchState.matchFormat = data.matchFormat;
             }
-            
+
             // Always update display
             updateDisplay();
         });
-        
+
         socket.on('stadium-update', (data) => {
             matchState.stadium = data.stadium;
             updateStadiumDisplay();
         });
-        
+
         socket.on('record-update', (data) => {
             const player = `player${data.player}`;
             matchState[player].record = data.record;
             updatePlayerRecord(data.player);
         });
-        
+
         socket.on('match-score-update', (data) => {
             const player = `player${data.player}`;
             matchState[player].matchScore = data.score;
             updateMatchScore(data.player);
         });
-        
+
         socket.on('turn-actions-update', (data) => {
             const player = `player${data.player}`;
             matchState[player].turnActions = data.actions;
             updateTurnActions(data.player);
         });
-        
+
         socket.on('turn-actions-reset', () => {
             matchState.player1.turnActions = { energy: false, supporter: false, retreat: false };
             matchState.player2.turnActions = { energy: false, supporter: false, retreat: false };
             updateTurnActions(1);
             updateTurnActions(2);
         });
-        
+
         socket.on('bench-size-update', (data) => {
             const player = `player${data.player}`;
             matchState[player].benchSize = data.size;
             updateBenchDisplay(data.player);
         });
-        
+
         socket.on('active-pokemon', (data) => {
             const player = `player${data.player}`;
             matchState[player].active = data.pokemon;
             updateActiveDisplay(data.player);
         });
-        
+
         socket.on('bench-update', (data) => {
             const player = `player${data.player}`;
             matchState[player].bench = data.bench;
             updateBenchDisplay(data.player);
         });
-        
+
         socket.on('prize-taken', (data) => {
             const player = `player${data.player}`;
             if (!matchState[player].prizesTaken.includes(data.index)) {
@@ -834,7 +1253,7 @@
             updatePrizeDisplay(data.player);
             updatePlayerInfo(data.player);
         });
-        
+
         socket.on('prizes-reset', () => {
             matchState.player1.prizesTaken = [];
             matchState.player1.prizes = 6;
@@ -845,20 +1264,20 @@
             updatePlayerInfo(1);
             updatePlayerInfo(2);
         });
-        
+
         socket.on('turn-switch', (data) => {
             matchState.currentTurn = data.currentTurn;
             updateMatchInfo();
         });
-        
+
         socket.on('timer-start', () => {
             startTimer();
         });
-        
+
         socket.on('timer-pause', () => {
             pauseTimer();
         });
-        
+
         socket.on('timer-reset', (data) => {
             // Clear any existing timer interval
             if (matchState.timerInterval) {
@@ -890,7 +1309,7 @@
             matchState.timer = { minutes: data.minutes, seconds: data.seconds };
             updateMatchInfo();
         });
-        
+
         socket.on('match-reset', () => {
             // Preserve visibility
             const wasVisible = matchState.visible;
@@ -937,17 +1356,23 @@
                 stadium: null,
                 visible: wasVisible
             };
-            
+
+            // Drop cached markup signatures so the cleared board re-renders.
+            renderCache.active = {};
+            renderCache.bench = {};
+            lastHp[1] = null;
+            lastHp[2] = null;
+
             // Force complete update
             updateDisplay();
         });
-        
+
         socket.on('match-settings', (data) => {
             if (data.gameNumber) matchState.gameNumber = data.gameNumber;
             if (data.matchFormat) matchState.matchFormat = data.matchFormat;
             updateMatchInfo();
         });
-        
+
         socket.on('toggle-pokemon-match', (data) => {
             matchState.visible = data.show;
             if (data.show) {
@@ -956,7 +1381,7 @@
                 hideOverlay();
             }
         });
-        
+
         function showOverlay() {
             document.getElementById('player1Board').classList.add('active');
             document.getElementById('player2Board').classList.add('active');
@@ -964,14 +1389,14 @@
             // Always update stadium display when showing overlay
             updateStadiumDisplay();
         }
-        
+
         function hideOverlay() {
             document.getElementById('player1Board').classList.remove('active');
             document.getElementById('player2Board').classList.remove('active');
             document.getElementById('matchInfo').classList.remove('active');
             document.getElementById('stadiumDisplay').classList.remove('active');
         }
-        
+
         function updateDisplay() {
             // Update all player info
             updatePlayerInfo(1);
@@ -980,28 +1405,28 @@
             updatePlayerRecord(2);
             updateMatchScore(1);
             updateMatchScore(2);
-            
+
             // Update Pokemon displays
             updateActiveDisplay(1);
             updateActiveDisplay(2);
             updateBenchDisplay(1);
             updateBenchDisplay(2);
-            
+
             // Update prize displays - these are critical
             updatePrizeDisplay(1);
             updatePrizeDisplay(2);
-            
+
             // Update turn actions
             updateTurnActions(1);
             updateTurnActions(2);
-            
+
             // Update match info
             updateMatchInfo();
-            
+
             // Update stadium
             updateStadiumDisplay();
         }
-        
+
         function updateStadiumDisplay() {
             const stadiumEl = document.getElementById('stadiumDisplay');
             const stadiumImage = document.getElementById('stadiumImage');
@@ -1028,20 +1453,20 @@
                 stadiumEl.classList.remove('active');
             }
         }
-        
+
         function updatePlayerInfo(playerNum) {
             const player = matchState[`player${playerNum}`];
             const nameEl = document.getElementById(`player${playerNum}Name`);
             const prizesEl = document.getElementById(`player${playerNum}Prizes`);
-            
+
             if (nameEl) {
                 nameEl.textContent = player.name || `Player ${playerNum}`;
             }
-            
+
             if (prizesEl) {
                 // Always display as a number
                 let remainingPrizes = 6;
-                
+
                 if (typeof player.prizes === 'number') {
                     remainingPrizes = player.prizes;
                 } else if (Array.isArray(player.prizesTaken)) {
@@ -1050,28 +1475,30 @@
 
                     remainingPrizes = player.prizes.filter(p => !p).length;
                 }
-                
+
                 prizesEl.textContent = remainingPrizes;
+                // One prize left is the moment the booth calls out - flag it.
+                prizesEl.classList.toggle('last-prize', remainingPrizes === 1);
             }
         }
-        
+
         function updatePlayerRecord(playerNum) {
             const player = matchState[`player${playerNum}`];
             const record = player.record || { wins: 0, losses: 0, ties: 0 };
-            document.getElementById(`player${playerNum}Record`).textContent = 
+            document.getElementById(`player${playerNum}Record`).textContent =
                 `${record.wins}-${record.losses}-${record.ties}`;
         }
-        
+
         function updateMatchScore(playerNum) {
             const player = matchState[`player${playerNum}`];
-            document.getElementById(`player${playerNum}MatchScore`).textContent = 
+            document.getElementById(`player${playerNum}MatchScore`).textContent =
                 `Games Won: ${player.matchScore || 0}`;
         }
-        
+
         function updateTurnActions(playerNum) {
             const player = matchState[`player${playerNum}`];
             const actions = player.turnActions || { energy: false, supporter: false, retreat: false };
-            
+
             ['Energy', 'Supporter', 'Retreat'].forEach(action => {
                 const element = document.getElementById(`player${playerNum}${action}`);
                 if (actions[action.toLowerCase()]) {
@@ -1081,86 +1508,213 @@
                 }
             });
         }
-        
+
+        function buildActiveHTML(pokemon) {
+            const tools = pokemon.tools || [];
+            const toolsHTML = tools.length ? `
+                <div class="tool-attachments">
+                    ${tools.map(tool => `
+                        <div class="tool-chip">
+                            ${tool.image ? `<img src="${escapeHtml(tool.image)}" alt="${escapeHtml(tool.name)}">` : ''}
+                            <span>${escapeHtml(tool.name)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '';
+
+            const ability = getAbilityName(pokemon);
+            const abilityHTML = ability ? `
+                <div class="move-row">
+                    <span class="move-chip">Ability</span>
+                    <span class="move-name">${escapeHtml(ability)}</span>
+                </div>
+            ` : '';
+
+            // Two attacks is what fits without crowding the art above.
+            const attacksHTML = getAttacks(pokemon).slice(0, 2).map(attack => `
+                <div class="move-row">
+                    ${energyCostHTML(attack.cost)}
+                    <span class="move-name">${escapeHtml(attack.name)}</span>
+                    ${attack.damage ? `<span class="move-damage">${escapeHtml(attack.damage)}</span>` : ''}
+                </div>
+            `).join('');
+
+            const movesHTML = (abilityHTML || attacksHTML)
+                ? `<div class="move-list">${abilityHTML}${attacksHTML}</div>`
+                : '';
+
+            return `
+                <div class="active-card swap-in">
+                    <div class="card-frame">
+                        <img class="card-art" src="${escapeHtml(pokemon.image)}" alt="${escapeHtml(pokemon.name)}">
+                        ${toolsHTML}
+                    </div>
+                </div>
+                <div class="active-info">
+                    <div class="hp-row">
+                        <span class="hp-label">HP</span>
+                        <span class="hp-text"></span>
+                    </div>
+                    <div class="hp-bar">
+                        <div class="hp-fill"></div>
+                    </div>
+                    ${movesHTML}
+                </div>
+            `;
+        }
+
         function updateActiveDisplay(playerNum) {
             const player = matchState[`player${playerNum}`];
             const activeDiv = document.getElementById(`player${playerNum}Active`);
-            
-            if (player.active) {
-                const hpPercent = (player.active.currentHp / player.active.maxHp) * 100;
-                let hpClass = '';
-                if (hpPercent <= 20) hpClass = 'critical';
-                else if (hpPercent <= 50) hpClass = 'low';
+            const nameEl = document.getElementById(`player${playerNum}ActiveName`);
+            const stageEl = document.getElementById(`player${playerNum}ActiveStage`);
+            const pokemon = player.active;
 
-                const tools = player.active.tools || [];
-                const toolsHTML = tools.length ? `
-                    <div class="tool-attachments">
-                        ${tools.map(tool => `
-                            <div class="tool-chip">
-                                ${tool.image ? `<img src="${tool.image}" alt="${tool.name}">` : ''}
-                                <span>${tool.name}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : '';
-
-                activeDiv.innerHTML = `
-                    <div class="active-card">
-                        <img src="${player.active.image}" alt="${player.active.name}">
-                        ${toolsHTML}
-                        <div class="hp-overlay">
-                            <div class="hp-text">${player.active.currentHp}/${player.active.maxHp} HP</div>
-                            <div class="hp-bar">
-                                <div class="hp-fill ${hpClass}" style="width: ${hpPercent}%"></div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            } else {
-                activeDiv.innerHTML = '<div class="no-active">No Active Pokémon</div>';
+            if (!pokemon) {
+                if (renderCache.active[playerNum] !== 'empty') {
+                    activeDiv.innerHTML = '<div class="no-active">No Active Pokémon</div>';
+                    renderCache.active[playerNum] = 'empty';
+                }
+                nameEl.textContent = 'Active Pokémon';
+                stageEl.style.display = 'none';
+                lastHp[playerNum] = null;
+                return;
             }
+
+            nameEl.textContent = pokemon.name || 'Active Pokémon';
+            const stage = shortStage(pokemon.stage || pokemon.subtype);
+            stageEl.textContent = stage;
+            stageEl.style.display = stage ? '' : 'none';
+
+            // Rebuild only when the card itself changes - HP swings alone must
+            // not reload the art or replay the entrance animation. `uid` is a
+            // per-placement token, so promoting a second copy of the same card
+            // off the bench still counts as a new Pokemon.
+            const signature = [
+                pokemon.uid, pokemon.id, pokemon.name, pokemon.image, pokemon.maxHp,
+                (pokemon.tools || []).map(t => t.id || t.name).join(','),
+                getAbilityName(pokemon),
+                getAttacks(pokemon).map(a => `${a.name}:${a.cost}:${a.damage}`).join('|')
+            ].join('~');
+
+            if (renderCache.active[playerNum] !== signature) {
+                activeDiv.innerHTML = buildActiveHTML(pokemon);
+                renderCache.active[playerNum] = signature;
+                lastHp[playerNum] = null;
+            }
+
+            const maxHp = Number(pokemon.maxHp) || 0;
+            const currentHp = Number(pokemon.currentHp) || 0;
+            const hpPercent = maxHp > 0 ? Math.max(0, Math.min(100, (currentHp / maxHp) * 100)) : 0;
+
+            const hpText = activeDiv.querySelector('.hp-text');
+            const hpFill = activeDiv.querySelector('.hp-fill');
+            if (hpText) hpText.textContent = `${currentHp}/${maxHp}`;
+            if (hpFill) {
+                hpFill.style.width = `${hpPercent}%`;
+                hpFill.classList.toggle('critical', hpPercent <= 20);
+                hpFill.classList.toggle('low', hpPercent > 20 && hpPercent <= 50);
+            }
+
+            // Damage / heal ticker. It anchors to .active-info, not to .hp-bar:
+            // the bar clips its overflow to keep the fill inside its radius, and
+            // the ticker sits above the bar, so the bar would clip it entirely.
+            const previous = lastHp[playerNum];
+            if (previous !== null && previous !== currentHp) {
+                const delta = currentHp - previous;
+                const anchor = activeDiv.querySelector('.active-info');
+                if (anchor) {
+                    const pop = document.createElement('div');
+                    pop.className = delta > 0 ? 'dmg-pop heal' : 'dmg-pop';
+                    pop.textContent = delta > 0 ? `+${delta}` : `${delta}`;
+                    anchor.appendChild(pop);
+                    setTimeout(() => pop.remove(), 1100);
+                }
+            }
+            lastHp[playerNum] = currentHp;
         }
-        
+
         function updateBenchDisplay(playerNum) {
             const player = matchState[`player${playerNum}`];
             const benchDiv = document.getElementById(`player${playerNum}Bench`);
             const benchSize = player.benchSize || 5;
-            
-            // Update bench size class
-            benchDiv.className = `bench-cards bench-${benchSize}`;
-            
-            let benchHTML = '';
-            for (let i = 0; i < benchSize; i++) {
-                if (player.bench[i]) {
-                    const pokemon = player.bench[i];
-                    benchHTML += `
-                        <div class="bench-slot">
-                            <img src="${pokemon.image}" alt="${pokemon.name}">
-                            <div class="bench-hp">${pokemon.currentHp}/${pokemon.maxHp}</div>
-                        </div>
-                    `;
-                } else {
-                    benchHTML += '<div class="bench-slot empty"></div>';
-                }
+            const bench = player.bench || [];
+
+            const benchCount = document.getElementById(`player${playerNum}BenchCount`);
+            if (benchCount) {
+                const filled = bench.slice(0, benchSize).filter(Boolean).length;
+                benchCount.textContent = `${filled}/${benchSize}`;
             }
-            
-            benchDiv.innerHTML = benchHTML;
+
+            const signature = [
+                benchSize,
+                ...Array.from({ length: benchSize }, (_, i) => {
+                    const p = bench[i];
+                    return p ? `${p.id || p.name}:${p.image}:${p.maxHp}` : '-';
+                })
+            ].join('~');
+
+            // Regenerating markup restarts the idle-slot Pokeball animation, so
+            // only rebuild when the bench contents actually change.
+            if (renderCache.bench[playerNum] !== signature) {
+                benchDiv.className = `bench-cards bench-${benchSize}`;
+
+                let benchHTML = '';
+                for (let i = 0; i < benchSize; i++) {
+                    if (bench[i]) {
+                        const pokemon = bench[i];
+                        benchHTML += `
+                            <div class="bench-slot filled" data-slot="${i}">
+                                <img src="${escapeHtml(pokemon.image)}" alt="${escapeHtml(pokemon.name)}">
+                                <div class="bench-hp"></div>
+                                <div class="bench-hp-bar"><div class="bench-hp-fill"></div></div>
+                            </div>
+                        `;
+                    } else {
+                        // Negative delay starts each idle slot part-way through
+                        // the drift, so they never march across in step.
+                        benchHTML += `<div class="bench-slot empty" data-slot="${i}" style="--drift-delay:-${(i * 1.7).toFixed(1)}s"></div>`;
+                    }
+                }
+
+                benchDiv.innerHTML = benchHTML;
+                renderCache.bench[playerNum] = signature;
+            }
+
+            // HP updates in place - no markup churn.
+            benchDiv.querySelectorAll('.bench-slot.filled').forEach(slot => {
+                const pokemon = bench[Number(slot.dataset.slot)];
+                if (!pokemon) return;
+                const maxHp = Number(pokemon.maxHp) || 0;
+                const currentHp = Number(pokemon.currentHp) || 0;
+                const percent = maxHp > 0 ? Math.max(0, Math.min(100, (currentHp / maxHp) * 100)) : 0;
+
+                const text = slot.querySelector('.bench-hp');
+                const fill = slot.querySelector('.bench-hp-fill');
+                if (text) text.textContent = `${currentHp}/${maxHp}`;
+                if (fill) {
+                    fill.style.width = `${percent}%`;
+                    fill.classList.toggle('critical', percent <= 20);
+                    fill.classList.toggle('low', percent > 20 && percent <= 50);
+                }
+                slot.classList.toggle('hurt', percent <= 50);
+            });
         }
-        
+
         function updatePrizeDisplay(playerNum) {
             const player = matchState[`player${playerNum}`];
             const prizeContainer = document.getElementById(`player${playerNum}PrizeCards`); // This is the correct ID
-            
+
             if (!prizeContainer) {
                 console.error(`Prize container not found for player ${playerNum}`);
                 return;
             }
-            
+
             const prizeCards = prizeContainer.querySelectorAll('.prize-card');
-            
+
             // Clear all taken states first
             prizeCards.forEach(card => card.classList.remove('taken'));
-            
+
             // Handle prizesTaken array (preferred format)
             if (player.prizesTaken && Array.isArray(player.prizesTaken)) {
                 prizeCards.forEach((card, index) => {
@@ -1168,7 +1722,7 @@
                         card.classList.add('taken');
                     }
                 });
-            } 
+            }
             // Handle old boolean array format
             else if (Array.isArray(player.prizes) && typeof player.prizes[0] === 'boolean') {
                 prizeCards.forEach((card, index) => {
@@ -1176,7 +1730,7 @@
                         card.classList.add('taken');
                     }
                 });
-            } 
+            }
             // Handle simple prize count
             else if (typeof player.prizes === 'number') {
                 const takenCount = 6 - player.prizes;
@@ -1186,28 +1740,37 @@
                     }
                 });
             }
-            
+
             // Always update the count display
             updatePlayerInfo(playerNum);
         }
-        
+
         function updateMatchInfo() {
             const timer = document.getElementById('matchTimer');
             const minutes = String(matchState.timer.minutes).padStart(2, '0');
             const seconds = String(matchState.timer.seconds).padStart(2, '0');
             timer.textContent = `${minutes}:${seconds}`;
-            
+            timer.classList.toggle('expiring', matchState.timer.minutes === 0);
+
             const turnIndicator = document.getElementById('turnIndicator');
             const currentPlayerName = matchState[`player${matchState.currentTurn}`].name;
             turnIndicator.textContent = `${currentPlayerName}'s Turn`;
-            
+
             const format = document.getElementById('matchFormat');
             format.textContent = `${matchState.matchFormat.toUpperCase()} • GAME ${matchState.gameNumber}`;
+
+            // Lift the board whose turn it is; settle the other one back.
+            [1, 2].forEach(num => {
+                const board = document.getElementById(`player${num}Board`);
+                const isActive = matchState.currentTurn === num;
+                board.classList.toggle('active-turn', isActive);
+                board.classList.toggle('idle-turn', !isActive);
+            });
         }
-        
+
         function startTimer() {
             if (matchState.timerInterval) return;
-            
+
             matchState.timerInterval = setInterval(() => {
                 if (matchState.timer.seconds > 0) {
                     matchState.timer.seconds--;
@@ -1220,17 +1783,22 @@
                 updateMatchInfo();
             }, 1000);
         }
-        
+
         function pauseTimer() {
             if (matchState.timerInterval) {
                 clearInterval(matchState.timerInterval);
                 matchState.timerInterval = null;
             }
         }
-        
+
+        // Paint the action icons once - they never change after load.
+        document.querySelectorAll('.action-icon[data-icon]').forEach(el => {
+            el.innerHTML = ACTION_ICONS[el.dataset.icon] || '';
+        });
+
         // Initialize display
         updateDisplay();
-        
+
         // Register as overlay
         socket.emit('register-overlay', 'pokemon-match');
 
@@ -1239,7 +1807,7 @@
             socket.emit('request-state', 'pokemon-match');
             showOverlay();
         }, 500);
-        
+
         // Ping connection status periodically
         setInterval(() => {
             socket.emit('register-overlay', 'pokemon-match');

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-29
+
+### Added
+- Every match overlay now shows at a glance whose turn it is. The active player's board carries a lit accent rail along its inner edge and a soft glow on its main panels, while the other side settles back slightly. The rail is either there or it is not, which reads on stream in a way a brightness difference does not when the two boards sit at opposite edges of the screen in different colours.
+- Empty board slots are no longer blank dashed boxes. Each game drifts its own quiet motif through them - a Pokeball for Pokemon, a zone diamond for Yu-Gi-Oh, an ink drop for Lorcana, a hexagon for Digimon, a ship's helm for One Piece, a targeting reticle for Gundam and a mana circle for Magic. They are slow, dim and staggered so no two slots move in step.
+- The Pokemon overlay prints the Active Pokemon's ability and attacks at a readable size beneath the card, with the energy cost of each attack drawn as coloured pips and the damage aligned on the right. The card's own printed text is far too small to read at overlay scale, and smaller still after streaming compression. The Pokemon's name and stage now head the panel in their own banner.
+- Depleting counters are drawn as artwork rather than plain rectangles: Pokemon prize cards as Pokeballs, Gundam shields as shields, One Piece life and Digimon security as face-down cards in each player's colour. A spent counter fades out instead of being stamped with a red cross, which read as an error rather than as a point scored.
+- Life, HP and memory changes briefly show the amount that changed, and a resource in a critical state pulses gently. The last minute on the clock turns red.
+
+### Fixed
+- The active-player indicator reverted to player one a few seconds after every turn switch. The server passed the switch along to the overlays but never recorded it, so the state it replays to each overlay every five seconds still carried the previous turn and quietly undid the change. With the control page closed, the wrong player would stay highlighted for the rest of the session. This affected every game except Pokemon.
+- A card whose artwork failed to load would retry forever - several thousand requests in a few seconds - because the fallback image every page falls back to was never actually shipped. The fallback card back now exists, so a missing image settles immediately on a placeholder.
+- Overlays no longer flicker when a counter changes. Updating a life total, HP value or resource count used to rebuild the whole section, which reloaded every card image in it and restarted its animations. Only the parts that actually changed are redrawn now.
+- Bench HP labels lost their last digit on a seven-slot Pokemon bench, so a Pokemon on 280 of 280 HP read as 280 of 28. Long player names, card names and attack names now shorten with an ellipsis instead of pushing other information out of the panel.
+- The Pokemon Active card is no longer clipped along its bottom edge, and an attached tool no longer covers the card's own name.
+- Seven-slot Pokemon benches were wider than the panel holding them.
+- Magic overlays no longer stop updating if the match state arrives without one of the players, and card names containing quotes or ampersands no longer break the board.
+- Attaching a pilot in Gundam, or editing a Leader's power in One Piece, no longer reloads the card artwork.
+
 ## [2.1.0] - 2026-08-18
 
 ### Added
